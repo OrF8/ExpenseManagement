@@ -11,6 +11,7 @@ import {
   updateDoc,
   deleteDoc,
   getDoc,
+  getDocs,
   query,
   where,
   onSnapshot,
@@ -55,10 +56,39 @@ export function subscribeToBoards(uid, onData, onError) {
       onData(boards);
     },
     (err) => {
-      console.error('[boards] subscription error:', err);
+      console.error('[boards] subscription error:', {
+        code: err?.code,
+        message: err?.message,
+        name: err?.name,
+      });
       onError(err);
     }
   );
+}
+
+/**
+ * One-time fetch of all boards visible to the user (same query as the
+ * subscription). Use this to verify Firestore access outside of a listener —
+ * any permission or rules mismatch will surface here as a thrown error.
+ * @param {string} uid - User UID
+ * @returns {Promise<Array<{id: string, ...}>>}
+ */
+export async function fetchBoardsOnce(uid) {
+  console.log('[boards] fetchBoardsOnce for uid:', uid);
+  try {
+    const q = query(boardsRef(), where('memberUids', 'array-contains', uid));
+    const snap = await getDocs(q);
+    const boards = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    console.log('[boards] fetchBoardsOnce result:', boards);
+    return boards;
+  } catch (err) {
+    console.error('[boards] fetchBoardsOnce error:', {
+      code: err?.code,
+      message: err?.message,
+      name: err?.name,
+    });
+    throw err;
+  }
 }
 
 /**
