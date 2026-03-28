@@ -44,14 +44,20 @@ export async function createBoard(title, uid) {
  * @returns {function} Unsubscribe function
  */
 export function subscribeToBoards(uid, onData, onError) {
+  console.log('[boards] subscribing for uid:', uid);
   const q = query(boardsRef(), where('memberUids', 'array-contains', uid));
   return onSnapshot(
     q,
     (snap) => {
+      console.log('[boards] snapshot size:', snap.size);
       const boards = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      console.log('[boards] mapped boards:', boards);
       onData(boards);
     },
-    onError
+    (err) => {
+      console.error('[boards] subscription error:', err);
+      onError(err);
+    }
   );
 }
 
