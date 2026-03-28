@@ -1,6 +1,8 @@
-import { useEffect } from 'react';
+import { useEffect, useId } from 'react';
 
 export function Modal({ isOpen, onClose, title, children }) {
+  const titleId = useId();
+
   useEffect(() => {
     if (!isOpen) return;
     const handler = (e) => e.key === 'Escape' && onClose();
@@ -15,6 +17,7 @@ export function Modal({ isOpen, onClose, title, children }) {
       className="fixed inset-0 z-50 flex items-center justify-center p-4"
       role="dialog"
       aria-modal="true"
+      aria-labelledby={titleId}
     >
       <div
         className="absolute inset-0 bg-black/40 backdrop-blur-sm"
@@ -22,7 +25,9 @@ export function Modal({ isOpen, onClose, title, children }) {
       />
       <div className="relative z-10 w-full max-w-lg rounded-2xl bg-white shadow-xl">
         <div className="flex items-center justify-between border-b border-gray-100 px-6 py-4">
-          <h2 className="text-lg font-semibold text-gray-900">{title}</h2>
+          <h2 id={titleId} className="text-lg font-semibold text-gray-900">
+            {title}
+          </h2>
           <button
             onClick={onClose}
             className="rounded-lg p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"

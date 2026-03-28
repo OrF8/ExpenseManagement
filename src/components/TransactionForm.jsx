@@ -64,6 +64,7 @@ export function TransactionForm({ initial, onSubmit, onCancel, submitting }) {
       : EMPTY_FORM
   );
   const [errors, setErrors] = useState({});
+  const [submitError, setSubmitError] = useState(null);
 
   function handleChange(e) {
     const { name, value } = e.target;
@@ -71,7 +72,7 @@ export function TransactionForm({ initial, onSubmit, onCancel, submitting }) {
     if (errors[name]) setErrors((e) => ({ ...e, [name]: undefined }));
   }
 
-  function handleSubmit(e) {
+  async function handleSubmit(e) {
     e.preventDefault();
     const errs = validate(form);
     if (Object.keys(errs).length > 0) {
@@ -92,7 +93,12 @@ export function TransactionForm({ initial, onSubmit, onCancel, submitting }) {
           ? parseInt(form.installmentTotal, 10)
           : null,
     };
-    onSubmit(data);
+    try {
+      setSubmitError(null);
+      await onSubmit(data);
+    } catch (err) {
+      setSubmitError(err.message || 'שגיאה בשמירת העסקה. נסה שוב.');
+    }
   }
 
   return (
@@ -173,6 +179,11 @@ export function TransactionForm({ initial, onSubmit, onCancel, submitting }) {
           {initial ? 'עדכן עסקה' : 'הוסף עסקה'}
         </Button>
       </div>
+      {submitError && (
+        <p className="text-sm text-red-500 text-center" role="alert" aria-live="polite">
+          {submitError}
+        </p>
+      )}
     </form>
   );
 }

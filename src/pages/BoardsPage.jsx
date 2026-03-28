@@ -38,8 +38,14 @@ export function BoardsPage() {
     }
   }
 
-  function handleSignOut() {
-    logOut();
+  const [signOutError, setSignOutError] = useState(null);
+
+  async function handleSignOut() {
+    try {
+      await logOut();
+    } catch (err) {
+      setSignOutError(err.message || 'שגיאה ביציאה. נסה שוב.');
+    }
   }
 
   return (
@@ -75,9 +81,9 @@ export function BoardsPage() {
           </Button>
         </div>
 
-        {error && (
+        {(error || signOutError) && (
           <div className="mb-4 rounded-xl bg-red-50 border border-red-100 px-4 py-3 text-sm text-red-600">
-            שגיאה בטעינת הלוחות: {error}
+            {error ? `שגיאה בטעינת הלוחות: ${error}` : signOutError}
           </div>
         )}
 

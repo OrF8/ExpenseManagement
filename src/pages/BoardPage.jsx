@@ -55,6 +55,7 @@ export function BoardPage() {
     } finally {
       setSubmitting(false);
     }
+    // Let errors propagate so TransactionForm can display them
   }
 
   async function handleEdit(data) {
@@ -65,10 +66,12 @@ export function BoardPage() {
     } finally {
       setSubmitting(false);
     }
+    // Let errors propagate so TransactionForm can display them
   }
 
   async function handleDelete(txId) {
     await deleteTransaction(boardId, txId);
+    // Errors propagate to TransactionCard for display
   }
 
   if (boardLoading) {

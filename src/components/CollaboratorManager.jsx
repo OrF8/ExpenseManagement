@@ -3,7 +3,7 @@
  * Allows adding collaborators by UID.
  * Architecture is designed to support email-based lookup in the future.
  */
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { addCollaborator } from '../firebase/boards';
 import { Input } from './ui/Input';
 import { Button } from './ui/Button';
@@ -13,6 +13,14 @@ export function CollaboratorManager({ board }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(false);
+  const successTimerRef = useRef(null);
+
+  // Clear the success timer when the component unmounts
+  useEffect(() => {
+    return () => {
+      if (successTimerRef.current) clearTimeout(successTimerRef.current);
+    };
+  }, []);
 
   async function handleAdd(e) {
     e.preventDefault();
@@ -29,7 +37,8 @@ export function CollaboratorManager({ board }) {
       await addCollaborator(board.id, trimmed);
       setUid('');
       setSuccess(true);
-      setTimeout(() => setSuccess(false), 3000);
+      if (successTimerRef.current) clearTimeout(successTimerRef.current);
+      successTimerRef.current = setTimeout(() => setSuccess(false), 3000);
     } catch (err) {
       setError(err.message);
     } finally {
