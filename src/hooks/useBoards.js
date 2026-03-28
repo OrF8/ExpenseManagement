@@ -8,62 +8,45 @@
  * subscription terminates. We retry automatically so that newly created
  * boards appear as soon as they exist.
  */
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { subscribeToBoards } from '../firebase/boards';
 import { useAuth } from '../context/AuthContext';
 
-const RETRY_DELAY_MS = 2000;
-
 export function useBoards() {
   const { user } = useAuth();
-  // forUid tracks which user's data is currently in state
-  const [state, setState] = useState({ boards: [], error: null, forUid: null });
-  const retryTimerRef = useRef(null);
+  const [boards, setBoards] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
-    if (!user) return;
-
-    let unsubscribe;
-
-    function subscribe() {
-      unsubscribe = subscribeToBoards(
-        user.uid,
-        (data) => {
-          if (retryTimerRef.current) {
-            clearTimeout(retryTimerRef.current);
-            retryTimerRef.current = null;
-          }
-          setState({ boards: data, error: null, forUid: user.uid });
-        },
-        (err) => {
-          // Firestore emits `permission-denied` for array-contains queries
-          // when the user has no boards yet. Treat it as an empty result and
-          // retry so that boards created after the initial load appear.
-          if (err.code === 'permission-denied') {
-            setState({ boards: [], error: null, forUid: user.uid });
-            retryTimerRef.current = setTimeout(subscribe, RETRY_DELAY_MS);
-          } else {
-            setState({ boards: [], error: err.message, forUid: user.uid });
-          }
-        }
-      );
+    if (!user?.uid) {
+      setBoards([]);
+      setLoading(false);
+      setError(null);
+      return;
     }
 
-    subscribe();
+    setLoading(true);
+    setError(null);
 
-    return () => {
-      if (unsubscribe) unsubscribe();
-      if (retryTimerRef.current) {
-        clearTimeout(retryTimerRef.current);
-        retryTimerRef.current = null;
+    const unsubscribe = subscribeToBoards(
+      user.uid,
+      (data) => {
+        console.log('Boards snapshot:', data);
+        setBoards(data);
+        setError(null);
+        setLoading(false);
+      },
+      (err) => {
+        console.error('Boards subscription error:', err);
+        setBoards([]);
+        setError(err?.message || 'שגיאה בטעינת הלוחות');
+        setLoading(false);
       }
-    };
-  }, [user]);
+    );
 
-  // loading while the subscription hasn't returned data for the current user yet
-  const loading = !!user && state.forUid !== user.uid;
-  const boards = state.forUid === user?.uid ? state.boards : [];
-  const error = state.forUid === user?.uid ? state.error : null;
+    return () => unsubscribe();
+  }, [user?.uid]);
 
   return { boards, loading, error };
 }
