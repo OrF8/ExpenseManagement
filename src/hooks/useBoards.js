@@ -22,17 +22,11 @@ export function useBoards() {
     const unsubscribe = subscribeToBoards(
       user.uid,
       (data) => {
-        console.log('[boards] snapshot:', data);
         setBoards(data);
         setError(null);
         setLoading(false);
       },
       (err) => {
-        console.error('[boards] subscription error:', {
-          code: err?.code,
-          message: err?.message,
-          name: err?.name,
-        });
         setBoards([]);
         setError(err?.message || 'שגיאה בטעינת הלוחות');
         setLoading(false);

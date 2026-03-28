@@ -65,17 +65,28 @@ npm run preview
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
     match /boards/{boardId} {
-      allow read, write: if request.auth != null
-        && request.auth.uid in resource.data.memberUids;
-      allow create: if request.auth != null
-        && request.auth.uid == request.resource.data.ownerUid
+      allow create: if signedIn()
+        && request.resource.data.ownerUid == request.auth.uid
         && request.auth.uid in request.resource.data.memberUids;
 
-      match /transactions/{transactionId} {
-        allow read, write: if request.auth != null
-          && request.auth.uid in get(/databases/$(database)/documents/boards/$(boardId)).data.memberUids;
-      }
+      allow read: if signedIn()
+        && request.auth.uid in resource.data.memberUids;
+
+      allow update, delete: if signedIn()
+        && resource.data.ownerUid == request.auth.uid;
+    }
+
+    match /boards/{boardId}/transactions/{transactionId} {
+      allow read, create, update, delete: if signedIn()
+        && request.auth.uid in get(
+          /databases/$(database)/documents/boards/$(boardId)
+        ).data.memberUids;
     }
   }
 }
