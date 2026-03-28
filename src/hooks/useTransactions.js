@@ -6,25 +6,20 @@ import { subscribeToTransactions } from '../firebase/transactions';
 
 export function useTransactions(boardId) {
   const [transactions, setTransactions] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    if (!boardId) {
-      setTransactions([]);
-      setLoading(false);
-      return;
-    }
-    setLoading(true);
+    if (!boardId) return;
     const unsub = subscribeToTransactions(
       boardId,
       (data) => {
         setTransactions(data);
-        setLoading(false);
+        setLoaded(true);
       },
       (err) => {
         setError(err.message);
-        setLoading(false);
+        setLoaded(true);
       }
     );
     return unsub;
@@ -45,5 +40,5 @@ export function useTransactions(boardId) {
     return { perCard, grandTotal };
   }, [transactions]);
 
-  return { transactions, loading, error, totals };
+  return { transactions, loading: !!boardId && !loaded, error, totals };
 }

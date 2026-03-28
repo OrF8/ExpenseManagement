@@ -27,6 +27,7 @@ export function AuthProvider({ children }) {
 }
 
 /** Hook to access current auth state */
+// eslint-disable-next-line react-refresh/only-export-components
 export function useAuth() {
   return useContext(AuthContext);
 }

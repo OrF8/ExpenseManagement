@@ -8,29 +8,26 @@ import { useAuth } from '../context/AuthContext';
 export function useBoards() {
   const { user } = useAuth();
   const [boards, setBoards] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    if (!user) {
-      setBoards([]);
-      setLoading(false);
-      return;
-    }
-    setLoading(true);
+    if (!user) return;
     const unsub = subscribeToBoards(
       user.uid,
       (data) => {
         setBoards(data);
-        setLoading(false);
+        setLoaded(true);
       },
       (err) => {
         setError(err.message);
-        setLoading(false);
+        setLoaded(true);
       }
     );
     return unsub;
   }, [user]);
 
+  // loading is true while user exists but data hasn't arrived yet
+  const loading = !!user && !loaded;
   return { boards, loading, error };
 }
