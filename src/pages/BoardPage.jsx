@@ -11,6 +11,7 @@ import { Button } from '../components/ui/Button';
 import { Spinner } from '../components/ui/Spinner';
 import { EmptyState } from '../components/ui/EmptyState';
 import { Modal } from '../components/ui/Modal';
+import { ThemeToggle } from '../components/ui/ThemeToggle';
 import { TransactionForm } from '../components/TransactionForm';
 import { TransactionCard } from '../components/TransactionCard';
 import { TotalsSummary } from '../components/TotalsSummary';
@@ -76,7 +77,7 @@ export function BoardPage() {
 
   if (boardLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center dark:bg-gray-950">
         <Spinner size="lg" />
       </div>
     );
@@ -84,9 +85,9 @@ export function BoardPage() {
 
   if (boardError) {
     return (
-      <div className="min-h-screen flex items-center justify-center px-4">
+      <div className="min-h-screen flex items-center justify-center px-4 dark:bg-gray-950">
         <div className="text-center">
-          <p className="text-red-500 mb-4">{boardError}</p>
+          <p className="text-red-500 dark:text-red-400 mb-4">{boardError}</p>
           <Button variant="secondary" onClick={() => navigate('/')}>חזרה</Button>
         </div>
       </div>
@@ -94,23 +95,24 @@ export function BoardPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
       {/* Header */}
-      <header className="bg-white border-b border-gray-100 sticky top-0 z-10">
+      <header className="bg-white dark:bg-gray-900 border-b border-gray-100 dark:border-gray-800 sticky top-0 z-10">
         <div className="max-w-3xl mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <button
               onClick={() => navigate('/')}
-              className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"
+              className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
               aria-label="חזרה"
             >
               <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
               </svg>
             </button>
-            <h1 className="text-lg font-semibold text-gray-900">{board?.title}</h1>
+            <h1 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{board?.title}</h1>
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-2 items-center">
+            <ThemeToggle />
             <Button
               variant="secondary"
               size="sm"
@@ -138,12 +140,12 @@ export function BoardPage() {
 
         {/* Transactions */}
         <div>
-          <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">
+          <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-3">
             עסקאות
           </h2>
 
           {error && (
-            <div className="mb-4 rounded-xl bg-red-50 border border-red-100 px-4 py-3 text-sm text-red-600">
+            <div className="mb-4 rounded-xl bg-red-50 dark:bg-red-900/30 border border-red-100 dark:border-red-800 px-4 py-3 text-sm text-red-600 dark:text-red-400">
               שגיאה בטעינת עסקאות: {error}
             </div>
           )}

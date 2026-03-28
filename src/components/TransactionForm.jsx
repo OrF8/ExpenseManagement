@@ -142,8 +142,8 @@ export function TransactionForm({ initial, onSubmit, onCancel, submitting }) {
         placeholder="0.00"
         error={errors.amount}
       />
-      <div className="rounded-xl bg-gray-50 p-4 border border-gray-100">
-        <p className="text-sm font-medium text-gray-600 mb-3">
+      <div className="rounded-xl bg-gray-50 dark:bg-gray-800/50 p-4 border border-gray-100 dark:border-gray-700">
+        <p className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-3">
           פירוט תשלומים (אופציונלי)
         </p>
         <div className="grid grid-cols-2 gap-4">

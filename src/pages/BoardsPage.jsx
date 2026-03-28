@@ -12,6 +12,7 @@ import { Spinner } from '../components/ui/Spinner';
 import { EmptyState } from '../components/ui/EmptyState';
 import { Input } from '../components/ui/Input';
 import { Modal } from '../components/ui/Modal';
+import { ThemeToggle } from '../components/ui/ThemeToggle';
 
 export function BoardsPage() {
   const { user } = useAuth();
@@ -49,20 +50,21 @@ export function BoardsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
       {/* Header */}
-      <header className="bg-white border-b border-gray-100 sticky top-0 z-10">
+      <header className="bg-white dark:bg-gray-900 border-b border-gray-100 dark:border-gray-800 sticky top-0 z-10">
         <div className="max-w-3xl mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="h-8 w-8 rounded-xl bg-indigo-600 text-white flex items-center justify-center text-sm font-bold">
               ₪
             </div>
-            <h1 className="text-lg font-semibold text-gray-900">ניהול הוצאות</h1>
+            <h1 className="text-lg font-semibold text-gray-900 dark:text-gray-100">ניהול הוצאות</h1>
           </div>
           <div className="flex items-center gap-3">
-            <span className="text-xs text-gray-500 hidden sm:block">
+            <span className="text-xs text-gray-500 dark:text-gray-400 hidden sm:block">
               {user?.email}
             </span>
+            <ThemeToggle />
             <Button variant="ghost" size="sm" onClick={handleSignOut}>
               יציאה
             </Button>
@@ -72,7 +74,7 @@ export function BoardsPage() {
 
       <main className="max-w-3xl mx-auto px-4 py-8">
         <div className="flex items-center justify-between mb-6">
-          <h2 className="text-xl font-bold text-gray-900">הלוחות שלי</h2>
+          <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">הלוחות שלי</h2>
           <Button onClick={() => setShowCreate(true)} size="sm">
             <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -82,7 +84,7 @@ export function BoardsPage() {
         </div>
 
         {(error || signOutError) && (
-          <div className="mb-4 rounded-xl bg-red-50 border border-red-100 px-4 py-3 text-sm text-red-600">
+          <div className="mb-4 rounded-xl bg-red-50 dark:bg-red-900/30 border border-red-100 dark:border-red-800 px-4 py-3 text-sm text-red-600 dark:text-red-400">
             {error ? `שגיאה בטעינת הלוחות: ${error}` : signOutError}
           </div>
         )}
@@ -112,19 +114,19 @@ export function BoardsPage() {
               <Link
                 key={board.id}
                 to={`/board/${board.id}`}
-                className="group block rounded-2xl bg-white border border-gray-100 p-5 shadow-sm hover:shadow-md hover:border-indigo-100 transition-all"
+                className="group block rounded-2xl bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 p-5 shadow-sm hover:shadow-md hover:border-indigo-100 dark:hover:border-indigo-700 transition-all"
               >
                 <div className="flex items-start justify-between mb-3">
-                  <h3 className="font-semibold text-gray-900 group-hover:text-indigo-700 transition-colors">
+                  <h3 className="font-semibold text-gray-900 dark:text-gray-100 group-hover:text-indigo-700 dark:group-hover:text-indigo-400 transition-colors">
                     {board.title}
                   </h3>
-                  <div className="h-8 w-8 rounded-xl bg-indigo-50 flex items-center justify-center">
-                    <svg className="h-4 w-4 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <div className="h-8 w-8 rounded-xl bg-indigo-50 dark:bg-indigo-900/50 flex items-center justify-center">
+                    <svg className="h-4 w-4 text-indigo-500 dark:text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2" />
                     </svg>
                   </div>
                 </div>
-                <p className="text-xs text-gray-400">
+                <p className="text-xs text-gray-400 dark:text-gray-500">
                   {board.memberUids.length} משתתפים
                 </p>
               </Link>
@@ -148,7 +150,7 @@ export function BoardsPage() {
             autoFocus
           />
           {createError && (
-            <p className="text-sm text-red-500">{createError}</p>
+            <p className="text-sm text-red-500 dark:text-red-400">{createError}</p>
           )}
           <div className="flex gap-3 justify-end">
             <Button

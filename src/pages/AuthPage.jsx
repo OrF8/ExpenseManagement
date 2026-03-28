@@ -62,19 +62,19 @@ export function AuthPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-white to-indigo-50 px-4">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-white to-indigo-50 dark:from-gray-950 dark:via-gray-900 dark:to-slate-900 px-4">
       <div className="w-full max-w-sm">
         <div className="mb-8 text-center">
-          <div className="inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-indigo-600 text-white text-2xl font-bold mb-4 shadow-lg shadow-indigo-200">
+          <div className="inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-indigo-600 text-white text-2xl font-bold mb-4 shadow-lg shadow-indigo-200 dark:shadow-indigo-900">
             ₪
           </div>
-          <h1 className="text-2xl font-bold text-gray-900">ניהול הוצאות</h1>
-          <p className="text-sm text-gray-500 mt-1">מעקב פשוט אחרי הוצאות משותפות</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">ניהול הוצאות</h1>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">מעקב פשוט אחרי הוצאות משותפות</p>
         </div>
 
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-6">
           {/* Tabs */}
-          <div className="flex rounded-xl bg-gray-50 p-1 mb-6">
+          <div className="flex rounded-xl bg-gray-50 dark:bg-gray-900 p-1 mb-6">
             {[
               { id: 'signin', label: 'התחברות' },
               { id: 'signup', label: 'הרשמה' },
@@ -84,8 +84,8 @@ export function AuthPage() {
                 onClick={() => { setTab(t.id); setError(null); }}
                 className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-all ${
                   tab === t.id
-                    ? 'bg-white text-indigo-600 shadow-sm'
-                    : 'text-gray-500 hover:text-gray-700'
+                    ? 'bg-white dark:bg-gray-700 text-indigo-600 dark:text-indigo-400 shadow-sm'
+                    : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
                 }`}
               >
                 {t.label}
@@ -94,7 +94,7 @@ export function AuthPage() {
           </div>
 
           {error && (
-            <div className="mb-4 rounded-lg bg-red-50 border border-red-100 px-3 py-2.5 text-sm text-red-600">
+            <div className="mb-4 rounded-lg bg-red-50 dark:bg-red-900/30 border border-red-100 dark:border-red-800 px-3 py-2.5 text-sm text-red-600 dark:text-red-400">
               {error}
             </div>
           )}
@@ -125,10 +125,10 @@ export function AuthPage() {
 
           <div className="relative my-5">
             <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-gray-100" />
+              <div className="w-full border-t border-gray-100 dark:border-gray-700" />
             </div>
             <div className="relative flex justify-center">
-              <span className="bg-white px-3 text-xs text-gray-400">או</span>
+              <span className="bg-white dark:bg-gray-800 px-3 text-xs text-gray-400 dark:text-gray-500">או</span>
             </div>
           </div>
 

@@ -65,27 +65,27 @@ export function CollaboratorManager({ board }) {
         </Button>
       </form>
       {success && (
-        <p className="text-sm text-green-600 font-medium">
+        <p className="text-sm text-green-600 dark:text-green-400 font-medium">
           ✓ שיתוף נוסף בהצלחה
         </p>
       )}
       <div>
-        <p className="text-xs text-gray-500 mb-2">
+        <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
           חברי הלוח ({board.memberUids.length})
         </p>
         <div className="flex flex-col gap-1">
           {board.memberUids.map((m) => (
             <div
               key={m}
-              className="flex items-center gap-2 rounded-lg bg-gray-50 px-3 py-2"
+              className="flex items-center gap-2 rounded-lg bg-gray-50 dark:bg-gray-800 px-3 py-2"
             >
-              <div className="h-6 w-6 rounded-full bg-indigo-100 flex items-center justify-center text-xs text-indigo-600 font-bold shrink-0">
+              <div className="h-6 w-6 rounded-full bg-indigo-100 dark:bg-indigo-900/50 flex items-center justify-center text-xs text-indigo-600 dark:text-indigo-400 font-bold shrink-0">
                 {m.slice(0, 1).toUpperCase()}
               </div>
-              <span className="text-xs font-mono text-gray-600 truncate">
+              <span className="text-xs font-mono text-gray-600 dark:text-gray-400 truncate">
                 {m}
                 {m === board.ownerUid && (
-                  <span className="mr-2 text-xs text-indigo-500">(בעלים)</span>
+                  <span className="mr-2 text-xs text-indigo-500 dark:text-indigo-400">(בעלים)</span>
                 )}
               </span>
             </div>

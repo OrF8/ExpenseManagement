@@ -33,27 +33,27 @@ export function TransactionCard({ transaction, onEdit, onDelete }) {
     transaction.installmentTotal != null;
 
   return (
-    <div className="rounded-xl bg-white border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
+    <div className="rounded-xl bg-white border border-gray-100 shadow-sm hover:shadow-md transition-shadow dark:bg-gray-800 dark:border-gray-700 dark:hover:shadow-black/30">
       <div className="group flex items-start justify-between gap-4 p-4">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap mb-1">
-            <span className="font-semibold text-gray-900 text-sm">
+            <span className="font-semibold text-gray-900 dark:text-gray-100 text-sm">
               {transaction.name}
             </span>
-            <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-mono text-gray-500">
+            <span className="rounded-full bg-gray-100 dark:bg-gray-700 px-2 py-0.5 text-xs font-mono text-gray-500 dark:text-gray-400">
               ****{transaction.cardLast4}
             </span>
             {hasInstallments && (
-              <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-xs text-indigo-600 font-medium">
+              <span className="rounded-full bg-indigo-50 dark:bg-indigo-900/50 px-2 py-0.5 text-xs text-indigo-600 dark:text-indigo-400 font-medium">
                 תשלום {transaction.installmentCurrent} מתוך{' '}
                 {transaction.installmentTotal}
               </span>
             )}
           </div>
-          <p className="text-sm text-gray-600 truncate">{transaction.essence}</p>
+          <p className="text-sm text-gray-600 dark:text-gray-400 truncate">{transaction.essence}</p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          <span className="text-base font-bold text-gray-900 tabular-nums">
+          <span className="text-base font-bold text-gray-900 dark:text-gray-100 tabular-nums">
             {formatAmount(transaction.amount)}
           </span>
           <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -72,7 +72,7 @@ export function TransactionCard({ transaction, onEdit, onDelete }) {
               size="sm"
               onClick={handleDelete}
               loading={deleting}
-              className="hover:text-red-500"
+              className="hover:text-red-500 dark:hover:text-red-400"
               title="מחק"
             >
               {!deleting && (
@@ -85,7 +85,7 @@ export function TransactionCard({ transaction, onEdit, onDelete }) {
         </div>
       </div>
       {deleteError && (
-        <p className="px-4 pb-3 text-xs text-red-500" role="alert" aria-live="polite">
+        <p className="px-4 pb-3 text-xs text-red-500 dark:text-red-400" role="alert" aria-live="polite">
           {deleteError}
         </p>
       )}

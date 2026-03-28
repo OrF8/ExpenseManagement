@@ -23,14 +23,14 @@ export function Modal({ isOpen, onClose, title, children }) {
         className="absolute inset-0 bg-black/40 backdrop-blur-sm"
         onClick={onClose}
       />
-      <div className="relative z-10 w-full max-w-lg rounded-2xl bg-white shadow-xl">
-        <div className="flex items-center justify-between border-b border-gray-100 px-6 py-4">
-          <h2 id={titleId} className="text-lg font-semibold text-gray-900">
+      <div className="relative z-10 w-full max-w-lg rounded-2xl bg-white shadow-xl dark:bg-gray-900 dark:shadow-black/60">
+        <div className="flex items-center justify-between border-b border-gray-100 px-6 py-4 dark:border-gray-800">
+          <h2 id={titleId} className="text-lg font-semibold text-gray-900 dark:text-gray-100">
             {title}
           </h2>
           <button
             onClick={onClose}
-            className="rounded-lg p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"
+            className="rounded-lg p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors dark:text-gray-500 dark:hover:bg-gray-800 dark:hover:text-gray-300"
             aria-label="סגור"
           >
             <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
