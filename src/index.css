@@ -1,0 +1,18 @@
+@import "tailwindcss";
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Assistant', 'Segoe UI', system-ui, sans-serif;
+  background-color: #f8f9fa;
+  color: #1a1a2e;
+  direction: rtl;
+  margin: 0;
+  padding: 0;
+}
+
+input, textarea, select, button {
+  font-family: inherit;
+}
