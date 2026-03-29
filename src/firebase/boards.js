@@ -11,6 +11,7 @@
  */
 import {
   collection,
+  collectionGroup,
   doc,
   addDoc,
   deleteDoc,
@@ -18,6 +19,7 @@ import {
   getDocs,
   query,
   where,
+  orderBy,
   onSnapshot,
   serverTimestamp,
 } from 'firebase/firestore';
@@ -164,6 +166,32 @@ export function subscribeToBoardInvites(boardId, onData, onError) {
   const invitesRef = collection(db, 'boards', boardId, 'invites');
   return onSnapshot(
     invitesRef,
+    (snap) => {
+      const invites = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      onData(invites);
+    },
+    onError
+  );
+}
+
+/**
+ * Subscribe to real-time updates of pending invites addressed to a specific email.
+ * Uses a collection-group query across all boards' invites subcollections.
+ * @param {string} email - The invited user's email (will be normalized to lowercase)
+ * @param {function} onData - Callback receiving array of pending invite objects
+ * @param {function} onError - Error callback
+ * @returns {function} Unsubscribe function
+ */
+export function subscribeToIncomingInvites(email, onData, onError) {
+  const emailLower = email.trim().toLowerCase();
+  const q = query(
+    collectionGroup(db, 'invites'),
+    where('invitedEmailLower', '==', emailLower),
+    where('status', '==', 'pending'),
+    orderBy('createdAt', 'desc')
+  );
+  return onSnapshot(
+    q,
     (snap) => {
       const invites = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
       onData(invites);
