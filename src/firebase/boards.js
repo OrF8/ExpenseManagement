@@ -65,9 +65,10 @@ export function subscribeToBoards(uid, onData, onError) {
 }
 
 /**
- * Delete a board and its invites subcollection (owner only).
+ * Delete a board and all its subcollections (owner only).
  * Delegates to the `deleteBoard` Cloud Function which verifies ownership
- * and removes all invite documents before deleting the board document.
+ * and removes all invite and transaction documents before deleting the
+ * board document.
  *
  * @param {string} boardId
  * @returns {Promise<{ success: boolean }>}
