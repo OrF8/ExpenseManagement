@@ -98,11 +98,22 @@ export async function getBoard(boardId) {
  * Prevents duplicate pending invites for the same board/email.
  * @param {string} boardId
  * @param {string} email - Raw email entered by the owner (will be normalised)
- * @param {{ uid: string }} currentUser - Firebase Auth user object
+ * @param {{ uid: string, email: string }} currentUser - Firebase Auth user object
  * @returns {Promise<DocumentReference>}
  */
 export async function createBoardInvite(boardId, email, currentUser) {
   const normalizedEmail = email.trim().toLowerCase();
+
+  // Basic email format validation
+  if (!normalizedEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
+    throw new Error('כתובת הדוא״ל שהוזנה אינה תקינה');
+  }
+
+  // Prevent the board owner from inviting themselves
+  if (normalizedEmail === (currentUser.email ?? '').trim().toLowerCase()) {
+    throw new Error('לא ניתן להזמין את עצמך ללוח');
+  }
+
   const invitesRef = collection(db, 'boards', boardId, 'invites');
 
   // Prevent duplicate pending invites for the same email

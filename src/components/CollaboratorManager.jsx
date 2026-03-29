@@ -46,6 +46,13 @@ export function CollaboratorManager({ board }) {
   async function handleInvite(e) {
     e.preventDefault();
     if (!email.trim()) return;
+
+    // Immediate feedback: prevent self-invite before hitting Firestore
+    if (email.trim().toLowerCase() === (user?.email ?? '').trim().toLowerCase()) {
+      setError('לא ניתן להזמין את עצמך ללוח');
+      return;
+    }
+
     setLoading(true);
     setError(null);
     setSuccess(false);
@@ -107,20 +114,26 @@ export function CollaboratorManager({ board }) {
           חברי הלוח ({board.memberUids.length})
         </p>
         <div className="flex flex-col gap-1">
-          {board.memberUids.map((uid) => (
+          {board.memberUids.map((uid, index) => (
             <div
               key={uid}
               className="flex items-center gap-2 rounded-lg bg-gray-50 dark:bg-gray-800 px-3 py-2"
             >
               <div className="h-6 w-6 rounded-full bg-indigo-100 dark:bg-indigo-900/50 flex items-center justify-center text-xs text-indigo-600 dark:text-indigo-400 font-bold shrink-0">
-                {uid === board.ownerUid ? '★' : '•'}
+                {uid === board.ownerUid ? '★' : String(index + 1)}
               </div>
               <span className="text-sm text-gray-700 dark:text-gray-300">
-                {uid === board.ownerUid ? 'בעלים' : 'חבר'}
+                {uid === board.ownerUid ? 'בעלים (אתה)' : `חבר ${index + 1}`}
               </span>
+              {uid === user?.uid && uid !== board.ownerUid && (
+                <span className="text-xs text-indigo-500 dark:text-indigo-400 mr-1">(אתה)</span>
+              )}
             </div>
           ))}
         </div>
+        <p className="text-xs text-gray-400 dark:text-gray-500 mt-1.5">
+          פרטי חברים יוצגו לאחר הטמעת קבלת ההזמנות
+        </p>
       </div>
 
       {/* Pending invites — owner only */}
