@@ -7,6 +7,7 @@ import { signIn, signUp, signInWithGoogle, resetPassword } from '../firebase/aut
 import { Input } from '../components/ui/Input';
 import { Button } from '../components/ui/Button';
 import { Modal } from '../components/ui/Modal';
+import logoHorizontal from '../assets/logo-horizontal-filled.png';
 
 function getHebrewError(code) {
   const map = {
@@ -120,10 +121,11 @@ export function AuthPage() {
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-white to-indigo-50 dark:from-gray-950 dark:via-gray-900 dark:to-slate-900 px-4">
       <div className="w-full max-w-sm">
         <div className="mb-8 text-center">
-          <div className="inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-indigo-600 text-white text-2xl font-bold mb-4 shadow-lg shadow-indigo-200 dark:shadow-indigo-900">
-            ₪
-          </div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">ניהול הוצאות</h1>
+          <img
+            src={logoHorizontal}
+            alt="ניהול הוצאות – לוגו האפליקציה"
+            className="h-16 w-auto mx-auto mb-2"
+          />
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">מעקב פשוט אחרי הוצאות משותפות</p>
         </div>
 

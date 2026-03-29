@@ -16,6 +16,7 @@ import { EmptyState } from '../components/ui/EmptyState';
 import { Input } from '../components/ui/Input';
 import { Modal } from '../components/ui/Modal';
 import { ThemeToggle } from '../components/ui/ThemeToggle';
+import logoIcon from '../assets/logo-icon.png';
 
 export function BoardsPage() {
   const { user } = useAuth();
@@ -166,9 +167,7 @@ export function BoardsPage() {
       <header className="bg-white dark:bg-gray-900 border-b border-gray-100 dark:border-gray-800 sticky top-0 z-10">
         <div className="max-w-3xl mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="h-8 w-8 rounded-xl bg-indigo-600 text-white flex items-center justify-center text-sm font-bold">
-              ₪
-            </div>
+            <img src={logoIcon} alt="" className="h-8 w-8 rounded-xl" aria-hidden="true" />
             <h1 className="text-lg font-semibold text-gray-900 dark:text-gray-100">ניהול הוצאות</h1>
           </div>
           <div className="flex items-center gap-3">
