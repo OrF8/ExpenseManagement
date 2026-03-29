@@ -56,7 +56,7 @@ export function TransactionCard({ transaction, onEdit, onDelete }) {
           <span className="text-base font-bold text-gray-900 dark:text-gray-100 tabular-nums">
             {formatAmount(transaction.amount)}
           </span>
-          <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+          <div className="flex gap-1">
             <Button
               variant="ghost"
               size="sm"
