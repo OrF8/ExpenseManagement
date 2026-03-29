@@ -16,6 +16,8 @@ export function useIncomingInvites() {
       return;
     }
 
+    // TODO(debug): remove after confirming end-to-end flow works
+    console.log('[useIncomingInvites] user.email=', user.email);
     setLoading(true);
     setError(null);
 
@@ -27,6 +29,8 @@ export function useIncomingInvites() {
         setLoading(false);
       },
       (err) => {
+        // TODO(debug): remove after confirming end-to-end flow works
+        console.error('[useIncomingInvites] error callback=', { code: err?.code, message: err?.message });
         setInvites([]);
         setError(err?.message || 'שגיאה בטעינת ההזמנות');
         setLoading(false);

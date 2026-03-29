@@ -193,6 +193,8 @@ export function subscribeToBoardInvites(boardId, onData, onError) {
  */
 export function subscribeToIncomingInvites(email, onData, onError) {
   const emailLower = email.trim().toLowerCase();
+  // TODO(debug): remove after confirming end-to-end flow works
+  console.log('[incoming-invites] subscribing with emailLower=', emailLower);
   const q = query(
     collectionGroup(db, 'invites'),
     where('invitedEmailLower', '==', emailLower)
@@ -200,17 +202,28 @@ export function subscribeToIncomingInvites(email, onData, onError) {
   return onSnapshot(
     q,
     (snap) => {
-      const invites = snap.docs
-        .map((d) => ({ id: d.id, ...d.data() }))
-        .filter((inv) => inv.status === 'pending')
-        .sort((a, b) => {
-          const aMs = a.createdAt?.toMillis?.() ?? 0;
-          const bMs = b.createdAt?.toMillis?.() ?? 0;
-          return bMs - aMs;
-        });
+      // TODO(debug): remove after confirming end-to-end flow works
+      console.log('[incoming-invites] snapshot fired, total docs=', snap.docs.length);
+      const allDocs = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      console.log('[incoming-invites] raw docs=', allDocs);
+      const pending = allDocs.filter((inv) => inv.status === 'pending');
+      const filtered = allDocs.filter((inv) => inv.status !== 'pending');
+      if (filtered.length > 0) {
+        console.log('[incoming-invites] docs excluded (status !== pending)=', filtered);
+      }
+      const invites = pending.sort((a, b) => {
+        const aMs = a.createdAt?.toMillis?.() ?? 0;
+        const bMs = b.createdAt?.toMillis?.() ?? 0;
+        return bMs - aMs;
+      });
+      console.log('[incoming-invites] pending invites passed to UI=', invites);
       onData(invites);
     },
-    onError
+    (err) => {
+      // TODO(debug): remove after confirming end-to-end flow works
+      console.error('[incoming-invites] subscription error=', { code: err?.code, message: err?.message, name: err?.name });
+      onError(err);
+    }
   );
 }
 
