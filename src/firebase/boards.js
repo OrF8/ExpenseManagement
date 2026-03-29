@@ -11,6 +11,7 @@
  */
 import {
   collection,
+  collectionGroup,
   doc,
   addDoc,
   deleteDoc,
@@ -169,6 +170,60 @@ export function subscribeToBoardInvites(boardId, onData, onError) {
       onData(invites);
     },
     onError
+  );
+}
+
+/**
+ * Subscribe to real-time updates of pending invites addressed to a specific email.
+ * Uses a collection-group query across all boards' invites subcollections.
+ *
+ * The query intentionally uses only a single equality filter on `invitedEmailLower`
+ * so that Firestore's automatically-created single-field collection-group index is
+ * sufficient — no custom composite index needs to be deployed.  Adding a second
+ * `where('status', '==', 'pending')` or an `orderBy('createdAt', 'desc')` clause
+ * would require a manually-created collection-group composite index on
+ * (invitedEmailLower, status, createdAt); without it the query fails with a
+ * "requires an index" error that surfaces to the user as an empty list.
+ * Status filtering and chronological sorting are therefore done client-side below.
+ *
+ * @param {string} email - The invited user's email (will be normalized to lowercase)
+ * @param {function} onData - Callback receiving array of pending invite objects
+ * @param {function} onError - Error callback
+ * @returns {function} Unsubscribe function
+ */
+export function subscribeToIncomingInvites(email, onData, onError) {
+  const emailLower = email.trim().toLowerCase();
+  // TODO(debug): remove after confirming end-to-end flow works
+  console.log('[incoming-invites] subscribing with emailLower=', emailLower);
+  const q = query(
+    collectionGroup(db, 'invites'),
+    where('invitedEmailLower', '==', emailLower)
+  );
+  return onSnapshot(
+    q,
+    (snap) => {
+      // TODO(debug): remove after confirming end-to-end flow works
+      console.log('[incoming-invites] snapshot fired, total docs=', snap.docs.length);
+      const allDocs = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      console.log('[incoming-invites] raw docs=', allDocs);
+      const pending = allDocs.filter((inv) => inv.status === 'pending');
+      const filtered = allDocs.filter((inv) => inv.status !== 'pending');
+      if (filtered.length > 0) {
+        console.log('[incoming-invites] docs excluded (status !== pending)=', filtered);
+      }
+      const invites = pending.sort((a, b) => {
+        const aMs = a.createdAt?.toMillis?.() ?? 0;
+        const bMs = b.createdAt?.toMillis?.() ?? 0;
+        return bMs - aMs;
+      });
+      console.log('[incoming-invites] pending invites passed to UI=', invites);
+      onData(invites);
+    },
+    (err) => {
+      // TODO(debug): remove after confirming end-to-end flow works
+      console.error('[incoming-invites] subscription error=', { code: err?.code, message: err?.message, name: err?.name });
+      onError(err);
+    }
   );
 }
 

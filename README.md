@@ -70,28 +70,74 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    function signedInEmail() {
+      return signedIn() && request.auth.token.email != null
+        ? request.auth.token.email.lower()
+        : null;
+    }
+
+    function isBoardMemberByDoc(boardDoc) {
+      return signedIn()
+        && request.auth.uid in boardDoc.memberUids;
+    }
+
+    function isBoardOwnerByDoc(boardDoc) {
+      return signedIn()
+        && boardDoc.ownerUid == request.auth.uid;
+    }
+
+    function isBoardMember(boardId) {
+      return signedIn()
+        && request.auth.uid in get(
+          /databases/$(database)/documents/boards/$(boardId)
+        ).data.memberUids;
+    }
+
+    function isBoardOwner(boardId) {
+      return signedIn()
+        && get(
+          /databases/$(database)/documents/boards/$(boardId)
+        ).data.ownerUid == request.auth.uid;
+    }
+
     match /boards/{boardId} {
       allow create: if signedIn()
         && request.resource.data.ownerUid == request.auth.uid
         && request.auth.uid in request.resource.data.memberUids;
 
-      allow read: if signedIn()
-        && request.auth.uid in resource.data.memberUids;
+      allow read: if isBoardMemberByDoc(resource.data);
 
-      allow update, delete: if signedIn()
-        && resource.data.ownerUid == request.auth.uid;
-
-      match /invites/{inviteId} {
-        allow read, create, update, delete: if signedIn()
-          && get(/databases/$(database)/documents/boards/$(boardId)).data.ownerUid == request.auth.uid;
-      }
+      allow update, delete: if isBoardOwnerByDoc(resource.data);
     }
 
     match /boards/{boardId}/transactions/{transactionId} {
-      allow read, create, update, delete: if signedIn()
-        && request.auth.uid in get(
-          /databases/$(database)/documents/boards/$(boardId)
-        ).data.memberUids;
+      allow read, create, update, delete: if isBoardMember(boardId);
+    }
+
+    match /boards/{boardId}/invites/{inviteId} {
+      allow create: if isBoardOwner(boardId)
+        && request.resource.data.boardId == boardId
+        && request.resource.data.invitedByUid == request.auth.uid
+        && request.resource.data.invitedEmail is string
+        && request.resource.data.invitedEmailLower is string
+        && request.resource.data.status == "pending"
+        && request.resource.data.acceptedAt == null;
+
+      allow read: if isBoardOwner(boardId)
+        || (
+          signedInEmail() != null
+          && resource.data.invitedEmailLower == signedInEmail()
+        );
+
+      allow update, delete: if isBoardOwner(boardId);
+    }
+
+    // Required for collectionGroup('invites') queries used in the incoming-invites UI.
+    // Firestore collection-group queries are only permitted when a wildcard-path rule
+    // explicitly grants access; the nested match above covers direct-path reads only.
+    match /{path=**}/invites/{inviteId} {
+      allow read: if signedInEmail() != null
+        && resource.data.invitedEmailLower == signedInEmail();
     }
   }
 }
