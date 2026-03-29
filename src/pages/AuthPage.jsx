@@ -7,7 +7,7 @@ import { signIn, signUp, signInWithGoogle, resetPassword } from '../firebase/aut
 import { Input } from '../components/ui/Input';
 import { Button } from '../components/ui/Button';
 import { Modal } from '../components/ui/Modal';
-import logoHorizontal from '../assets/logo-horizontal.png';
+import logoHorizontal from '../assets/logo-horizontal-filled.png';
 
 function getHebrewError(code) {
   const map = {
