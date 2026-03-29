@@ -101,7 +101,7 @@ service cloud.firestore {
 
 - 🔐 Authentication with email/password and Google Sign-In
 - 📋 Create and manage collaborative expense boards
-- 👥 Invite collaborators by email
+- 👥 Invite collaborators by email (pending invites only — acceptance requires backend support; see `src/firebase/boards.js`)
 - 💳 Track transactions with card last-4, name, essence, amount
 - 📊 Installment tracking (תשלום X מתוך Y)
 - 💰 Auto-calculated totals per card and grand total

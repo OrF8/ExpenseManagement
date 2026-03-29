@@ -104,7 +104,7 @@ export function CollaboratorManager({ board }) {
       )}
       {success && (
         <p className="text-sm text-green-600 dark:text-green-400 font-medium">
-          ✓ ההזמנה נשלחה בהצלחה
+          ✓ ההזמנה נרשמה בהצלחה
         </p>
       )}
 

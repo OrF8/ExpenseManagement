@@ -91,6 +91,16 @@ export async function getBoard(boardId) {
 // rules. When the backend flow is ready, add an HTTP/callable function that:
 //   1. Verifies the caller's email matches invite.invitedEmailLower
 //   2. Atomically sets invite.status = "accepted" and adds the UID to memberUids
+//
+// TODO (user verification): createBoardInvite currently only validates email
+// *format*. There is no users/profiles collection in this app, so it is not
+// possible to verify that the invited email belongs to an existing account
+// before writing the invite document. As a result, owners can create pending
+// invite records for any well-formed email address, even one with no account.
+// This limitation must be resolved server-side (e.g. a Cloud Function that
+// looks up the email in Firebase Auth) before invites become meaningful.
+// Until then, invite documents are owner-visible bookmarks only — they do not
+// imply the recipient has been notified or that they have an account.
 // ---------------------------------------------------------------------------
 
 /**
