@@ -6,7 +6,7 @@
  *   - declineBoardInvite : marks the invite as declined
  *   - removeBoardMember  : allows the board owner to remove a non-owner member from the board
  *   - leaveBoard         : allows a non-owner member to remove themselves from a board
- *   - deleteBoard        : allows the board owner to fully delete a board and all its subcollections (invites, transactions)
+ *   - deleteBoard        : allows the board owner to fully delete a board and all its subcollections via recursive Admin SDK deletion
  *
  * All functions run with the Firebase Admin SDK and therefore bypass Firestore
  * security rules.  All authorization checks are enforced in the function body.
@@ -258,13 +258,15 @@ exports.leaveBoard = onCall(async (request) => {
  * deleteBoard
  *
  * Callable function that allows the board owner to fully delete a board.
- * Deletes all documents in every known subcollection (invites, transactions)
- * and then deletes the board document itself.  The caller must be
- * authenticated and must be the board owner.
+ * Uses the Firebase Admin SDK's `recursiveDelete` to remove the board
+ * document and ALL of its subcollections (invites, transactions, and any
+ * future nested data) in a single server-side operation.  This operation is
+ * irreversible; execution time scales with the total number of nested
+ * documents, so boards with many transactions may take longer to delete.
  *
  * Firestore does NOT automatically delete subcollections when a document is
- * deleted.  All subcollections must be cleared explicitly before the board
- * document is removed to avoid orphaned data.
+ * deleted.  `admin.firestore().recursiveDelete(ref)` is the correct way to
+ * remove an entire document subtree from the Admin SDK.
  *
  * @param {object} request.data
  * @param {string} request.data.boardId - ID of the board document
@@ -297,18 +299,11 @@ exports.deleteBoard = onCall(async (request) => {
     throw new HttpsError('permission-denied', 'רק בעל הלוח יכול למחוק אותו');
   }
 
-  // 4. Delete all invite documents in the invites subcollection
-  const invitesSnap = await boardRef.collection('invites').get();
-  const deleteInvites = invitesSnap.docs.map((d) => d.ref.delete());
-  await Promise.all(deleteInvites);
-
-  // 5. Delete all transaction documents in the transactions subcollection
-  const transactionsSnap = await boardRef.collection('transactions').get();
-  const deleteTransactions = transactionsSnap.docs.map((d) => d.ref.delete());
-  await Promise.all(deleteTransactions);
-
-  // 6. Delete the board document itself
-  await boardRef.delete();
+  // 4. Recursively delete the board document and all its subcollections
+  //    (invites, transactions, and any other nested data).
+  //    admin.firestore().recursiveDelete() handles the entire subtree so no
+  //    subcollection documents are orphaned.
+  await admin.firestore().recursiveDelete(boardRef);
 
   return { success: true };
 });
