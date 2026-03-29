@@ -11,6 +11,7 @@ import {
   getDocs,
   query,
   setDoc,
+  updateDoc,
   where,
   serverTimestamp,
 } from 'firebase/firestore';
@@ -56,6 +57,19 @@ export async function getUserProfilesByUids(uids) {
   return profiles.map((profile, i) =>
     profile ?? { uid: uids[i], nickname: 'משתמש', email: '' }
   );
+}
+
+/**
+ * Update a user's nickname in Firestore.
+ * @param {string} uid - Firebase Auth UID
+ * @param {string} nickname - New nickname (must be non-empty after trimming)
+ * @returns {Promise<void>}
+ */
+export async function updateNickname(uid, nickname) {
+  const trimmed = nickname.trim();
+  if (!trimmed) throw new Error('הכינוי לא יכול להיות ריק.');
+  const ref = doc(db, 'users', uid);
+  return updateDoc(ref, { nickname: trimmed });
 }
 
 /**
