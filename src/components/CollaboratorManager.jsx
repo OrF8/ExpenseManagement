@@ -154,7 +154,7 @@ export function CollaboratorManager({ board }) {
           {board.memberUids.map((uid) => {
             const profile = memberProfiles.find((p) => p.uid === uid);
             const nickname = profile?.nickname || 'משתמש';
-            const email = profile?.email || '';
+            const memberEmail = profile?.email || '';
             const isCurrentUser = uid === user?.uid;
             const isBoardOwner = uid === board.ownerUid;
             const initial = nickname.charAt(0);
@@ -178,8 +178,8 @@ export function CollaboratorManager({ board }) {
                       <span className="text-xs text-indigo-500 dark:text-indigo-400 shrink-0">(אתה)</span>
                     )}
                   </div>
-                  {email && (
-                    <span className="text-xs text-gray-400 dark:text-gray-500 truncate">{email}</span>
+                  {memberEmail && (
+                    <span className="text-xs text-gray-400 dark:text-gray-500 truncate">{memberEmail}</span>
                   )}
                 </div>
                 {isOwner && !isBoardOwner && (

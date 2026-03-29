@@ -60,7 +60,16 @@ npm run preview
 2. Enable **Authentication** → sign-in methods: Email/Password and Google
 3. Enable **Firestore Database** in production mode
 4. Enable **Cloud Functions** (requires the Blaze pay-as-you-go plan)
-5. Add the following security rules to Firestore:
+5. Deploy the Firestore security rules. The rules live in `firestore.rules` at the repo root. You can deploy them with the Firebase CLI:
+
+```bash
+firebase deploy --only firestore:rules
+```
+
+Or copy the contents of `firestore.rules` into the Firebase console → Firestore → Rules tab manually.
+
+<details>
+<summary>View current rules</summary>
 
 ```
 rules_version = '2';
@@ -108,7 +117,8 @@ service cloud.firestore {
 
       allow read: if isBoardMemberByDoc(resource.data);
 
-      allow update, delete: if isBoardOwnerByDoc(resource.data);
+      allow update: if isBoardOwnerByDoc(resource.data);
+      allow delete: if isBoardOwnerByDoc(resource.data);
     }
 
     match /boards/{boardId}/transactions/{transactionId} {
@@ -122,7 +132,8 @@ service cloud.firestore {
         && request.resource.data.invitedEmail is string
         && request.resource.data.invitedEmailLower is string
         && request.resource.data.status == "pending"
-        && request.resource.data.acceptedAt == null;
+        && request.resource.data.acceptedAt == null
+        && request.resource.data.declinedAt == null;
 
       allow read: if isBoardOwner(boardId)
         || (
@@ -141,16 +152,23 @@ service cloud.firestore {
         && resource.data.invitedEmailLower == signedInEmail();
     }
 
-    // User profiles — created on email/password sign-up; readable by any signed-in user.
+    // User profiles — created on email/password sign-up; readable by any signed-in user
+    // (required for invite flows that look up users by email / UID).
+    // Updates are restricted to the nickname field only — email, emailLower, and
+    // createdAt are immutable after account creation.
     match /users/{uid} {
       allow create: if request.auth != null && request.auth.uid == uid;
       allow read: if request.auth != null;
-      allow update: if request.auth != null && request.auth.uid == uid;
+      allow update: if request.auth != null
+        && request.auth.uid == uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['nickname']);
       allow delete: if false;
     }
   }
 }
 ```
+
+</details>
 
 ## Features
 
