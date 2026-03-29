@@ -86,13 +86,9 @@ export async function getBoard(boardId) {
 // ---------------------------------------------------------------------------
 // Invite helpers — boards/{boardId}/invites/{inviteId}
 //
-// TODO (future): Invite acceptance must be implemented via a secure backend
-// flow (e.g. Cloud Functions triggered by invite status update). The current
-// Firestore rules only allow board owners to read/update/delete invites, so
-// a client-side acceptance flow cannot be implemented without bypassing those
-// rules. When the backend flow is ready, add an HTTP/callable function that:
-//   1. Verifies the caller's email matches invite.invitedEmailLower
-//   2. Atomically sets invite.status = "accepted" and adds the UID to memberUids
+// Invite acceptance and decline are handled by the secure Cloud Functions
+// `acceptBoardInvite` and `declineBoardInvite` (see functions/index.js).
+// Clients call those functions via src/firebase/invites.js wrappers.
 //
 // TODO (user verification): createBoardInvite currently only validates email
 // *format*. There is no users/profiles collection in this app, so it is not

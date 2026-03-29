@@ -1,11 +1,6 @@
 /**
  * Collaborator management UI for a board.
  * Allows the board owner to invite collaborators by email and manage pending invites.
- *
- * TODO (invite acceptance): Invite acceptance must be implemented via a secure
- * backend flow (e.g. Cloud Functions). The Firestore rules only allow the board
- * owner to manage invites; the invited user cannot accept client-side without
- * bypassing those rules. See boards.js for the full TODO note.
  */
 import { useState, useEffect, useRef } from 'react';
 import { createBoardInvite, subscribeToBoardInvites, deleteBoardInvite } from '../firebase/boards';

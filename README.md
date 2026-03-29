@@ -6,7 +6,7 @@ A production-ready Hebrew RTL collaborative expense management web app.
 
 - React + Vite
 - Tailwind CSS v4
-- Firebase (Authentication + Firestore)
+- Firebase (Authentication + Firestore + Cloud Functions)
 - React Router v7
 
 ## Prerequisites
@@ -59,7 +59,8 @@ npm run preview
 1. Create a Firebase project at https://console.firebase.google.com
 2. Enable **Authentication** → sign-in methods: Email/Password and Google
 3. Enable **Firestore Database** in production mode
-4. Add the following security rules to Firestore:
+4. Enable **Cloud Functions** (requires the Blaze pay-as-you-go plan)
+5. Add the following security rules to Firestore:
 
 ```
 rules_version = '2';
@@ -147,9 +148,62 @@ service cloud.firestore {
 
 - 🔐 Authentication with email/password and Google Sign-In
 - 📋 Create and manage collaborative expense boards
-- 👥 Invite collaborators by email (pending invites only — acceptance requires backend support; see `src/firebase/boards.js`)
+- 👥 Invite collaborators by email; invitees can accept or decline invitations via secure Cloud Functions
 - 💳 Track transactions with card last-4, name, essence, amount
 - 📊 Installment tracking (תשלום X מתוך Y)
 - 💰 Auto-calculated totals per card and grand total
 - 🔄 Real-time updates via Firestore listeners
 - 🌐 Full Hebrew RTL UI
+
+## Firebase Functions Setup & Deployment
+
+The `functions/` directory contains two callable Cloud Functions:
+
+| Function | Description |
+|---|---|
+| `acceptBoardInvite` | Atomically adds the caller to `board.memberUids` and marks the invite accepted |
+| `declineBoardInvite` | Marks the invite as declined |
+
+### Prerequisites
+
+- Firebase CLI: `npm install -g firebase-tools`
+- Firebase Blaze (pay-as-you-go) plan — required for Cloud Functions
+
+### First-time setup
+
+```bash
+# Log in to Firebase
+firebase login
+
+# Link the project (run from repo root)
+firebase use --add
+# Select your project and give it an alias (e.g. "default")
+```
+
+### Deploy the functions
+
+```bash
+# Install functions dependencies
+cd functions && npm install && cd ..
+
+# Deploy only the functions
+firebase deploy --only functions
+```
+
+### Local emulation (optional)
+
+```bash
+# Start the Functions emulator alongside Firestore
+firebase emulators:start --only functions,firestore
+```
+
+When running locally against the emulator, update `src/firebase/config.js` to
+connect to it:
+
+```js
+import { connectFunctionsEmulator } from 'firebase/functions';
+// Add after the existing exports:
+if (location.hostname === 'localhost') {
+  connectFunctionsEmulator(functions, 'localhost', 5001);
+}
+```
