@@ -65,12 +65,17 @@ export function subscribeToBoards(uid, onData, onError) {
 }
 
 /**
- * Delete a board (owner only; enforce via security rules).
+ * Delete a board and its invites subcollection (owner only).
+ * Delegates to the `deleteBoard` Cloud Function which verifies ownership
+ * and removes all invite documents before deleting the board document.
+ *
  * @param {string} boardId
+ * @returns {Promise<{ success: boolean }>}
  */
 export async function deleteBoard(boardId) {
-  const ref = doc(db, 'boards', boardId);
-  return deleteDoc(ref);
+  const fn = httpsCallable(functions, 'deleteBoard');
+  const result = await fn({ boardId });
+  return result.data;
 }
 
 /**
