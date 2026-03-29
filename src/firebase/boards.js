@@ -19,7 +19,6 @@ import {
   getDocs,
   query,
   where,
-  orderBy,
   onSnapshot,
   serverTimestamp,
 } from 'firebase/firestore';
@@ -177,6 +176,16 @@ export function subscribeToBoardInvites(boardId, onData, onError) {
 /**
  * Subscribe to real-time updates of pending invites addressed to a specific email.
  * Uses a collection-group query across all boards' invites subcollections.
+ *
+ * The query intentionally uses only a single equality filter on `invitedEmailLower`
+ * so that Firestore's automatically-created single-field collection-group index is
+ * sufficient — no custom composite index needs to be deployed.  Adding a second
+ * `where('status', '==', 'pending')` or an `orderBy('createdAt', 'desc')` clause
+ * would require a manually-created collection-group composite index on
+ * (invitedEmailLower, status, createdAt); without it the query fails with a
+ * "requires an index" error that surfaces to the user as an empty list.
+ * Status filtering and chronological sorting are therefore done client-side below.
+ *
  * @param {string} email - The invited user's email (will be normalized to lowercase)
  * @param {function} onData - Callback receiving array of pending invite objects
  * @param {function} onError - Error callback
@@ -186,14 +195,19 @@ export function subscribeToIncomingInvites(email, onData, onError) {
   const emailLower = email.trim().toLowerCase();
   const q = query(
     collectionGroup(db, 'invites'),
-    where('invitedEmailLower', '==', emailLower),
-    where('status', '==', 'pending'),
-    orderBy('createdAt', 'desc')
+    where('invitedEmailLower', '==', emailLower)
   );
   return onSnapshot(
     q,
     (snap) => {
-      const invites = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      const invites = snap.docs
+        .map((d) => ({ id: d.id, ...d.data() }))
+        .filter((inv) => inv.status === 'pending')
+        .sort((a, b) => {
+          const aMs = a.createdAt?.toMillis?.() ?? 0;
+          const bMs = b.createdAt?.toMillis?.() ?? 0;
+          return bMs - aMs;
+        });
       onData(invites);
     },
     onError
