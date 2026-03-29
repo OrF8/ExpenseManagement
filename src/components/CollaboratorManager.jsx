@@ -1,19 +1,40 @@
 /**
  * Collaborator management UI for a board.
- * Allows adding collaborators by UID.
- * Architecture is designed to support email-based lookup in the future.
+ * Allows the board owner to invite collaborators by email and manage pending invites.
+ *
+ * TODO (invite acceptance): Invite acceptance must be implemented via a secure
+ * backend flow (e.g. Cloud Functions). The Firestore rules only allow the board
+ * owner to manage invites; the invited user cannot accept client-side without
+ * bypassing those rules. See boards.js for the full TODO note.
  */
 import { useState, useEffect, useRef } from 'react';
-import { addCollaborator } from '../firebase/boards';
+import { createBoardInvite, subscribeToBoardInvites, deleteBoardInvite } from '../firebase/boards';
+import { useAuth } from '../context/AuthContext';
 import { Input } from './ui/Input';
 import { Button } from './ui/Button';
 
 export function CollaboratorManager({ board }) {
-  const [uid, setUid] = useState('');
+  const { user } = useAuth();
+  const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(false);
+  const [invites, setInvites] = useState([]);
+  const [revokeError, setRevokeError] = useState(null);
   const successTimerRef = useRef(null);
+
+  const isOwner = user?.uid === board.ownerUid;
+
+  // Subscribe to board invites (owner only — rules enforce this server-side)
+  useEffect(() => {
+    if (!isOwner) return;
+    const unsub = subscribeToBoardInvites(
+      board.id,
+      (data) => setInvites(data),
+      (err) => console.error('subscribeToBoardInvites error:', err)
+    );
+    return unsub;
+  }, [board.id, isOwner]);
 
   // Clear the success timer when the component unmounts
   useEffect(() => {
@@ -22,20 +43,22 @@ export function CollaboratorManager({ board }) {
     };
   }, []);
 
-  async function handleAdd(e) {
+  async function handleInvite(e) {
     e.preventDefault();
-    const trimmed = uid.trim();
-    if (!trimmed) return;
-    if (board.memberUids.includes(trimmed)) {
-      setError('משתמש זה כבר חבר בלוח');
+    if (!email.trim()) return;
+
+    // Immediate feedback: prevent self-invite before hitting Firestore
+    if (email.trim().toLowerCase() === (user?.email ?? '').trim().toLowerCase()) {
+      setError('לא ניתן להזמין את עצמך ללוח');
       return;
     }
+
     setLoading(true);
     setError(null);
     setSuccess(false);
     try {
-      await addCollaborator(board.id, trimmed);
-      setUid('');
+      await createBoardInvite(board.id, email, user);
+      setEmail('');
       setSuccess(true);
       if (successTimerRef.current) clearTimeout(successTimerRef.current);
       successTimerRef.current = setTimeout(() => setSuccess(false), 3000);
@@ -46,52 +69,115 @@ export function CollaboratorManager({ board }) {
     }
   }
 
+  async function handleRevoke(inviteId) {
+    setRevokeError(null);
+    try {
+      await deleteBoardInvite(board.id, inviteId);
+    } catch (err) {
+      setRevokeError(err.message);
+    }
+  }
+
+  const pendingInvites = invites.filter((i) => i.status === 'pending');
+
   return (
     <div className="flex flex-col gap-4">
-      <form onSubmit={handleAdd} className="flex gap-2">
-        <div className="flex-1">
-          <Input
-            placeholder="הזן UID של המשתמש"
-            value={uid}
-            onChange={(e) => {
-              setUid(e.target.value);
-              setError(null);
-            }}
-            error={error}
-          />
-        </div>
-        <Button type="submit" loading={loading} disabled={!uid.trim()}>
-          הוסף
-        </Button>
-      </form>
+      {/* Invite by email — owner only */}
+      {isOwner && (
+        <form onSubmit={handleInvite} className="flex gap-2">
+          <div className="flex-1">
+            <Input
+              type="email"
+              placeholder="כתובת דוא״ל להזמנה"
+              value={email}
+              onChange={(e) => {
+                setEmail(e.target.value);
+                setError(null);
+              }}
+              error={error}
+            />
+          </div>
+          <Button type="submit" loading={loading} disabled={!email.trim()}>
+            הזמן
+          </Button>
+        </form>
+      )}
       {success && (
         <p className="text-sm text-green-600 dark:text-green-400 font-medium">
-          ✓ שיתוף נוסף בהצלחה
+          ✓ ההזמנה נרשמה בהצלחה
         </p>
       )}
+
+      {/* Current members */}
       <div>
         <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
           חברי הלוח ({board.memberUids.length})
         </p>
         <div className="flex flex-col gap-1">
-          {board.memberUids.map((m) => (
+          {board.memberUids.map((uid, index) => (
             <div
-              key={m}
+              key={uid}
               className="flex items-center gap-2 rounded-lg bg-gray-50 dark:bg-gray-800 px-3 py-2"
             >
               <div className="h-6 w-6 rounded-full bg-indigo-100 dark:bg-indigo-900/50 flex items-center justify-center text-xs text-indigo-600 dark:text-indigo-400 font-bold shrink-0">
-                {m.slice(0, 1).toUpperCase()}
+                {uid === board.ownerUid ? '★' : String(index + 1)}
               </div>
-              <span className="text-xs font-mono text-gray-600 dark:text-gray-400 truncate">
-                {m}
-                {m === board.ownerUid && (
-                  <span className="mr-2 text-xs text-indigo-500 dark:text-indigo-400">(בעלים)</span>
-                )}
+              <span className="text-sm text-gray-700 dark:text-gray-300">
+                {uid === board.ownerUid ? 'בעלים (אתה)' : `חבר ${index + 1}`}
               </span>
+              {uid === user?.uid && uid !== board.ownerUid && (
+                <span className="text-xs text-indigo-500 dark:text-indigo-400 mr-1">(אתה)</span>
+              )}
             </div>
           ))}
         </div>
+        <p className="text-xs text-gray-400 dark:text-gray-500 mt-1.5">
+          פרטי חברים יוצגו לאחר הטמעת קבלת ההזמנות
+        </p>
       </div>
+
+      {/* Pending invites — owner only */}
+      {isOwner && (
+        <div>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
+            הזמנות ממתינות ({pendingInvites.length})
+          </p>
+          {revokeError && (
+            <p className="text-xs text-red-500 dark:text-red-400 mb-2">{revokeError}</p>
+          )}
+          {pendingInvites.length === 0 ? (
+            <p className="text-xs text-gray-400 dark:text-gray-500">אין הזמנות ממתינות</p>
+          ) : (
+            <div className="flex flex-col gap-1">
+              {pendingInvites.map((invite) => (
+                <div
+                  key={invite.id}
+                  className="flex items-center justify-between rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-100 dark:border-amber-800 px-3 py-2"
+                >
+                  <div className="flex flex-col gap-0.5 min-w-0">
+                    <span className="text-sm text-gray-800 dark:text-gray-200 truncate">
+                      {invite.invitedEmail}
+                    </span>
+                    {invite.createdAt && (
+                      <span className="text-xs text-gray-400 dark:text-gray-500">
+                        {invite.createdAt.toDate().toLocaleDateString('he-IL')}
+                      </span>
+                    )}
+                  </div>
+                  <Button
+                    type="button"
+                    variant="danger"
+                    size="sm"
+                    onClick={() => handleRevoke(invite.id)}
+                  >
+                    בטל
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

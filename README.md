@@ -80,6 +80,11 @@ service cloud.firestore {
 
       allow update, delete: if signedIn()
         && resource.data.ownerUid == request.auth.uid;
+
+      match /invites/{inviteId} {
+        allow read, create, update, delete: if signedIn()
+          && get(/databases/$(database)/documents/boards/$(boardId)).data.ownerUid == request.auth.uid;
+      }
     }
 
     match /boards/{boardId}/transactions/{transactionId} {
@@ -96,7 +101,7 @@ service cloud.firestore {
 
 - 🔐 Authentication with email/password and Google Sign-In
 - 📋 Create and manage collaborative expense boards
-- 👥 Add collaborators by UID
+- 👥 Invite collaborators by email (pending invites only — acceptance requires backend support; see `src/firebase/boards.js`)
 - 💳 Track transactions with card last-4, name, essence, amount
 - 📊 Installment tracking (תשלום X מתוך Y)
 - 💰 Auto-calculated totals per card and grand total
