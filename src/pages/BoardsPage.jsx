@@ -18,7 +18,7 @@ import { ThemeToggle } from '../components/ui/ThemeToggle';
 export function BoardsPage() {
   const { user } = useAuth();
   const { boards, loading, error } = useBoards();
-  const { invites: incomingInvites, loading: invitesLoading, error: invitesError } = useIncomingInvites();
+  const { invites: incomingInvites } = useIncomingInvites();
   const [showCreate, setShowCreate] = useState(false);
   const [newTitle, setNewTitle] = useState('');
   const [creating, setCreating] = useState(false);
@@ -81,51 +81,40 @@ export function BoardsPage() {
           </div>
         )}
 
-        {/* Incoming invites section */}
-        {(invitesLoading || incomingInvites.length > 0 || invitesError) && (
+        {/* Incoming invites section — only rendered when invites are loaded and non-empty */}
+        {incomingInvites.length > 0 && (
           <section className="mb-8">
             <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-4">הזמנות נכנסות</h2>
-            {invitesError && (
-              <div className="rounded-xl bg-red-50 dark:bg-red-900/30 border border-red-100 dark:border-red-800 px-4 py-3 text-sm text-red-600 dark:text-red-400">
-                {`שגיאה בטעינת ההזמנות: ${invitesError}`}
-              </div>
-            )}
-            {invitesLoading ? (
-              <div className="flex justify-center py-6">
-                <Spinner />
-              </div>
-            ) : (
-              <div className="flex flex-col gap-2">
-                {incomingInvites.map((invite) => (
-                  <div
-                    key={invite.id}
-                    className="rounded-2xl bg-white dark:bg-gray-800 border border-amber-100 dark:border-amber-800 p-4 shadow-sm"
-                  >
-                    <div className="flex items-start justify-between gap-3 mb-1">
-                      <span className="font-semibold text-gray-900 dark:text-gray-100 text-sm">
-                        {invite.boardTitle || 'לוח ללא שם'}
-                      </span>
-                      <span className="rounded-full bg-amber-50 dark:bg-amber-900/30 px-2 py-0.5 text-xs text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-700 shrink-0">
-                        ממתין לאישור
-                      </span>
-                    </div>
-                    {invite.invitedByEmail && (
-                      <p className="text-xs text-gray-500 dark:text-gray-400">
-                        הוזמנת על ידי: {invite.invitedByEmail}
-                      </p>
-                    )}
-                    {invite.createdAt && (
-                      <p className="text-xs text-gray-400 dark:text-gray-500">
-                        {invite.createdAt.toDate().toLocaleDateString('he-IL')}
-                      </p>
-                    )}
-                    <p className="mt-2 text-xs text-gray-400 dark:text-gray-500 italic">
-                      קבלת/דחיית הזמנה תתווסף בקרוב
-                    </p>
+            <div className="flex flex-col gap-2">
+              {incomingInvites.map((invite) => (
+                <div
+                  key={invite.id}
+                  className="rounded-2xl bg-white dark:bg-gray-800 border border-amber-100 dark:border-amber-800 p-4 shadow-sm"
+                >
+                  <div className="flex items-start justify-between gap-3 mb-1">
+                    <span className="font-semibold text-gray-900 dark:text-gray-100 text-sm">
+                      {invite.boardTitle || 'לוח ללא שם'}
+                    </span>
+                    <span className="rounded-full bg-amber-50 dark:bg-amber-900/30 px-2 py-0.5 text-xs text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-700 shrink-0">
+                      ממתין לאישור
+                    </span>
                   </div>
-                ))}
-              </div>
-            )}
+                  {invite.invitedByEmail && (
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                      הוזמנת על ידי: {invite.invitedByEmail}
+                    </p>
+                  )}
+                  {invite.createdAt && (
+                    <p className="text-xs text-gray-400 dark:text-gray-500">
+                      {invite.createdAt.toDate().toLocaleDateString('he-IL')}
+                    </p>
+                  )}
+                  <p className="mt-2 text-xs text-gray-400 dark:text-gray-500 italic">
+                    קבלת/דחיית הזמנה תתווסף בקרוב
+                  </p>
+                </div>
+              ))}
+            </div>
           </section>
         )}
 
