@@ -254,3 +254,17 @@ export async function removeBoardMember(boardId, memberUid) {
   const result = await fn({ boardId, memberUid });
   return result.data;
 }
+
+/**
+ * Leave a board as a non-owner member.
+ * Delegates to the `leaveBoard` Cloud Function which enforces all permission
+ * and safety checks server-side.
+ *
+ * @param {string} boardId - ID of the board document
+ * @returns {Promise<{ success: boolean }>}
+ */
+export async function leaveBoard(boardId) {
+  const fn = httpsCallable(functions, 'leaveBoard');
+  const result = await fn({ boardId });
+  return result.data;
+}

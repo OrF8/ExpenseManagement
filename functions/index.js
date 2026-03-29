@@ -5,6 +5,7 @@
  *   - acceptBoardInvite  : atomically adds the caller to board memberUids and marks invite accepted
  *   - declineBoardInvite : marks the invite as declined
  *   - removeBoardMember  : allows the board owner to remove a non-owner member from the board
+ *   - leaveBoard         : allows a non-owner member to remove themselves from a board
  *
  * All functions run with the Firebase Admin SDK and therefore bypass Firestore
  * security rules.  All authorization checks are enforced in the function body.
@@ -195,6 +196,58 @@ exports.removeBoardMember = onCall(async (request) => {
   // 6. Remove the member from memberUids
   await boardRef.update({
     memberUids: admin.firestore.FieldValue.arrayRemove(memberUid),
+  });
+
+  return { success: true };
+});
+
+/**
+ * leaveBoard
+ *
+ * Callable function that allows a non-owner member to remove themselves from a
+ * board.  The caller must be authenticated, must be a member of the board, and
+ * must not be the board owner.
+ *
+ * @param {object} request.data
+ * @param {string} request.data.boardId - ID of the board document
+ */
+exports.leaveBoard = onCall(async (request) => {
+  // 1. Require authentication
+  if (!request.auth) {
+    throw new HttpsError('unauthenticated', 'עליך להיות מחובר כדי לעזוב לוח');
+  }
+
+  const callerUid = request.auth.uid;
+
+  const { boardId } = request.data || {};
+  if (!boardId) {
+    throw new HttpsError('invalid-argument', 'boardId נדרש');
+  }
+
+  const boardRef = db.collection('boards').doc(boardId);
+
+  // 2. Load the board document
+  const boardSnap = await boardRef.get();
+  if (!boardSnap.exists) {
+    throw new HttpsError('not-found', 'הלוח לא נמצא');
+  }
+
+  const board = boardSnap.data();
+
+  // 3. Reject if the caller is the board owner
+  if (board.ownerUid === callerUid) {
+    throw new HttpsError('permission-denied', 'בעל הלוח אינו יכול לעזוב את הלוח');
+  }
+
+  // 4. Verify the caller is currently a member of the board
+  const memberUids = board.memberUids || [];
+  if (!memberUids.includes(callerUid)) {
+    throw new HttpsError('not-found', 'אינך חבר בלוח זה');
+  }
+
+  // 5. Remove the caller from memberUids
+  await boardRef.update({
+    memberUids: admin.firestore.FieldValue.arrayRemove(callerUid),
   });
 
   return { success: true };

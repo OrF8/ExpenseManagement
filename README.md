@@ -165,13 +165,14 @@ service cloud.firestore {
 
 ## Firebase Functions Setup & Deployment
 
-The `functions/` directory contains three callable Cloud Functions:
+The `functions/` directory contains four callable Cloud Functions:
 
 | Function | Description |
 |---|---|
 | `acceptBoardInvite` | Atomically adds the caller to `board.memberUids` and marks the invite accepted |
 | `declineBoardInvite` | Marks the invite as declined |
 | `removeBoardMember` | Allows the board owner to remove a non-owner member from `board.memberUids` |
+| `leaveBoard` | Allows a non-owner member to remove themselves from `board.memberUids` |
 
 ### Prerequisites
 

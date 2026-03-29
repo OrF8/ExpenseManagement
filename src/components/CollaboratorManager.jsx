@@ -3,7 +3,7 @@
  * Allows the board owner to invite collaborators by email and manage pending invites.
  */
 import { useState, useEffect, useRef } from 'react';
-import { createBoardInvite, subscribeToBoardInvites, deleteBoardInvite, removeBoardMember } from '../firebase/boards';
+import { createBoardInvite, subscribeToBoardInvites, deleteBoardInvite, removeBoardMember, leaveBoard } from '../firebase/boards';
 import { getUserProfilesByUids } from '../firebase/users';
 import { useAuth } from '../context/AuthContext';
 import { Input } from './ui/Input';
@@ -18,6 +18,7 @@ export function CollaboratorManager({ board }) {
   const [invites, setInvites] = useState([]);
   const [revokeError, setRevokeError] = useState(null);
   const [removeError, setRemoveError] = useState(null);
+  const [leaveError, setLeaveError] = useState(null);
   const [memberProfiles, setMemberProfiles] = useState([]);
   const successTimerRef = useRef(null);
 
@@ -96,6 +97,18 @@ export function CollaboratorManager({ board }) {
     }
   }
 
+  async function handleLeave() {
+    if (!window.confirm('האם אתה בטוח שברצונך לעזוב את הלוח?')) return;
+    setLeaveError(null);
+    try {
+      await leaveBoard(board.id);
+      // The existing reactive board subscription will redirect the user away
+      // once they are no longer a member (subscribeToBoards uses array-contains).
+    } catch (err) {
+      setLeaveError(err.message);
+    }
+  }
+
   const pendingInvites = invites.filter((i) => i.status === 'pending');
 
   return (
@@ -133,6 +146,9 @@ export function CollaboratorManager({ board }) {
         </p>
         {removeError && (
           <p className="text-xs text-red-500 dark:text-red-400 mb-2">{removeError}</p>
+        )}
+        {leaveError && (
+          <p className="text-xs text-red-500 dark:text-red-400 mb-2">{leaveError}</p>
         )}
         <div className="flex flex-col gap-1">
           {board.memberUids.map((uid) => {
@@ -174,6 +190,16 @@ export function CollaboratorManager({ board }) {
                     onClick={() => handleRemoveMember(uid)}
                   >
                     הסר
+                  </Button>
+                )}
+                {!isOwner && isCurrentUser && (
+                  <Button
+                    type="button"
+                    variant="danger"
+                    size="sm"
+                    onClick={handleLeave}
+                  >
+                    עזוב
                   </Button>
                 )}
               </div>
