@@ -7,6 +7,7 @@ import { useBoards } from '../hooks/useBoards';
 import { useIncomingInvites } from '../hooks/useIncomingInvites';
 import { useAuth } from '../context/AuthContext';
 import { createBoard } from '../firebase/boards';
+import { acceptBoardInvite, declineBoardInvite } from '../firebase/invites';
 import { logOut } from '../firebase/auth';
 import { Button } from '../components/ui/Button';
 import { Spinner } from '../components/ui/Spinner';
@@ -24,6 +25,9 @@ export function BoardsPage() {
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState(null);
 
+  // Per-invite action state: { [inviteId]: { accepting, declining, error } }
+  const [inviteActions, setInviteActions] = useState({});
+
   async function handleCreate(e) {
     e.preventDefault();
     const title = newTitle.trim();
@@ -38,6 +42,40 @@ export function BoardsPage() {
       setCreateError(err.message);
     } finally {
       setCreating(false);
+    }
+  }
+
+  function setInviteAction(inviteId, patch) {
+    setInviteActions((prev) => ({
+      ...prev,
+      [inviteId]: { ...(prev[inviteId] || {}), ...patch },
+    }));
+  }
+
+  async function handleAcceptInvite(invite) {
+    setInviteAction(invite.id, { accepting: true, error: null });
+    try {
+      await acceptBoardInvite(invite.boardId, invite.id);
+      // The invite will disappear from the list via the Firestore subscription,
+      // and the board will appear via the boards subscription.
+    } catch (err) {
+      setInviteAction(invite.id, {
+        accepting: false,
+        error: err?.message || 'שגיאה בקבלת ההזמנה. נסה שוב.',
+      });
+    }
+  }
+
+  async function handleDeclineInvite(invite) {
+    setInviteAction(invite.id, { declining: true, error: null });
+    try {
+      await declineBoardInvite(invite.boardId, invite.id);
+      // The invite will disappear from the list via the Firestore subscription.
+    } catch (err) {
+      setInviteAction(invite.id, {
+        declining: false,
+        error: err?.message || 'שגיאה בדחיית ההזמנה. נסה שוב.',
+      });
     }
   }
 
@@ -86,34 +124,57 @@ export function BoardsPage() {
           <section className="mb-8">
             <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-4">הזמנות נכנסות</h2>
             <div className="flex flex-col gap-2">
-              {incomingInvites.map((invite) => (
-                <div
-                  key={invite.id}
-                  className="rounded-2xl bg-white dark:bg-gray-800 border border-amber-100 dark:border-amber-800 p-4 shadow-sm"
-                >
-                  <div className="flex items-start justify-between gap-3 mb-1">
-                    <span className="font-semibold text-gray-900 dark:text-gray-100 text-sm">
-                      {invite.boardTitle || 'לוח ללא שם'}
-                    </span>
-                    <span className="rounded-full bg-amber-50 dark:bg-amber-900/30 px-2 py-0.5 text-xs text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-700 shrink-0">
-                      ממתין לאישור
-                    </span>
+              {incomingInvites.map((invite) => {
+                const action = inviteActions[invite.id] || {};
+                const isBusy = action.accepting || action.declining;
+                return (
+                  <div
+                    key={invite.id}
+                    className="rounded-2xl bg-white dark:bg-gray-800 border border-amber-100 dark:border-amber-800 p-4 shadow-sm"
+                  >
+                    <div className="flex items-start justify-between gap-3 mb-1">
+                      <span className="font-semibold text-gray-900 dark:text-gray-100 text-sm">
+                        {invite.boardTitle || 'לוח ללא שם'}
+                      </span>
+                      <span className="rounded-full bg-amber-50 dark:bg-amber-900/30 px-2 py-0.5 text-xs text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-700 shrink-0">
+                        ממתין לאישור
+                      </span>
+                    </div>
+                    {invite.invitedByEmail && (
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                        הוזמנת על ידי: {invite.invitedByEmail}
+                      </p>
+                    )}
+                    {invite.createdAt && (
+                      <p className="text-xs text-gray-400 dark:text-gray-500">
+                        {invite.createdAt.toDate().toLocaleDateString('he-IL')}
+                      </p>
+                    )}
+                    {action.error && (
+                      <p className="mt-1 text-xs text-red-500 dark:text-red-400">{action.error}</p>
+                    )}
+                    <div className="mt-3 flex gap-2">
+                      <Button
+                        size="sm"
+                        loading={action.accepting}
+                        disabled={isBusy}
+                        onClick={() => handleAcceptInvite(invite)}
+                      >
+                        קבל
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        loading={action.declining}
+                        disabled={isBusy}
+                        onClick={() => handleDeclineInvite(invite)}
+                      >
+                        דחה
+                      </Button>
+                    </div>
                   </div>
-                  {invite.invitedByEmail && (
-                    <p className="text-xs text-gray-500 dark:text-gray-400">
-                      הוזמנת על ידי: {invite.invitedByEmail}
-                    </p>
-                  )}
-                  {invite.createdAt && (
-                    <p className="text-xs text-gray-400 dark:text-gray-500">
-                      {invite.createdAt.toDate().toLocaleDateString('he-IL')}
-                    </p>
-                  )}
-                  <p className="mt-2 text-xs text-gray-400 dark:text-gray-500 italic">
-                    קבלת/דחיית הזמנה תתווסף בקרוב
-                  </p>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </section>
         )}
