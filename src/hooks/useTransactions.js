@@ -24,19 +24,26 @@ export function useTransactions(boardId) {
   const isFresh = state.forBoardId === boardId;
 
   /**
-   * Memoized totals: per-card and grand total.
-   * { perCard: { [cardLast4]: number }, grandTotal: number }
+   * Memoized totals: per-group and grand total.
+   * Groups credit-card transactions by cardLast4 (key: "card:XXXX"),
+   * and other types by transaction type (key: "type:cash" / "type:standing_order").
+   * Legacy docs without a type are treated as credit-card if they have a cardLast4.
+   * { perGroup: { [key]: number }, grandTotal: number }
    */
   const totals = useMemo(() => {
     const source = isFresh ? state.transactions : [];
-    const perCard = {};
+    const perGroup = {};
     let grandTotal = 0;
     for (const tx of source) {
       const amt = Number(tx.amount) || 0;
-      perCard[tx.cardLast4] = (perCard[tx.cardLast4] || 0) + amt;
+      const isCreditCard = tx.type === 'credit_card' || (!tx.type && tx.cardLast4 != null);
+      const key = isCreditCard
+        ? `card:${tx.cardLast4 ?? ''}`
+        : `type:${tx.type ?? 'unknown'}`;
+      perGroup[key] = (perGroup[key] || 0) + amt;
       grandTotal += amt;
     }
-    return { perCard, grandTotal };
+    return { perGroup, grandTotal };
   }, [isFresh, state.transactions]);
 
   const transactions = isFresh ? state.transactions : [];
