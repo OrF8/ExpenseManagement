@@ -121,7 +121,7 @@ export function AuthPage() {
                 type="text"
                 value={nickname}
                 onChange={(e) => setNickname(e.target.value)}
-                placeholder="השם שיוצג עבורך"
+                placeholder="השם שיוצג עבורך ויופיע כברירת מחדל בעסקאות"
                 autoComplete="nickname"
                 required
               />
