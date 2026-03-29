@@ -90,15 +90,16 @@ export async function getBoard(boardId) {
 // `acceptBoardInvite` and `declineBoardInvite` (see functions/index.js).
 // Clients call those functions via src/firebase/invites.js wrappers.
 //
-// TODO (user verification): createBoardInvite currently only validates email
-// *format*. There is no users/profiles collection in this app, so it is not
-// possible to verify that the invited email belongs to an existing account
-// before writing the invite document. As a result, owners can create pending
-// invite records for any well-formed email address, even one with no account.
-// This limitation must be resolved server-side (e.g. a Cloud Function that
-// looks up the email in Firebase Auth) before invites become meaningful.
-// Until then, invite documents are owner-visible bookmarks only — they do not
-// imply the recipient has been notified or that they have an account.
+// NOTE (user verification): createBoardInvite validates email *format* only.
+// There is no users/profiles collection in this app, so it is not possible to
+// verify that the invited email belongs to an existing account before writing
+// the invite document.  Owners can therefore create pending invite records for
+// any well-formed email address, even one with no account.  Recipients who do
+// have an account will see the invite in the UI and can accept or decline it
+// via the Cloud Functions.  Recipients without an account will never see the
+// invite.  Server-side email verification (e.g. a Cloud Function that looks up
+// the email in Firebase Auth) would improve the experience but is not yet
+// implemented.
 // ---------------------------------------------------------------------------
 
 /**
@@ -189,8 +190,6 @@ export function subscribeToBoardInvites(boardId, onData, onError) {
  */
 export function subscribeToIncomingInvites(email, onData, onError) {
   const emailLower = email.trim().toLowerCase();
-  // TODO(debug): remove after confirming end-to-end flow works
-  console.log('[incoming-invites] subscribing with emailLower=', emailLower);
   const q = query(
     collectionGroup(db, 'invites'),
     where('invitedEmailLower', '==', emailLower)
@@ -198,28 +197,17 @@ export function subscribeToIncomingInvites(email, onData, onError) {
   return onSnapshot(
     q,
     (snap) => {
-      // TODO(debug): remove after confirming end-to-end flow works
-      console.log('[incoming-invites] snapshot fired, total docs=', snap.docs.length);
       const allDocs = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-      console.log('[incoming-invites] raw docs=', allDocs);
-      const pending = allDocs.filter((inv) => inv.status === 'pending');
-      const filtered = allDocs.filter((inv) => inv.status !== 'pending');
-      if (filtered.length > 0) {
-        console.log('[incoming-invites] docs excluded (status !== pending)=', filtered);
-      }
-      const invites = pending.sort((a, b) => {
-        const aMs = a.createdAt?.toMillis?.() ?? 0;
-        const bMs = b.createdAt?.toMillis?.() ?? 0;
-        return bMs - aMs;
-      });
-      console.log('[incoming-invites] pending invites passed to UI=', invites);
+      const invites = allDocs
+        .filter((inv) => inv.status === 'pending')
+        .sort((a, b) => {
+          const aMs = a.createdAt?.toMillis?.() ?? 0;
+          const bMs = b.createdAt?.toMillis?.() ?? 0;
+          return bMs - aMs;
+        });
       onData(invites);
     },
-    (err) => {
-      // TODO(debug): remove after confirming end-to-end flow works
-      console.error('[incoming-invites] subscription error=', { code: err?.code, message: err?.message, name: err?.name });
-      onError(err);
-    }
+    onError
   );
 }
 
