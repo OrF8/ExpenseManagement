@@ -84,6 +84,24 @@ export async function getBoard(boardId) {
   return { id: snap.id, ...snap.data() };
 }
 
+/**
+ * Subscribe to real-time updates of a single board document.
+ * @param {string} boardId
+ * @param {function} onData  - Callback receiving the board object, or null if it no longer exists
+ * @param {function} onError - Error callback
+ * @returns {function} Unsubscribe function
+ */
+export function subscribeToBoard(boardId, onData, onError) {
+  const ref = doc(db, 'boards', boardId);
+  return onSnapshot(
+    ref,
+    (snap) => {
+      onData(snap.exists() ? { id: snap.id, ...snap.data() } : null);
+    },
+    onError
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Invite helpers — boards/{boardId}/invites/{inviteId}
 //

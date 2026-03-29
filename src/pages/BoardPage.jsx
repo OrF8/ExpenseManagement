@@ -6,7 +6,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useTransactions } from '../hooks/useTransactions';
 import { useAuth } from '../context/AuthContext';
 import { addTransaction, updateTransaction, deleteTransaction } from '../firebase/transactions';
-import { getBoard } from '../firebase/boards';
+import { subscribeToBoard } from '../firebase/boards';
 import { Button } from '../components/ui/Button';
 import { Spinner } from '../components/ui/Spinner';
 import { EmptyState } from '../components/ui/EmptyState';
@@ -30,22 +30,26 @@ export function BoardPage() {
   const [showCollabs, setShowCollabs] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
-  // Load board metadata
+  // Subscribe to real-time board metadata updates
   useEffect(() => {
     setBoardLoading(true);
-    getBoard(boardId)
-      .then((b) => {
+    const unsub = subscribeToBoard(
+      boardId,
+      (b) => {
         if (!b || !b.memberUids.includes(user?.uid)) {
+          setBoardLoading(false);
           navigate('/');
           return;
         }
         setBoard(b);
         setBoardLoading(false);
-      })
-      .catch((err) => {
+      },
+      (err) => {
         setBoardError(err.message);
         setBoardLoading(false);
-      });
+      }
+    );
+    return unsub;
   }, [boardId, user, navigate]);
 
   async function handleAdd(data) {
