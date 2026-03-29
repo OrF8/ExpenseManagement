@@ -1,0 +1,26 @@
+@import "tailwindcss";
+
+/* Enable class-based dark mode so the `dark:` utilities activate on .dark */
+@custom-variant dark (&:where(.dark, .dark *));
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Assistant', 'Segoe UI', system-ui, sans-serif;
+  background-color: #f8f9fa;
+  color: #1a1a2e;
+  direction: rtl;
+  margin: 0;
+  padding: 0;
+}
+
+.dark body {
+  background-color: #0f172a;
+  color: #f1f5f9;
+}
+
+input, textarea, select, button {
+  font-family: inherit;
+}
