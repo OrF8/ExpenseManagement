@@ -27,7 +27,6 @@ export function useTransactions(boardId) {
    * Memoized totals: per-group and grand total.
    * Groups credit-card transactions by cardLast4 (key: "card:XXXX"),
    * and other types by transaction type (key: "type:cash" / "type:standing_order").
-   * Legacy docs without a type are treated as credit-card if they have a cardLast4.
    * { perGroup: { [key]: number }, grandTotal: number }
    */
   const totals = useMemo(() => {
@@ -36,8 +35,7 @@ export function useTransactions(boardId) {
     let grandTotal = 0;
     for (const tx of source) {
       const amt = Number(tx.amount) || 0;
-      const isCreditCard = tx.type === 'credit_card' || (!tx.type && tx.cardLast4 != null);
-      const key = isCreditCard
+      const key = tx.type === 'credit_card'
         ? `card:${tx.cardLast4 ?? ''}`
         : `type:${tx.type ?? 'unknown'}`;
       perGroup[key] = (perGroup[key] || 0) + amt;
