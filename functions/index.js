@@ -4,8 +4,9 @@
  * Callable functions:
  *   - acceptBoardInvite  : atomically adds the caller to board memberUids and marks invite accepted
  *   - declineBoardInvite : marks the invite as declined
+ *   - removeBoardMember  : allows the board owner to remove a non-owner member from the board
  *
- * Both functions run with the Firebase Admin SDK and therefore bypass Firestore
+ * All functions run with the Firebase Admin SDK and therefore bypass Firestore
  * security rules.  All authorization checks are enforced in the function body.
  */
 
@@ -136,6 +137,64 @@ exports.declineBoardInvite = onCall(async (request) => {
   await inviteRef.update({
     status: 'declined',
     declinedAt: admin.firestore.FieldValue.serverTimestamp(),
+  });
+
+  return { success: true };
+});
+
+/**
+ * removeBoardMember
+ *
+ * Callable function that allows the board owner to remove a non-owner member
+ * from the board.  The caller must be authenticated and must be the board owner.
+ * The target member must currently be in board.memberUids and must not be the owner.
+ *
+ * @param {object} request.data
+ * @param {string} request.data.boardId   - ID of the board document
+ * @param {string} request.data.memberUid - UID of the member to remove
+ */
+exports.removeBoardMember = onCall(async (request) => {
+  // 1. Require authentication
+  if (!request.auth) {
+    throw new HttpsError('unauthenticated', 'עליך להיות מחובר כדי להסיר חבר');
+  }
+
+  const callerUid = request.auth.uid;
+
+  const { boardId, memberUid } = request.data || {};
+  if (!boardId || !memberUid) {
+    throw new HttpsError('invalid-argument', 'boardId ו-memberUid נדרשים');
+  }
+
+  const boardRef = db.collection('boards').doc(boardId);
+
+  // 2. Load the board document
+  const boardSnap = await boardRef.get();
+  if (!boardSnap.exists) {
+    throw new HttpsError('not-found', 'הלוח לא נמצא');
+  }
+
+  const board = boardSnap.data();
+
+  // 3. Verify caller is the board owner
+  if (board.ownerUid !== callerUid) {
+    throw new HttpsError('permission-denied', 'רק בעל הלוח יכול להסיר חברים');
+  }
+
+  // 4. Reject if trying to remove the owner
+  if (memberUid === board.ownerUid) {
+    throw new HttpsError('invalid-argument', 'לא ניתן להסיר את בעל הלוח');
+  }
+
+  // 5. Verify the target member is currently on the board
+  const memberUids = board.memberUids || [];
+  if (!memberUids.includes(memberUid)) {
+    throw new HttpsError('not-found', 'המשתמש אינו חבר בלוח');
+  }
+
+  // 6. Remove the member from memberUids
+  await boardRef.update({
+    memberUids: admin.firestore.FieldValue.arrayRemove(memberUid),
   });
 
   return { success: true };

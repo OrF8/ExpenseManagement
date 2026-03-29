@@ -22,7 +22,8 @@ import {
   onSnapshot,
   serverTimestamp,
 } from 'firebase/firestore';
-import { db } from './config';
+import { httpsCallable } from 'firebase/functions';
+import { db, functions } from './config';
 
 const boardsRef = () => collection(db, 'boards');
 
@@ -219,4 +220,19 @@ export function subscribeToIncomingInvites(email, onData, onError) {
 export async function deleteBoardInvite(boardId, inviteId) {
   const ref = doc(db, 'boards', boardId, 'invites', inviteId);
   return deleteDoc(ref);
+}
+
+/**
+ * Remove a member from a board (owner only).
+ * Delegates to the `removeBoardMember` Cloud Function which enforces all
+ * permission and safety checks server-side.
+ *
+ * @param {string} boardId   - ID of the board document
+ * @param {string} memberUid - UID of the member to remove
+ * @returns {Promise<{ success: boolean }>}
+ */
+export async function removeBoardMember(boardId, memberUid) {
+  const fn = httpsCallable(functions, 'removeBoardMember');
+  const result = await fn({ boardId, memberUid });
+  return result.data;
 }
