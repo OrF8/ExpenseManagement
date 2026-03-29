@@ -51,6 +51,9 @@ export function TransactionCard({ transaction, onEdit, onDelete }) {
             )}
           </div>
           <p className="text-sm text-gray-600 dark:text-gray-400 truncate">{transaction.essence}</p>
+          {transaction.comment && (
+            <p className="text-xs text-gray-400 dark:text-gray-500 mt-1 truncate">{transaction.comment}</p>
+          )}
         </div>
         <div className="flex items-center gap-2 shrink-0">
           <span className="text-base font-bold text-gray-900 dark:text-gray-100 tabular-nums">

@@ -7,6 +7,7 @@ import { useTransactions } from '../hooks/useTransactions';
 import { useAuth } from '../context/AuthContext';
 import { addTransaction, updateTransaction, deleteTransaction } from '../firebase/transactions';
 import { subscribeToBoard } from '../firebase/boards';
+import { getUserProfile } from '../firebase/users';
 import { Button } from '../components/ui/Button';
 import { Spinner } from '../components/ui/Spinner';
 import { EmptyState } from '../components/ui/EmptyState';
@@ -29,6 +30,15 @@ export function BoardPage() {
   const [editTx, setEditTx] = useState(null);
   const [showCollabs, setShowCollabs] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [userNickname, setUserNickname] = useState('');
+
+  // Load current user's nickname for defaulting the transaction name
+  useEffect(() => {
+    if (!user?.uid) return;
+    getUserProfile(user.uid)
+      .then((profile) => { if (profile?.nickname) setUserNickname(profile.nickname); })
+      .catch((err) => { console.error('Failed to load user profile for default name:', err); });
+  }, [user]);
 
   // Subscribe to real-time board metadata updates
   useEffect(() => {
@@ -195,6 +205,7 @@ export function BoardPage() {
         title="עסקה חדשה"
       >
         <TransactionForm
+          defaultName={userNickname}
           onSubmit={handleAdd}
           onCancel={() => setShowAddModal(false)}
           submitting={submitting}
