@@ -1,7 +1,7 @@
 /**
  * Main boards listing page.
  */
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useBoards } from '../hooks/useBoards';
 import { useIncomingInvites } from '../hooks/useIncomingInvites';
@@ -9,6 +9,7 @@ import { useAuth } from '../context/AuthContext';
 import { createBoard, deleteBoard } from '../firebase/boards';
 import { acceptBoardInvite, declineBoardInvite } from '../firebase/invites';
 import { logOut } from '../firebase/auth';
+import { getUserProfile, updateNickname } from '../firebase/users';
 import { Button } from '../components/ui/Button';
 import { Spinner } from '../components/ui/Spinner';
 import { EmptyState } from '../components/ui/EmptyState';
@@ -27,6 +28,53 @@ export function BoardsPage() {
 
   // Per-invite action state: { [inviteId]: { accepting, declining, error } }
   const [inviteActions, setInviteActions] = useState({});
+
+  // Nickname state
+  const [nickname, setNickname] = useState('');
+  const [showEditNickname, setShowEditNickname] = useState(false);
+  const [editNicknameValue, setEditNicknameValue] = useState('');
+  const [editNicknameError, setEditNicknameError] = useState(null);
+  const [savingNickname, setSavingNickname] = useState(false);
+
+  // Load current user's nickname
+  useEffect(() => {
+    if (!user?.uid) return;
+    getUserProfile(user.uid)
+      .then((profile) => { if (profile?.nickname) setNickname(profile.nickname); })
+      .catch((err) => { console.error('Failed to load user profile:', err); });
+  }, [user]);
+
+  function openEditNickname() {
+    setEditNicknameValue(nickname);
+    setEditNicknameError(null);
+    setShowEditNickname(true);
+  }
+
+  function closeEditNickname() {
+    setShowEditNickname(false);
+    setEditNicknameValue('');
+    setEditNicknameError(null);
+  }
+
+  async function handleSaveNickname(e) {
+    e.preventDefault();
+    const trimmed = editNicknameValue.trim();
+    if (!trimmed) {
+      setEditNicknameError('הכינוי לא יכול להיות ריק.');
+      return;
+    }
+    setSavingNickname(true);
+    setEditNicknameError(null);
+    try {
+      await updateNickname(user.uid, trimmed);
+      setNickname(trimmed);
+      closeEditNickname();
+    } catch (err) {
+      setEditNicknameError(err.message || 'שגיאה בשמירת הכינוי. נסה שוב.');
+    } finally {
+      setSavingNickname(false);
+    }
+  }
 
   async function handleCreate(e) {
     e.preventDefault();
@@ -118,9 +166,12 @@ export function BoardsPage() {
           </div>
           <div className="flex items-center gap-3">
             <span className="text-xs text-gray-500 dark:text-gray-400 hidden sm:block">
-              {user?.email}
+              {nickname || user?.email}
             </span>
             <ThemeToggle />
+            <Button variant="ghost" size="sm" onClick={openEditNickname}>
+              ערוך כינוי
+            </Button>
             <Button variant="ghost" size="sm" onClick={handleSignOut}>
               יציאה
             </Button>
@@ -294,6 +345,31 @@ export function BoardsPage() {
             </Button>
             <Button type="submit" loading={creating} disabled={!newTitle.trim()}>
               צור לוח
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Edit Nickname Modal */}
+      <Modal
+        isOpen={showEditNickname}
+        onClose={closeEditNickname}
+        title="ערוך כינוי"
+      >
+        <form onSubmit={handleSaveNickname} className="flex flex-col gap-4">
+          <Input
+            label="כינוי"
+            value={editNicknameValue}
+            onChange={(e) => setEditNicknameValue(e.target.value)}
+            error={editNicknameError}
+            autoFocus
+          />
+          <div className="flex gap-3 justify-end">
+            <Button type="button" variant="secondary" onClick={closeEditNickname}>
+              ביטול
+            </Button>
+            <Button type="submit" loading={savingNickname} disabled={!editNicknameValue.trim()}>
+              שמור
             </Button>
           </div>
         </form>
