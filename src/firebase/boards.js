@@ -7,7 +7,7 @@
  * Invites subcollection: boards/{boardId}/invites/{inviteId}
  * Invite document shape:
  *   { boardId, boardTitle, invitedByUid, invitedByEmail, invitedEmail, invitedEmailLower,
- *     status, createdAt, acceptedAt, declinedAt }
+ *     invitedUid, status, createdAt, acceptedAt, declinedAt }
  */
 import {
   collection,
@@ -24,6 +24,7 @@ import {
 } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { db, functions } from './config';
+import { getUserProfileByEmail } from './users';
 
 const boardsRef = () => collection(db, 'boards');
 
@@ -108,22 +109,12 @@ export function subscribeToBoard(boardId, onData, onError) {
 // Invite acceptance and decline are handled by the secure Cloud Functions
 // `acceptBoardInvite` and `declineBoardInvite` (see functions/index.js).
 // Clients call those functions via src/firebase/invites.js wrappers.
-//
-// NOTE (user verification): createBoardInvite validates email *format* only.
-// There is no users/profiles collection in this app, so it is not possible to
-// verify that the invited email belongs to an existing account before writing
-// the invite document.  Owners can therefore create pending invite records for
-// any well-formed email address, even one with no account.  Recipients who do
-// have an account will see the invite in the UI and can accept or decline it
-// via the Cloud Functions.  Recipients without an account will never see the
-// invite.  Server-side email verification (e.g. a Cloud Function that looks up
-// the email in Firebase Auth) would improve the experience but is not yet
-// implemented.
 // ---------------------------------------------------------------------------
 
 /**
  * Create a pending invite for a collaborator by email.
- * Prevents duplicate pending invites for the same board/email.
+ * Validates that the target email belongs to a registered user, that the user
+ * is not already a board member, and that no pending invite exists for them.
  * @param {string} boardId
  * @param {string} email - Raw email entered by the owner (will be normalised)
  * @param {{ uid: string, email: string }} currentUser - Firebase Auth user object
@@ -143,17 +134,32 @@ export async function createBoardInvite(boardId, email, currentUser, boardTitle 
     throw new Error('לא ניתן להזמין את עצמך ללוח');
   }
 
+  // Resolve target user from the users collection
+  const targetProfile = await getUserProfileByEmail(normalizedEmail);
+  if (!targetProfile) {
+    throw new Error('לא נמצא משתמש רשום עם כתובת דוא״ל זו');
+  }
+
+  // Reject if the resolved user is already a board member
+  const board = await getBoard(boardId);
+  if (!board) {
+    throw new Error('הלוח לא נמצא');
+  }
+  if (board.memberUids?.includes(targetProfile.uid)) {
+    throw new Error('משתמש זה כבר חבר בלוח');
+  }
+
   const invitesRef = collection(db, 'boards', boardId, 'invites');
 
-  // Prevent duplicate pending invites for the same email
+  // Prevent duplicate pending invites for the same user (by UID)
   const duplicateQ = query(
     invitesRef,
-    where('invitedEmailLower', '==', normalizedEmail),
+    where('invitedUid', '==', targetProfile.uid),
     where('status', '==', 'pending')
   );
   const existing = await getDocs(duplicateQ);
   if (!existing.empty) {
-    throw new Error('כבר קיימת הזמנה פתוחה לכתובת דוא״ל זו');
+    throw new Error('כבר קיימת הזמנה פתוחה למשתמש זה');
   }
 
   return addDoc(invitesRef, {
@@ -163,6 +169,7 @@ export async function createBoardInvite(boardId, email, currentUser, boardTitle 
     invitedByEmail: currentUser.email ?? null,
     invitedEmail: normalizedEmail,
     invitedEmailLower: normalizedEmail,
+    invitedUid: targetProfile.uid,
     status: 'pending',
     createdAt: serverTimestamp(),
     acceptedAt: null,
