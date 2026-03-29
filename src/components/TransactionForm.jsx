@@ -5,6 +5,7 @@
 import { useState } from 'react';
 import { Input } from './ui/Input';
 import { Button } from './ui/Button';
+import { TRANSACTION_TYPE_LABELS } from '../constants/transactionTypes';
 
 const EMPTY_FORM = {
   name: '',
@@ -14,6 +15,7 @@ const EMPTY_FORM = {
   amount: '',
   installmentCurrent: '',
   installmentTotal: '',
+  type: '',
 };
 
 function validate(form) {
@@ -62,6 +64,7 @@ export function TransactionForm({ initial, defaultName, onSubmit, onCancel, subm
             initial.installmentTotal != null
               ? String(initial.installmentTotal)
               : '',
+          type: initial.type || '',
         }
       : { ...EMPTY_FORM, name: defaultName || '' }
   );
@@ -95,6 +98,7 @@ export function TransactionForm({ initial, defaultName, onSubmit, onCancel, subm
         form.installmentTotal !== ''
           ? parseInt(form.installmentTotal, 10)
           : null,
+      type: form.type || null,
     };
     try {
       setSubmitError(null);
@@ -125,6 +129,24 @@ export function TransactionForm({ initial, defaultName, onSubmit, onCancel, subm
           inputMode="numeric"
           error={errors.cardLast4}
         />
+      </div>
+      <div className="flex flex-col gap-1">
+        <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+          סוג עסקה (אופציונלי)
+        </label>
+        <select
+          name="type"
+          value={form.type}
+          onChange={handleChange}
+          className="block w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-200 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:focus:border-indigo-500 dark:focus:ring-indigo-900"
+        >
+          <option value="">בחר סוג עסקה</option>
+          {Object.entries(TRANSACTION_TYPE_LABELS).map(([value, label]) => (
+            <option key={value} value={value}>
+              {label}
+            </option>
+          ))}
+        </select>
       </div>
       <Input
         label="מהות העסקה"

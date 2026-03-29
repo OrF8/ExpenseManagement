@@ -3,6 +3,7 @@
  */
 import { useState } from 'react';
 import { Button } from './ui/Button';
+import { TRANSACTION_TYPE_LABELS } from '../constants/transactionTypes';
 
 function formatAmount(amount) {
   return new Intl.NumberFormat('he-IL', {
@@ -47,6 +48,11 @@ export function TransactionCard({ transaction, onEdit, onDelete }) {
               <span className="rounded-full bg-indigo-50 dark:bg-indigo-900/50 px-2 py-0.5 text-xs text-indigo-600 dark:text-indigo-400 font-medium">
                 תשלום {transaction.installmentCurrent} מתוך{' '}
                 {transaction.installmentTotal}
+              </span>
+            )}
+            {transaction.type && TRANSACTION_TYPE_LABELS[transaction.type] && (
+              <span className="rounded-full bg-emerald-50 dark:bg-emerald-900/50 px-2 py-0.5 text-xs text-emerald-600 dark:text-emerald-400 font-medium">
+                {TRANSACTION_TYPE_LABELS[transaction.type]}
               </span>
             )}
           </div>
