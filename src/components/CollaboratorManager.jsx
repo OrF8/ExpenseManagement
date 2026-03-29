@@ -57,7 +57,7 @@ export function CollaboratorManager({ board }) {
     setError(null);
     setSuccess(false);
     try {
-      await createBoardInvite(board.id, email, user);
+      await createBoardInvite(board.id, email, user, board.title);
       setEmail('');
       setSuccess(true);
       if (successTimerRef.current) clearTimeout(successTimerRef.current);

@@ -6,7 +6,8 @@
  *
  * Invites subcollection: boards/{boardId}/invites/{inviteId}
  * Invite document shape:
- *   { boardId, invitedByUid, invitedEmail, invitedEmailLower, status, createdAt, acceptedAt }
+ *   { boardId, boardTitle, invitedByUid, invitedByEmail, invitedEmail, invitedEmailLower,
+ *     status, createdAt, acceptedAt, declinedAt }
  */
 import {
   collection,
@@ -109,9 +110,10 @@ export async function getBoard(boardId) {
  * @param {string} boardId
  * @param {string} email - Raw email entered by the owner (will be normalised)
  * @param {{ uid: string, email: string }} currentUser - Firebase Auth user object
+ * @param {string} [boardTitle=''] - Title of the board being shared
  * @returns {Promise<DocumentReference>}
  */
-export async function createBoardInvite(boardId, email, currentUser) {
+export async function createBoardInvite(boardId, email, currentUser, boardTitle = '') {
   const normalizedEmail = email.trim().toLowerCase();
 
   // Basic email format validation
@@ -139,12 +141,15 @@ export async function createBoardInvite(boardId, email, currentUser) {
 
   return addDoc(invitesRef, {
     boardId,
+    boardTitle,
     invitedByUid: currentUser.uid,
+    invitedByEmail: currentUser.email ?? null,
     invitedEmail: normalizedEmail,
     invitedEmailLower: normalizedEmail,
     status: 'pending',
     createdAt: serverTimestamp(),
     acceptedAt: null,
+    declinedAt: null,
   });
 }
 
