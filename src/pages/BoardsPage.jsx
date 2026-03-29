@@ -39,9 +39,15 @@ export function BoardsPage() {
   // Load current user's nickname
   useEffect(() => {
     if (!user?.uid) return;
-    getUserProfile(user.uid)
-      .then((profile) => { if (profile?.nickname) setNickname(profile.nickname); })
-      .catch((err) => { console.error('Failed to load user profile:', err); });
+    async function loadProfile() {
+      try {
+        const profile = await getUserProfile(user.uid);
+        if (profile?.nickname) setNickname(profile.nickname);
+      } catch (err) {
+        console.error('Failed to load user profile:', err);
+      }
+    }
+    loadProfile();
   }, [user]);
 
   function openEditNickname() {
@@ -70,6 +76,7 @@ export function BoardsPage() {
       setNickname(trimmed);
       closeEditNickname();
     } catch (err) {
+      console.error('Failed to save nickname:', err);
       setEditNicknameError(err.message || 'שגיאה בשמירת הכינוי. נסה שוב.');
     } finally {
       setSavingNickname(false);
