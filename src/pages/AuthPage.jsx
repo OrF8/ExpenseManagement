@@ -25,6 +25,7 @@ export function AuthPage() {
   const [tab, setTab] = useState('signin');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [nickname, setNickname] = useState('');
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -38,7 +39,12 @@ export function AuthPage() {
       if (tab === 'signin') {
         await signIn(email, password);
       } else {
-        await signUp(email, password);
+        if (!nickname.trim()) {
+          setError('יש להזין כינוי');
+          setLoading(false);
+          return;
+        }
+        await signUp(email, password, nickname.trim());
       }
       navigate('/');
     } catch (err) {
@@ -81,7 +87,7 @@ export function AuthPage() {
             ].map((t) => (
               <button
                 key={t.id}
-                onClick={() => { setTab(t.id); setError(null); }}
+                onClick={() => { setTab(t.id); setError(null); setNickname(''); }}
                 className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-all ${
                   tab === t.id
                     ? 'bg-white dark:bg-gray-700 text-indigo-600 dark:text-indigo-400 shadow-sm'
@@ -109,6 +115,17 @@ export function AuthPage() {
               autoComplete="email"
               required
             />
+            {tab === 'signup' && (
+              <Input
+                label="כינוי"
+                type="text"
+                value={nickname}
+                onChange={(e) => setNickname(e.target.value)}
+                placeholder="השם שיוצג עבורך"
+                autoComplete="nickname"
+                required
+              />
+            )}
             <Input
               label="סיסמה"
               type="password"

@@ -8,10 +8,13 @@ import {
   signOut,
 } from 'firebase/auth';
 import { auth, googleProvider } from './config';
+import { createUserProfile } from './users';
 
-/** Sign up with email and password */
-export async function signUp(email, password) {
-  return createUserWithEmailAndPassword(auth, email, password);
+/** Sign up with email, password, and a display nickname */
+export async function signUp(email, password, nickname) {
+  const credential = await createUserWithEmailAndPassword(auth, email, password);
+  await createUserProfile(credential.user.uid, email, nickname);
+  return credential;
 }
 
 /** Sign in with email and password */
