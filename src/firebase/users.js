@@ -46,6 +46,19 @@ export async function getUserProfile(uid) {
 }
 
 /**
+ * Fetch multiple user profiles by an array of UIDs.
+ * Missing profiles are returned as a safe fallback object.
+ * @param {string[]} uids
+ * @returns {Promise<Array<{uid: string, nickname: string, email: string}>>}
+ */
+export async function getUserProfilesByUids(uids) {
+  const profiles = await Promise.all(uids.map(getUserProfile));
+  return profiles.map((profile, i) =>
+    profile ?? { uid: uids[i], nickname: 'משתמש', email: '' }
+  );
+}
+
+/**
  * Fetch a user profile by email address.
  * Email is normalized to lowercase/trimmed before querying.
  * @param {string} email

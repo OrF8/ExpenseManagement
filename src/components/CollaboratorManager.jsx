@@ -4,6 +4,7 @@
  */
 import { useState, useEffect, useRef } from 'react';
 import { createBoardInvite, subscribeToBoardInvites, deleteBoardInvite } from '../firebase/boards';
+import { getUserProfilesByUids } from '../firebase/users';
 import { useAuth } from '../context/AuthContext';
 import { Input } from './ui/Input';
 import { Button } from './ui/Button';
@@ -16,6 +17,7 @@ export function CollaboratorManager({ board }) {
   const [success, setSuccess] = useState(false);
   const [invites, setInvites] = useState([]);
   const [revokeError, setRevokeError] = useState(null);
+  const [memberProfiles, setMemberProfiles] = useState([]);
   const successTimerRef = useRef(null);
 
   const isOwner = user?.uid === board.ownerUid;
@@ -30,6 +32,16 @@ export function CollaboratorManager({ board }) {
     );
     return unsub;
   }, [board.id, isOwner]);
+
+  // Load real profile data for all board members
+  useEffect(() => {
+    if (!board.memberUids?.length) return;
+    let stale = false;
+    getUserProfilesByUids(board.memberUids)
+      .then((profiles) => { if (!stale) setMemberProfiles(profiles); })
+      .catch((err) => console.error('getUserProfilesByUids error:', err));
+    return () => { stale = true; };
+  }, [board.memberUids]);
 
   // Clear the success timer when the component unmounts
   useEffect(() => {
@@ -109,26 +121,41 @@ export function CollaboratorManager({ board }) {
           חברי הלוח ({board.memberUids.length})
         </p>
         <div className="flex flex-col gap-1">
-          {board.memberUids.map((uid, index) => (
-            <div
-              key={uid}
-              className="flex items-center gap-2 rounded-lg bg-gray-50 dark:bg-gray-800 px-3 py-2"
-            >
-              <div className="h-6 w-6 rounded-full bg-indigo-100 dark:bg-indigo-900/50 flex items-center justify-center text-xs text-indigo-600 dark:text-indigo-400 font-bold shrink-0">
-                {uid === board.ownerUid ? '★' : String(index + 1)}
+          {board.memberUids.map((uid) => {
+            const profile = memberProfiles.find((p) => p.uid === uid);
+            const nickname = profile?.nickname || 'משתמש';
+            const email = profile?.email || '';
+            const isCurrentUser = uid === user?.uid;
+            const isBoardOwner = uid === board.ownerUid;
+            const initial = nickname.charAt(0);
+            return (
+              <div
+                key={uid}
+                className="flex items-center gap-2 rounded-lg bg-gray-50 dark:bg-gray-800 px-3 py-2"
+              >
+                <div className="h-6 w-6 rounded-full bg-indigo-100 dark:bg-indigo-900/50 flex items-center justify-center text-xs text-indigo-600 dark:text-indigo-400 font-bold shrink-0">
+                  {isBoardOwner ? '★' : initial}
+                </div>
+                <div className="flex flex-col min-w-0 flex-1">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-sm text-gray-800 dark:text-gray-200 font-medium truncate">
+                      {nickname}
+                    </span>
+                    {isBoardOwner && (
+                      <span className="text-xs text-amber-600 dark:text-amber-400 font-medium shrink-0">בעלים</span>
+                    )}
+                    {isCurrentUser && (
+                      <span className="text-xs text-indigo-500 dark:text-indigo-400 shrink-0">(אתה)</span>
+                    )}
+                  </div>
+                  {email && (
+                    <span className="text-xs text-gray-400 dark:text-gray-500 truncate">{email}</span>
+                  )}
+                </div>
               </div>
-              <span className="text-sm text-gray-700 dark:text-gray-300">
-                {uid === board.ownerUid ? 'בעלים (אתה)' : `חבר ${index + 1}`}
-              </span>
-              {uid === user?.uid && uid !== board.ownerUid && (
-                <span className="text-xs text-indigo-500 dark:text-indigo-400 mr-1">(אתה)</span>
-              )}
-            </div>
-          ))}
+            );
+          })}
         </div>
-        <p className="text-xs text-gray-400 dark:text-gray-500 mt-1.5">
-          פרטי חברים יוצגו לאחר הטמעת קבלת ההזמנות
-        </p>
       </div>
 
       {/* Pending invites — owner only */}
