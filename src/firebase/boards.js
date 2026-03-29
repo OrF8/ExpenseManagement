@@ -22,7 +22,8 @@ import {
   onSnapshot,
   serverTimestamp,
 } from 'firebase/firestore';
-import { db } from './config';
+import { httpsCallable } from 'firebase/functions';
+import { db, functions } from './config';
 
 const boardsRef = () => collection(db, 'boards');
 
@@ -81,6 +82,24 @@ export async function getBoard(boardId) {
   const snap = await getDoc(ref);
   if (!snap.exists()) return null;
   return { id: snap.id, ...snap.data() };
+}
+
+/**
+ * Subscribe to real-time updates of a single board document.
+ * @param {string} boardId
+ * @param {function} onData  - Callback receiving the board object, or null if it no longer exists
+ * @param {function} onError - Error callback
+ * @returns {function} Unsubscribe function
+ */
+export function subscribeToBoard(boardId, onData, onError) {
+  const ref = doc(db, 'boards', boardId);
+  return onSnapshot(
+    ref,
+    (snap) => {
+      onData(snap.exists() ? { id: snap.id, ...snap.data() } : null);
+    },
+    onError
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -219,4 +238,19 @@ export function subscribeToIncomingInvites(email, onData, onError) {
 export async function deleteBoardInvite(boardId, inviteId) {
   const ref = doc(db, 'boards', boardId, 'invites', inviteId);
   return deleteDoc(ref);
+}
+
+/**
+ * Remove a member from a board (owner only).
+ * Delegates to the `removeBoardMember` Cloud Function which enforces all
+ * permission and safety checks server-side.
+ *
+ * @param {string} boardId   - ID of the board document
+ * @param {string} memberUid - UID of the member to remove
+ * @returns {Promise<{ success: boolean }>}
+ */
+export async function removeBoardMember(boardId, memberUid) {
+  const fn = httpsCallable(functions, 'removeBoardMember');
+  const result = await fn({ boardId, memberUid });
+  return result.data;
 }

@@ -3,7 +3,7 @@
  * Allows the board owner to invite collaborators by email and manage pending invites.
  */
 import { useState, useEffect, useRef } from 'react';
-import { createBoardInvite, subscribeToBoardInvites, deleteBoardInvite } from '../firebase/boards';
+import { createBoardInvite, subscribeToBoardInvites, deleteBoardInvite, removeBoardMember } from '../firebase/boards';
 import { getUserProfilesByUids } from '../firebase/users';
 import { useAuth } from '../context/AuthContext';
 import { Input } from './ui/Input';
@@ -17,6 +17,7 @@ export function CollaboratorManager({ board }) {
   const [success, setSuccess] = useState(false);
   const [invites, setInvites] = useState([]);
   const [revokeError, setRevokeError] = useState(null);
+  const [removeError, setRemoveError] = useState(null);
   const [memberProfiles, setMemberProfiles] = useState([]);
   const successTimerRef = useRef(null);
 
@@ -85,6 +86,16 @@ export function CollaboratorManager({ board }) {
     }
   }
 
+  async function handleRemoveMember(memberUid) {
+    if (!window.confirm('האם אתה בטוח שברצונך להסיר חבר זה מהלוח?')) return;
+    setRemoveError(null);
+    try {
+      await removeBoardMember(board.id, memberUid);
+    } catch (err) {
+      setRemoveError(err.message);
+    }
+  }
+
   const pendingInvites = invites.filter((i) => i.status === 'pending');
 
   return (
@@ -120,6 +131,9 @@ export function CollaboratorManager({ board }) {
         <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
           חברי הלוח ({board.memberUids.length})
         </p>
+        {removeError && (
+          <p className="text-xs text-red-500 dark:text-red-400 mb-2">{removeError}</p>
+        )}
         <div className="flex flex-col gap-1">
           {board.memberUids.map((uid) => {
             const profile = memberProfiles.find((p) => p.uid === uid);
@@ -152,6 +166,16 @@ export function CollaboratorManager({ board }) {
                     <span className="text-xs text-gray-400 dark:text-gray-500 truncate">{email}</span>
                   )}
                 </div>
+                {isOwner && !isBoardOwner && (
+                  <Button
+                    type="button"
+                    variant="danger"
+                    size="sm"
+                    onClick={() => handleRemoveMember(uid)}
+                  >
+                    הסר
+                  </Button>
+                )}
               </div>
             );
           })}
