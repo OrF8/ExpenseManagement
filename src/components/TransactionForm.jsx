@@ -21,28 +21,32 @@ const EMPTY_FORM = {
 function validate(form) {
   const errors = {};
   if (!form.name.trim()) errors.name = 'שדה חובה';
-  if (!/^\d{4}$/.test(form.cardLast4))
-    errors.cardLast4 = 'יש להזין בדיוק 4 ספרות';
+  if (!form.type) errors.type = 'יש לבחור סוג עסקה';
   if (!form.essence.trim()) errors.essence = 'שדה חובה';
   const amt = parseFloat(form.amount);
   if (!form.amount || isNaN(amt) || amt <= 0)
     errors.amount = 'סכום חייב להיות מספר חיובי';
 
-  const hasCurrent = form.installmentCurrent !== '';
-  const hasTotal = form.installmentTotal !== '';
-  if (hasCurrent !== hasTotal) {
-    const msg = 'יש למלא את שני שדות התשלומים או לרוקן שניהם';
-    if (!hasCurrent) errors.installmentCurrent = msg;
-    if (!hasTotal) errors.installmentTotal = msg;
-  } else if (hasCurrent && hasTotal) {
-    const cur = parseInt(form.installmentCurrent, 10);
-    const tot = parseInt(form.installmentTotal, 10);
-    if (isNaN(cur) || !Number.isInteger(cur) || cur < 1)
-      errors.installmentCurrent = 'מספר תשלום נוכחי חייב להיות מספר שלם חיובי';
-    if (isNaN(tot) || !Number.isInteger(tot) || tot < 1)
-      errors.installmentTotal = 'סך תשלומים חייב להיות מספר שלם חיובי';
-    if (!errors.installmentCurrent && !errors.installmentTotal && cur > tot)
-      errors.installmentCurrent = 'תשלום נוכחי לא יכול לעלות על סך התשלומים';
+  if (form.type === 'credit_card') {
+    if (!/^\d{4}$/.test(form.cardLast4))
+      errors.cardLast4 = 'יש להזין בדיוק 4 ספרות';
+
+    const hasCurrent = form.installmentCurrent !== '';
+    const hasTotal = form.installmentTotal !== '';
+    if (hasCurrent !== hasTotal) {
+      const msg = 'יש למלא את שני שדות התשלומים או לרוקן שניהם';
+      if (!hasCurrent) errors.installmentCurrent = msg;
+      if (!hasTotal) errors.installmentTotal = msg;
+    } else if (hasCurrent && hasTotal) {
+      const cur = parseInt(form.installmentCurrent, 10);
+      const tot = parseInt(form.installmentTotal, 10);
+      if (isNaN(cur) || !Number.isInteger(cur) || cur < 1)
+        errors.installmentCurrent = 'מספר תשלום נוכחי חייב להיות מספר שלם חיובי';
+      if (isNaN(tot) || !Number.isInteger(tot) || tot < 1)
+        errors.installmentTotal = 'סך תשלומים חייב להיות מספר שלם חיובי';
+      if (!errors.installmentCurrent && !errors.installmentTotal && cur > tot)
+        errors.installmentCurrent = 'תשלום נוכחי לא יכול לעלות על סך התשלומים';
+    }
   }
   return errors;
 }
@@ -74,7 +78,19 @@ export function TransactionForm({ initial, defaultName, onSubmit, onCancel, subm
   function handleChange(e) {
     const { name, value } = e.target;
     setForm((f) => ({ ...f, [name]: value }));
-    if (errors[name]) setErrors((e) => ({ ...e, [name]: undefined }));
+    if (name === 'type') {
+      setErrors((prev) => {
+        const next = { ...prev, type: undefined };
+        if (value !== 'credit_card') {
+          delete next.cardLast4;
+          delete next.installmentCurrent;
+          delete next.installmentTotal;
+        }
+        return next;
+      });
+    } else if (errors[name]) {
+      setErrors((e) => ({ ...e, [name]: undefined }));
+    }
   }
 
   async function handleSubmit(e) {
@@ -84,21 +100,20 @@ export function TransactionForm({ initial, defaultName, onSubmit, onCancel, subm
       setErrors(errs);
       return;
     }
+    const isCreditCard = form.type === 'credit_card';
     const data = {
       name: form.name.trim(),
-      cardLast4: form.cardLast4,
+      cardLast4: isCreditCard ? form.cardLast4 : null,
       essence: form.essence.trim(),
       comment: form.comment.trim() || null,
       amount: parseFloat(form.amount),
-      installmentCurrent:
-        form.installmentCurrent !== ''
-          ? parseInt(form.installmentCurrent, 10)
-          : null,
-      installmentTotal:
-        form.installmentTotal !== ''
-          ? parseInt(form.installmentTotal, 10)
-          : null,
-      type: form.type || null,
+      installmentCurrent: isCreditCard && form.installmentCurrent !== ''
+        ? parseInt(form.installmentCurrent, 10)
+        : null,
+      installmentTotal: isCreditCard && form.installmentTotal !== ''
+        ? parseInt(form.installmentTotal, 10)
+        : null,
+      type: form.type,
     };
     try {
       setSubmitError(null);
@@ -111,28 +126,32 @@ export function TransactionForm({ initial, defaultName, onSubmit, onCancel, subm
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-4" noValidate>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <Input
-          label="שם"
-          name="name"
-          value={form.name}
-          onChange={handleChange}
-          placeholder="ישראל ישראלי"
-          error={errors.name}
-        />
-        <Input
-          label="4 ספרות אחרונות של הכרטיס"
-          name="cardLast4"
-          value={form.cardLast4}
-          onChange={handleChange}
-          placeholder="1234"
-          maxLength={4}
-          inputMode="numeric"
-          error={errors.cardLast4}
-        />
+        <div className={form.type !== 'credit_card' ? 'sm:col-span-2' : ''}>
+          <Input
+            label="שם"
+            name="name"
+            value={form.name}
+            onChange={handleChange}
+            placeholder="ישראל ישראלי"
+            error={errors.name}
+          />
+        </div>
+        {form.type === 'credit_card' && (
+          <Input
+            label="4 ספרות אחרונות של הכרטיס"
+            name="cardLast4"
+            value={form.cardLast4}
+            onChange={handleChange}
+            placeholder="1234"
+            maxLength={4}
+            inputMode="numeric"
+            error={errors.cardLast4}
+          />
+        )}
       </div>
       <div className="flex flex-col gap-1">
         <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-          סוג עסקה (אופציונלי)
+          סוג עסקה
         </label>
         <select
           name="type"
@@ -147,6 +166,9 @@ export function TransactionForm({ initial, defaultName, onSubmit, onCancel, subm
             </option>
           ))}
         </select>
+        {errors.type && (
+          <p className="text-xs text-red-500 mt-0.5" role="alert">{errors.type}</p>
+        )}
       </div>
       <Input
         label="מהות העסקה"
@@ -180,6 +202,7 @@ export function TransactionForm({ initial, defaultName, onSubmit, onCancel, subm
         placeholder="0.00"
         error={errors.amount}
       />
+      {form.type === 'credit_card' && (
       <div className="rounded-xl bg-gray-50 dark:bg-gray-800/50 p-4 border border-gray-100 dark:border-gray-700">
         <p className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-3">
           פירוט תשלומים (אופציונלי)
@@ -209,6 +232,7 @@ export function TransactionForm({ initial, defaultName, onSubmit, onCancel, subm
           />
         </div>
       </div>
+      )}
       <div className="flex gap-3 pt-2 justify-end">
         <Button type="button" variant="secondary" onClick={onCancel}>
           ביטול
