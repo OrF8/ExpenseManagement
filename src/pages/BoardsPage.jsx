@@ -6,7 +6,7 @@ import { Link } from 'react-router-dom';
 import { useBoards } from '../hooks/useBoards';
 import { useIncomingInvites } from '../hooks/useIncomingInvites';
 import { useAuth } from '../context/AuthContext';
-import { createBoard } from '../firebase/boards';
+import { createBoard, deleteBoard } from '../firebase/boards';
 import { acceptBoardInvite, declineBoardInvite } from '../firebase/invites';
 import { logOut } from '../firebase/auth';
 import { Button } from '../components/ui/Button';
@@ -79,6 +79,22 @@ export function BoardsPage() {
     }
   }
 
+  const [deletingBoardId, setDeletingBoardId] = useState(null);
+  const [deleteError, setDeleteError] = useState(null);
+
+  async function handleDeleteBoard(boardId) {
+    if (!window.confirm('האם אתה בטוח שברצונך למחוק את הלוח? פעולה זו אינה ניתנת לביטול.')) return;
+    setDeletingBoardId(boardId);
+    setDeleteError(null);
+    try {
+      await deleteBoard(boardId);
+    } catch (err) {
+      setDeleteError(err.message || 'שגיאה במחיקת הלוח. נסה שוב.');
+    } finally {
+      setDeletingBoardId(null);
+    }
+  }
+
   const [signOutError, setSignOutError] = useState(null);
 
   async function handleSignOut() {
@@ -113,9 +129,9 @@ export function BoardsPage() {
       </header>
 
       <main className="max-w-3xl mx-auto px-4 py-8">
-        {(error || signOutError) && (
+        {(error || signOutError || deleteError) && (
           <div className="mb-4 rounded-xl bg-red-50 dark:bg-red-900/30 border border-red-100 dark:border-red-800 px-4 py-3 text-sm text-red-600 dark:text-red-400">
-            {error ? `שגיאה בטעינת הלוחות: ${error}` : signOutError}
+            {error ? `שגיאה בטעינת הלוחות: ${error}` : deleteError || signOutError}
           </div>
         )}
 
@@ -211,25 +227,41 @@ export function BoardsPage() {
         ) : (
           <div className="grid gap-3 sm:grid-cols-2">
             {boards.map((board) => (
-              <Link
+              <div
                 key={board.id}
-                to={`/board/${board.id}`}
-                className="group block rounded-2xl bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 p-5 shadow-sm hover:shadow-md hover:border-indigo-100 dark:hover:border-indigo-700 transition-all"
+                className="group rounded-2xl bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 shadow-sm hover:shadow-md hover:border-indigo-100 dark:hover:border-indigo-700 transition-all"
               >
-                <div className="flex items-start justify-between mb-3">
-                  <h3 className="font-semibold text-gray-900 dark:text-gray-100 group-hover:text-indigo-700 dark:group-hover:text-indigo-400 transition-colors">
-                    {board.title}
-                  </h3>
-                  <div className="h-8 w-8 rounded-xl bg-indigo-50 dark:bg-indigo-900/50 flex items-center justify-center">
-                    <svg className="h-4 w-4 text-indigo-500 dark:text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2" />
-                    </svg>
+                <Link
+                  to={`/board/${board.id}`}
+                  className="block p-5"
+                >
+                  <div className="flex items-start justify-between mb-3">
+                    <h3 className="font-semibold text-gray-900 dark:text-gray-100 group-hover:text-indigo-700 dark:group-hover:text-indigo-400 transition-colors">
+                      {board.title}
+                    </h3>
+                    <div className="h-8 w-8 rounded-xl bg-indigo-50 dark:bg-indigo-900/50 flex items-center justify-center">
+                      <svg className="h-4 w-4 text-indigo-500 dark:text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2" />
+                      </svg>
+                    </div>
                   </div>
-                </div>
-                <p className="text-xs text-gray-400 dark:text-gray-500">
-                  {board.memberUids.length} משתתפים
-                </p>
-              </Link>
+                  <p className="text-xs text-gray-400 dark:text-gray-500">
+                    {board.memberUids.length} משתתפים
+                  </p>
+                </Link>
+                {board.ownerUid === user?.uid && (
+                  <div className="px-5 pb-4 flex justify-end">
+                    <Button
+                      size="sm"
+                      variant="danger"
+                      loading={deletingBoardId === board.id}
+                      onClick={() => handleDeleteBoard(board.id)}
+                    >
+                      מחק
+                    </Button>
+                  </div>
+                )}
+              </div>
             ))}
           </div>
         )}
