@@ -6,6 +6,7 @@ import {
   signInWithEmailAndPassword,
   signInWithPopup,
   signOut,
+  sendPasswordResetEmail,
 } from 'firebase/auth';
 import { auth, googleProvider } from './config';
 import { createUserProfile, getUserProfile } from './users';
@@ -48,4 +49,9 @@ export async function signInWithGoogle() {
 /** Sign out the current user */
 export async function logOut() {
   return signOut(auth);
+}
+
+/** Send a password-reset email to the given address */
+export async function resetPassword(email) {
+  return sendPasswordResetEmail(auth, email);
 }

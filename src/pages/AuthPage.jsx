@@ -3,9 +3,10 @@
  */
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { signIn, signUp, signInWithGoogle } from '../firebase/auth';
+import { signIn, signUp, signInWithGoogle, resetPassword } from '../firebase/auth';
 import { Input } from '../components/ui/Input';
 import { Button } from '../components/ui/Button';
+import { Modal } from '../components/ui/Modal';
 
 function getHebrewError(code) {
   const map = {
@@ -21,6 +22,15 @@ function getHebrewError(code) {
   return map[code] || 'שגיאה בהתחברות. נסה שוב';
 }
 
+function getHebrewResetError(code) {
+  const map = {
+    'auth/invalid-email': 'כתובת אימייל לא תקינה',
+    'auth/too-many-requests': 'יותר מדי ניסיונות. נסה שוב מאוחר יותר',
+    'auth/user-not-found': 'שגיאה בשליחת הדואר. נסה שוב',
+  };
+  return map[code] || 'שגיאה בשליחת הדואר. נסה שוב';
+}
+
 export function AuthPage() {
   const [tab, setTab] = useState('signin');
   const [email, setEmail] = useState('');
@@ -30,6 +40,45 @@ export function AuthPage() {
   const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState(null);
   const navigate = useNavigate();
+
+  const [showResetModal, setShowResetModal] = useState(false);
+  const [resetEmail, setResetEmail] = useState('');
+  const [resetLoading, setResetLoading] = useState(false);
+  const [resetMessage, setResetMessage] = useState(null);
+  const [resetError, setResetError] = useState(null);
+
+  function openResetModal() {
+    setResetEmail(email.trim());
+    setResetMessage(null);
+    setResetError(null);
+    setShowResetModal(true);
+  }
+
+  function closeResetModal() {
+    setShowResetModal(false);
+    setResetMessage(null);
+    setResetError(null);
+  }
+
+  async function handleResetPassword(e) {
+    e.preventDefault();
+    const trimmed = resetEmail.trim();
+    if (!trimmed) {
+      setResetError('יש להזין כתובת אימייל');
+      return;
+    }
+    setResetError(null);
+    setResetMessage(null);
+    setResetLoading(true);
+    try {
+      await resetPassword(trimmed);
+      setResetMessage('אם קיים חשבון עבור כתובת זו, נשלח אליה מייל לאיפוס הסיסמה.');
+    } catch (err) {
+      setResetError(getHebrewResetError(err.code));
+    } finally {
+      setResetLoading(false);
+    }
+  }
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -135,6 +184,17 @@ export function AuthPage() {
               autoComplete={tab === 'signin' ? 'current-password' : 'new-password'}
               required
             />
+            {tab === 'signin' && (
+              <div className="flex justify-start">
+                <button
+                  type="button"
+                  onClick={openResetModal}
+                  className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline focus:outline-none"
+                >
+                  שכחת סיסמה?
+                </button>
+              </div>
+            )}
             <Button type="submit" loading={loading} className="w-full mt-1">
               {tab === 'signin' ? 'התחבר' : 'הירשם'}
             </Button>
@@ -165,6 +225,41 @@ export function AuthPage() {
           </Button>
         </div>
       </div>
+
+      <Modal isOpen={showResetModal} onClose={closeResetModal} title="איפוס סיסמה">
+        <form onSubmit={handleResetPassword} className="flex flex-col gap-4">
+          <p className="text-sm text-gray-600 dark:text-gray-400">
+            הזן את כתובת האימייל שלך ונשלח לך קישור לאיפוס הסיסמה.
+          </p>
+          <Input
+            label="אימייל"
+            type="email"
+            value={resetEmail}
+            onChange={(e) => setResetEmail(e.target.value)}
+            placeholder="you@example.com"
+            autoComplete="email"
+            required
+          />
+          {resetMessage && (
+            <div className="rounded-lg bg-green-50 dark:bg-green-900/30 border border-green-100 dark:border-green-800 px-3 py-2.5 text-sm text-green-700 dark:text-green-400">
+              {resetMessage}
+            </div>
+          )}
+          {resetError && (
+            <div className="rounded-lg bg-red-50 dark:bg-red-900/30 border border-red-100 dark:border-red-800 px-3 py-2.5 text-sm text-red-600 dark:text-red-400">
+              {resetError}
+            </div>
+          )}
+          <div className="flex gap-3 justify-end">
+            <Button type="button" variant="secondary" onClick={closeResetModal}>
+              ביטול
+            </Button>
+            <Button type="submit" loading={resetLoading} disabled={!!resetMessage} aria-label={resetMessage ? 'הקישור נשלח' : 'שלח קישור לאיפוס סיסמה'}>
+              {resetMessage ? 'נשלח' : 'שלח קישור'}
+            </Button>
+          </div>
+        </form>
+      </Modal>
     </div>
   );
 }
