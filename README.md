@@ -140,6 +140,14 @@ service cloud.firestore {
       allow read: if signedInEmail() != null
         && resource.data.invitedEmailLower == signedInEmail();
     }
+
+    // User profiles — created on email/password sign-up; readable by any signed-in user.
+    match /users/{uid} {
+      allow create: if request.auth != null && request.auth.uid == uid;
+      allow read: if request.auth != null;
+      allow update: if request.auth != null && request.auth.uid == uid;
+      allow delete: if false;
+    }
   }
 }
 ```
