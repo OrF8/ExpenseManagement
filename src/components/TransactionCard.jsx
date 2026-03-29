@@ -41,9 +41,11 @@ export function TransactionCard({ transaction, onEdit, onDelete }) {
             <span className="font-semibold text-gray-900 dark:text-gray-100 text-sm">
               {transaction.name}
             </span>
+            {transaction.cardLast4 != null && (
             <span className="rounded-full bg-gray-100 dark:bg-gray-700 px-2 py-0.5 text-xs font-mono text-gray-500 dark:text-gray-400">
               ****{transaction.cardLast4}
             </span>
+            )}
             {hasInstallments && (
               <span className="rounded-full bg-indigo-50 dark:bg-indigo-900/50 px-2 py-0.5 text-xs text-indigo-600 dark:text-indigo-400 font-medium">
                 תשלום {transaction.installmentCurrent} מתוך{' '}
