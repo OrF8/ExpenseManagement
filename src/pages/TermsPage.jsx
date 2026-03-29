@@ -19,7 +19,7 @@ export function TermsPage() {
 
       <main className="max-w-3xl mx-auto px-4 py-10">
         <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100 mb-2">Terms of Service</h1>
-        <p className="text-sm text-gray-500 dark:text-gray-400 mb-8">Effective date: March 29, 2025</p>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mb-8">Effective date: March 29, 2026</p>
 
         <div className="prose-sm text-gray-700 dark:text-gray-300 space-y-6 leading-relaxed">
           <p>
