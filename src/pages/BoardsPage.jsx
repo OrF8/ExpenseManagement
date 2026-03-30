@@ -8,7 +8,7 @@
  *  - Drag-and-drop a board card onto another to merge them into a super board.
  */
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useBoards } from '../hooks/useBoards';
 import { useBoardTotals } from '../hooks/useBoardTotals';
 import { useIncomingInvites } from '../hooks/useIncomingInvites';
@@ -32,6 +32,7 @@ function formatAmount(amount) {
 
 export function BoardsPage() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const { boards, loading, error } = useBoards();
   const { invites: incomingInvites } = useIncomingInvites();
   const [showCreate, setShowCreate] = useState(false);
@@ -239,13 +240,22 @@ export function BoardsPage() {
   }
 
   async function handleDeleteAccount() {
+    // Guard against duplicate submits
+    if (deleting) return;
     setDeleting(true);
     setDeleteAccountError(null);
     try {
       await deleteMyAccount();
-      // The auth state change listener in AuthContext will detect that the
-      // Firebase Auth user no longer exists and redirect to the sign-in screen.
-      // No explicit navigation needed here.
+      // Explicit exit: close modals, clear state, and navigate to the landing page.
+      // This is the primary path for a successful deletion.
+      // If navigation fails for any reason, fall back to a full page reload.
+      closeDeleteConfirm();
+      closeProfile();
+      try {
+        navigate('/');
+      } catch {
+        window.location.href = '/';
+      }
     } catch (err) {
       console.error('Failed to delete account:', err);
       setDeleteAccountError(err.message || 'שגיאה במחיקת החשבון. נסה שוב.');

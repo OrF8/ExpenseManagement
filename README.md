@@ -37,6 +37,7 @@ This project was built by [**Or Forshmit**](https://github.com/OrF8).
   - [▶️ Running Locally](#%EF%B8%8F-running-locally)
 - [🔥 Firebase Setup](#-firebase-setup)
 - [⚡ Cloud Functions](#-cloud-functions)
+- [👤 Profile & Account Management](#-profile--account-management)
 - [🔒 Privacy & Terms](#-privacy--terms)
 - [📄 License](#-license)
 
@@ -59,6 +60,7 @@ Managing shared expenses is harder than it sounds. Between split rent, grocery r
 - 📊 **Installment support** — track payments as installment X of Y (תשלום X מתוך Y)
 - 💰 **Auto-calculated totals** — per-card subtotals and a grand total, always up to date
 - 🔄 **Real-time updates** — Firestore listeners push changes to all board members instantly
+- 👤 **Profile & account management** — change nickname, sign out, or permanently delete your account (with full cascade cleanup) from a dedicated account panel
 - 🌐 **Full Hebrew RTL UI** — built natively for right-to-left layout
 - 🌙 **Dark / light mode** — theme preference persisted locally
 
@@ -153,7 +155,7 @@ firebase deploy --only firestore:rules
 
 ## ⚡ Cloud Functions
 
-The `functions/` directory contains four callable Cloud Functions:
+The `functions/` directory contains six callable Cloud Functions:
 
 | Function | Description |
 |---|---|
@@ -161,6 +163,8 @@ The `functions/` directory contains four callable Cloud Functions:
 | `declineBoardInvite` | Marks the invite as declined |
 | `removeBoardMember` | Allows the board owner to remove a non-owner member |
 | `leaveBoard` | Allows a non-owner member to remove themselves from a board |
+| `deleteBoard` | Allows the board owner to fully delete a board and all its subcollections |
+| `deleteMyAccount` | Permanently deletes the caller's account, all owned boards, and all related data |
 
 **Requirements:** Firebase CLI (`npm install -g firebase-tools`) and the Blaze (pay-as-you-go) plan.
 
@@ -190,7 +194,34 @@ if (location.hostname === 'localhost') {
 
 ---
 
-## 🔒 Privacy & Terms
+## 👤 Profile & Account Management
+
+The app includes a dedicated **Account Settings** panel, accessible from the profile button in the top-right corner of the boards screen.
+
+### What's in the panel
+
+| Action | Description |
+|---|---|
+| **שנה כינוי** (Change nickname) | Update the display name shown throughout the app |
+| **יציאה** (Sign out) | Sign out of the current session |
+| **מחק חשבון** (Delete account) | Permanently delete your account and all associated data |
+
+### Account deletion
+
+Deleting your account is a **destructive, irreversible action** that removes all data you own:
+
+- **Your Auth account** is permanently deleted.
+- **All boards you created** are deleted — including boards that have collaborators. Ownership is absolute: shared boards created by you are removed regardless of other members.
+- **All descendant boards** under your owned boards are also deleted (board hierarchies are fully removed).
+- **All data under those boards** is deleted: transactions, invites, and any other subcollection data.
+- **Your membership** is cleaned up from boards you participate in but do not own, so other users' boards remain intact.
+- **Your user profile** (`users/{uid}`) is deleted from Firestore.
+
+The deletion is performed entirely server-side via the `deleteMyAccount` Cloud Function. Your UID is derived from the authenticated session token — you cannot delete anyone else's account. The UI shows a confirmation dialog with a clear warning before proceeding.
+
+---
+
+
 
 This app includes a [Privacy Policy](https://of8-expense-management.web.app/privacy) (`/privacy`) and [Terms of Service](https://of8-expense-management.web.app/terms) (`/terms`) for compliance with Firebase and Google Sign-In requirements.
 

@@ -524,42 +524,52 @@ exports.deleteMyAccount = onCall(async (request) => {
 
   console.log(`deleteMyAccount: will delete ${boardIdsToDelete.size} board(s) in total (including descendants)`);
 
-  // 4. Delete each board and its subcollections (invites, transactions)
+  // 4. Delete each board and its subcollections (invites, transactions).
+  //    Use Promise.all (not allSettled) so that any board deletion failure throws
+  //    immediately and prevents the account from being finalized as deleted while
+  //    data still exists.  The product rule is: everything owned by the user must
+  //    be removed; partial cleanup is not acceptable.
   const boardIdsArray = [...boardIdsToDelete];
-  const deletionResults = await Promise.allSettled(
-    boardIdsArray.map((boardId) => deleteBoardData(boardId))
-  );
-  deletionResults.forEach((r, i) => {
-    if (r.status === 'rejected') {
-      console.error(`deleteMyAccount: failed to delete board ${boardIdsArray[i]}:`, r.reason);
-    }
-  });
+  try {
+    await Promise.all(boardIdsArray.map((boardId) => deleteBoardData(boardId)));
+  } catch (err) {
+    console.error('deleteMyAccount: failed to delete owned board data, aborting account deletion:', err);
+    throw new HttpsError(
+      'internal',
+      'שגיאה במחיקת נתוני הלוחות. החשבון לא נמחק. נסה שוב.',
+    );
+  }
 
   // 5. Remove the user from memberUids/directMemberUids on boards they do NOT own
-  //    (boards where the user is a collaborator).  Failures are logged but do not
-  //    abort the deletion — the user's auth record is still removed below.
+  //    (boards where the user is a collaborator).  This prevents orphaned UID
+  //    references on other users' boards.  Failures here are also treated as fatal:
+  //    leaving stale UID references behind could cause permission and display bugs
+  //    for other board members.
   const memberBoardsSnap = await db.collection('boards')
     .where('memberUids', 'array-contains', uid)
     .get();
 
-  const memberCleanupResults = await Promise.allSettled(
-    memberBoardsSnap.docs
-      .filter((d) => {
-        const data = d.data();
-        return data.ownerUid !== uid; // skip owned boards (already deleted above)
-      })
-      .map((d) =>
+  const nonOwnedBoards = memberBoardsSnap.docs.filter((d) => {
+    const data = d.data();
+    return data.ownerUid !== uid; // skip owned boards (already deleted above)
+  });
+
+  try {
+    await Promise.all(
+      nonOwnedBoards.map((d) =>
         d.ref.update({
           memberUids: admin.firestore.FieldValue.arrayRemove(uid),
           directMemberUids: admin.firestore.FieldValue.arrayRemove(uid),
         })
       )
-  );
-  memberCleanupResults.forEach((r) => {
-    if (r.status === 'rejected') {
-      console.error('deleteMyAccount: failed to clean up board membership:', r.reason);
-    }
-  });
+    );
+  } catch (err) {
+    console.error('deleteMyAccount: failed to clean up board membership, aborting account deletion:', err);
+    throw new HttpsError(
+      'internal',
+      'שגיאה בניקוי חברות בלוחות. החשבון לא נמחק. נסה שוב.',
+    );
+  }
 
   // 6. Delete the user's Firestore profile document (users/{uid})
   await db.collection('users').doc(uid).delete();
