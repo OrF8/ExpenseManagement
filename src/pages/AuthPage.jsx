@@ -1,9 +1,9 @@
 /**
  * Authentication page with sign-in and sign-up tabs.
  */
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { signIn, signUp, signInWithGoogle, resetPassword } from '../firebase/auth';
+import { signIn, signUp, signInWithGoogle, resetPassword, getGoogleRedirectResult } from '../firebase/auth';
 import { Input } from '../components/ui/Input';
 import { Button } from '../components/ui/Button';
 import { Modal } from '../components/ui/Modal';
@@ -18,7 +18,13 @@ function getHebrewError(code) {
     'auth/weak-password': 'הסיסמה חלשה מדי (לפחות 6 תווים)',
     'auth/invalid-email': 'כתובת אימייל לא תקינה',
     'auth/popup-closed-by-user': 'ההתחברות בוטלה',
+    'auth/cancelled-popup-request': 'ההתחברות בוטלה',
+    'auth/popup-blocked': 'החלון הקופץ נחסם על ידי הדפדפן',
     'auth/too-many-requests': 'יותר מדי ניסיונות. נסה שוב מאוחר יותר',
+    'auth/unauthorized-domain': 'הדומיין אינו מורשה לכניסה עם Google',
+    'auth/operation-not-supported-in-this-environment': 'הפעולה אינה נתמכת בסביבה זו',
+    'auth/network-request-failed': 'שגיאת רשת. בדוק את החיבור לאינטרנט',
+    'auth/internal-error': 'שגיאה פנימית. נסה שוב',
   };
   return map[code] || 'שגיאה בהתחברות. נסה שוב';
 }
@@ -47,6 +53,22 @@ export function AuthPage() {
   const [resetLoading, setResetLoading] = useState(false);
   const [resetMessage, setResetMessage] = useState(null);
   const [resetError, setResetError] = useState(null);
+
+  // Complete any in-progress Google redirect sign-in (e.g. after Brave blocks
+  // the popup and the app falls back to signInWithRedirect).
+  useEffect(() => {
+    getGoogleRedirectResult()
+      .then((result) => {
+        if (result) {
+          navigate('/boards');
+        }
+      })
+      .catch((err) => {
+        console.error('[Auth] Redirect sign-in failed:', err.code, err.message);
+        setError(getHebrewError(err.code));
+      });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   function openResetModal() {
     setResetEmail(email.trim());
@@ -108,9 +130,15 @@ export function AuthPage() {
     setError(null);
     setGoogleLoading(true);
     try {
-      await signInWithGoogle();
-      navigate('/boards');
+      const result = await signInWithGoogle();
+      // result is null when signInWithRedirect was initiated — the browser will
+      // navigate away momentarily, so we still reach the finally block which
+      // resets the spinner before navigation completes.
+      if (result) {
+        navigate('/boards');
+      }
     } catch (err) {
+      console.error('[Auth] Google sign-in failed:', err.code, err.message);
       setError(getHebrewError(err.code));
     } finally {
       setGoogleLoading(false);
