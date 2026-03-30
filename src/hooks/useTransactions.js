@@ -44,7 +44,23 @@ export function useTransactions(boardId) {
     return { perGroup, grandTotal };
   }, [isFresh, state.transactions]);
 
-  const transactions = isFresh ? state.transactions : [];
+  /**
+   * Sort transactions: dated ones first (newest first by transactionDate),
+   * then undated ones (preserving their relative Firestore order).
+   * transactionDate is stored as YYYY-MM-DD so string comparison is correct.
+   */
+  const transactions = useMemo(() => {
+    const source = isFresh ? state.transactions : [];
+    return [...source].sort((a, b) => {
+      const hasA = !!a.transactionDate;
+      const hasB = !!b.transactionDate;
+      if (hasA && hasB) return b.transactionDate.localeCompare(a.transactionDate);
+      if (hasA) return -1;
+      if (hasB) return 1;
+      return 0;
+    });
+  }, [isFresh, state.transactions]);
+
   const error = isFresh ? state.error : null;
 
   return { transactions, loading, error, totals };
