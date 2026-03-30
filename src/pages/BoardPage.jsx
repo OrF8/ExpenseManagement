@@ -1,12 +1,19 @@
 /**
- * Board detail page - shows transactions and totals.
+ * Board detail page.
+ *
+ * Behaviour:
+ *  - Regular board: shows transactions and totals (existing behaviour).
+ *  - Super board (board.subBoardIds?.length > 0): shows sub-board grid with
+ *    aggregate total and an affordance to remove each sub-board.
  */
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTransactions } from '../hooks/useTransactions';
+import { useBoards } from '../hooks/useBoards';
+import { useBoardTotals } from '../hooks/useBoardTotals';
 import { useAuth } from '../context/AuthContext';
 import { addTransaction, updateTransaction, deleteTransaction } from '../firebase/transactions';
-import { subscribeToBoard } from '../firebase/boards';
+import { subscribeToBoard, removeSubBoardFromSuper } from '../firebase/boards';
 import { getUserProfile } from '../firebase/users';
 import { Button } from '../components/ui/Button';
 import { Spinner } from '../components/ui/Spinner';
@@ -18,11 +25,16 @@ import { TransactionCard } from '../components/TransactionCard';
 import { TotalsSummary } from '../components/TotalsSummary';
 import { CollaboratorManager } from '../components/CollaboratorManager';
 
+function formatAmount(amount) {
+  return new Intl.NumberFormat('he-IL', { style: 'currency', currency: 'ILS' }).format(amount);
+}
+
 export function BoardPage() {
   const { boardId } = useParams();
   const { user } = useAuth();
   const navigate = useNavigate();
   const { transactions, loading, error, totals } = useTransactions(boardId);
+  const { boards: allBoards } = useBoards();
   const [board, setBoard] = useState(null);
   const [boardLoading, setBoardLoading] = useState(true);
   const [boardError, setBoardError] = useState(null);
@@ -62,6 +74,57 @@ export function BoardPage() {
     return unsub;
   }, [boardId, user, navigate]);
 
+  // ---------------------------------------------------------------------------
+  // Super board helpers
+  // ---------------------------------------------------------------------------
+  const isSuperBoard = (board?.subBoardIds?.length ?? 0) > 0;
+  const isOwner = board?.ownerUid === user?.uid;
+
+  const subBoards = useMemo(() => {
+    if (!isSuperBoard) return [];
+    return (board.subBoardIds ?? [])
+      .map((id) => allBoards.find((b) => b.id === id))
+      .filter(Boolean);
+  }, [isSuperBoard, board?.subBoardIds, allBoards]);
+
+  const subBoardIds = useMemo(
+    () => (board?.subBoardIds ?? []),
+    [board?.subBoardIds],
+  );
+  const { totals: subBoardTotals } = useBoardTotals(subBoardIds);
+
+  const aggregateTotal = useMemo(
+    () => subBoardIds.reduce((sum, id) => sum + (subBoardTotals[id] ?? 0), 0),
+    [subBoardIds, subBoardTotals],
+  );
+
+  // Remove-sub-board state
+  const [removingSubBoardId, setRemovingSubBoardId] = useState(null);
+  const [removeSubBoardError, setRemoveSubBoardError] = useState(null);
+
+  async function handleRemoveSubBoard(subBoardId) {
+    const subBoard = allBoards.find((b) => b.id === subBoardId);
+    if (
+      !window.confirm(
+        `להסיר את "${subBoard?.title ?? subBoardId}" מלוח-על זה? הלוח יהפוך ללוח עצמאי.`,
+      )
+    )
+      return;
+
+    setRemovingSubBoardId(subBoardId);
+    setRemoveSubBoardError(null);
+    try {
+      await removeSubBoardFromSuper(boardId, subBoardId);
+    } catch (err) {
+      setRemoveSubBoardError(err.message || 'שגיאה בהסרת לוח-המשנה. נסה שוב.');
+    } finally {
+      setRemovingSubBoardId(null);
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Transaction handlers
+  // ---------------------------------------------------------------------------
   async function handleAdd(data) {
     setSubmitting(true);
     try {
@@ -70,7 +133,6 @@ export function BoardPage() {
     } finally {
       setSubmitting(false);
     }
-    // Let errors propagate so TransactionForm can display them
   }
 
   async function handleEdit(data) {
@@ -81,14 +143,15 @@ export function BoardPage() {
     } finally {
       setSubmitting(false);
     }
-    // Let errors propagate so TransactionForm can display them
   }
 
   async function handleDelete(txId) {
     await deleteTransaction(boardId, txId);
-    // Errors propagate to TransactionCard for display
   }
 
+  // ---------------------------------------------------------------------------
+  // Loading / error states
+  // ---------------------------------------------------------------------------
   if (boardLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center dark:bg-gray-950">
@@ -108,6 +171,9 @@ export function BoardPage() {
     );
   }
 
+  // ---------------------------------------------------------------------------
+  // Render
+  // ---------------------------------------------------------------------------
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
       {/* Header */}
@@ -115,7 +181,7 @@ export function BoardPage() {
         <div className="max-w-3xl mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <button
-              onClick={() => navigate('/boards')}
+              onClick={() => window.history.length > 1 ? navigate(-1) : navigate('/boards')}
               className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
               aria-label="חזרה"
             >
@@ -123,7 +189,14 @@ export function BoardPage() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
               </svg>
             </button>
-            <h1 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{board?.title}</h1>
+            <div className="flex items-center gap-2">
+              <h1 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{board?.title}</h1>
+              {isSuperBoard && (
+                <span className="rounded-full bg-indigo-50 dark:bg-indigo-900/50 px-2 py-0.5 text-xs font-medium text-indigo-600 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-800">
+                  לוח-על
+                </span>
+              )}
+            </div>
           </div>
           <div className="flex gap-2 items-center">
             <ThemeToggle />
@@ -138,64 +211,160 @@ export function BoardPage() {
               </svg>
               שיתוף
             </Button>
-            <Button size="sm" onClick={() => setShowAddModal(true)}>
-              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-              </svg>
-              עסקה חדשה
-            </Button>
+            {!isSuperBoard && (
+              <Button size="sm" onClick={() => setShowAddModal(true)}>
+                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+                עסקה חדשה
+              </Button>
+            )}
           </div>
         </div>
       </header>
 
       <main className="max-w-3xl mx-auto px-4 py-8 flex flex-col gap-6">
-        {/* Totals */}
-        <TotalsSummary totals={totals} />
-
-        {/* Transactions */}
-        <div>
-          <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-3">
-            עסקאות
-          </h2>
-
-          {error && (
-            <div className="mb-4 rounded-xl bg-red-50 dark:bg-red-900/30 border border-red-100 dark:border-red-800 px-4 py-3 text-sm text-red-600 dark:text-red-400">
-              שגיאה בטעינת עסקאות: {error}
+        {isSuperBoard ? (
+          /* ---------------------------------------------------------------- */
+          /* Super board view: sub-board grid                                  */
+          /* ---------------------------------------------------------------- */
+          <>
+            {/* Aggregate total banner */}
+            <div className="rounded-2xl bg-gradient-to-br from-indigo-50 to-white border border-indigo-100 p-5 dark:from-indigo-950/50 dark:to-gray-900 dark:border-indigo-900">
+              <p className="text-sm font-semibold text-indigo-700 dark:text-indigo-400 uppercase tracking-wide mb-1">
+                סה"כ הוצאות
+              </p>
+              <p className="text-2xl font-bold text-indigo-700 dark:text-indigo-400 tabular-nums">
+                {formatAmount(aggregateTotal)}
+              </p>
+              <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
+                מצטבר מ-{subBoardIds.length} לוחות-משנה
+              </p>
             </div>
-          )}
 
-          {loading ? (
-            <div className="flex justify-center py-12">
-              <Spinner />
-            </div>
-          ) : transactions.length === 0 ? (
-            <EmptyState
-              icon={
-                <svg className="h-14 w-14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
-                </svg>
-              }
-              title="אין עסקאות עדיין"
-              description="הוסף את העסקה הראשונה כדי להתחיל לעקוב"
-              action={
-                <Button onClick={() => setShowAddModal(true)}>
-                  הוסף עסקה ראשונה
-                </Button>
-              }
-            />
-          ) : (
-            <div className="flex flex-col gap-2">
-              {transactions.map((tx) => (
-                <TransactionCard
-                  key={tx.id}
-                  transaction={tx}
-                  onEdit={(tx) => setEditTx(tx)}
-                  onDelete={handleDelete}
+            {removeSubBoardError && (
+              <div className="rounded-xl bg-red-50 dark:bg-red-900/30 border border-red-100 dark:border-red-800 px-4 py-3 text-sm text-red-600 dark:text-red-400">
+                {removeSubBoardError}
+              </div>
+            )}
+
+            <div>
+              <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-3">
+                לוחות-משנה
+              </h2>
+              {subBoards.length === 0 ? (
+                <EmptyState
+                  icon={
+                    <svg className="h-14 w-14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2" />
+                    </svg>
+                  }
+                  title="אין לוחות-משנה"
+                  description="גרור לוחות מרשימת הלוחות כדי לשלב אותם כאן"
                 />
-              ))}
+              ) : (
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {subBoards.map((sub) => (
+                    <div
+                      key={sub.id}
+                      className="rounded-2xl bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 shadow-sm hover:shadow-md hover:border-indigo-100 dark:hover:border-indigo-700 transition-all"
+                    >
+                      <button
+                        className="block w-full text-right p-5"
+                        onClick={() => navigate(`/board/${sub.id}`)}
+                      >
+                        <div className="flex items-start justify-between mb-3">
+                          <h3 className="font-semibold text-gray-900 dark:text-gray-100 hover:text-indigo-700 dark:hover:text-indigo-400 transition-colors">
+                            {sub.title}
+                          </h3>
+                          <div className="h-8 w-8 shrink-0 rounded-xl bg-indigo-50 dark:bg-indigo-900/50 flex items-center justify-center">
+                            <svg className="h-4 w-4 text-indigo-500 dark:text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2" />
+                            </svg>
+                          </div>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <p className="text-xs text-gray-400 dark:text-gray-500">
+                            {sub.memberUids?.length ?? 0} משתתפים
+                          </p>
+                          <span className="text-sm font-semibold text-indigo-700 dark:text-indigo-400 tabular-nums">
+                            {formatAmount(subBoardTotals[sub.id] ?? 0)}
+                          </span>
+                        </div>
+                      </button>
+                      {isOwner && (
+                        <div className="px-5 pb-4 flex justify-end">
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            loading={removingSubBoardId === sub.id}
+                            onClick={() => handleRemoveSubBoard(sub.id)}
+                            title="הסר מלוח-על"
+                          >
+                            הסר מלוח-על
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
-          )}
-        </div>
+          </>
+        ) : (
+          /* ---------------------------------------------------------------- */
+          /* Regular board view: transactions                                  */
+          /* ---------------------------------------------------------------- */
+          <>
+            {/* Totals */}
+            <TotalsSummary totals={totals} />
+
+            {/* Transactions */}
+            <div>
+              <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-3">
+                עסקאות
+              </h2>
+
+              {error && (
+                <div className="mb-4 rounded-xl bg-red-50 dark:bg-red-900/30 border border-red-100 dark:border-red-800 px-4 py-3 text-sm text-red-600 dark:text-red-400">
+                  שגיאה בטעינת עסקאות: {error}
+                </div>
+              )}
+
+              {loading ? (
+                <div className="flex justify-center py-12">
+                  <Spinner />
+                </div>
+              ) : transactions.length === 0 ? (
+                <EmptyState
+                  icon={
+                    <svg className="h-14 w-14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                    </svg>
+                  }
+                  title="אין עסקאות עדיין"
+                  description="הוסף את העסקה הראשונה כדי להתחיל לעקוב"
+                  action={
+                    <Button onClick={() => setShowAddModal(true)}>
+                      הוסף עסקה ראשונה
+                    </Button>
+                  }
+                />
+              ) : (
+                <div className="flex flex-col gap-2">
+                  {transactions.map((tx) => (
+                    <TransactionCard
+                      key={tx.id}
+                      transaction={tx}
+                      onEdit={(tx) => setEditTx(tx)}
+                      onDelete={handleDelete}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          </>
+        )}
       </main>
 
       {/* Add Transaction Modal */}

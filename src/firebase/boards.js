@@ -21,6 +21,9 @@ import {
   where,
   onSnapshot,
   serverTimestamp,
+  updateDoc,
+  arrayUnion,
+  arrayRemove,
 } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { db, functions } from './config';
@@ -280,4 +283,63 @@ export async function leaveBoard(boardId) {
   const fn = httpsCallable(functions, 'leaveBoard');
   const result = await fn({ boardId });
   return result.data;
+}
+
+// ---------------------------------------------------------------------------
+// Board hierarchy helpers
+//
+// Extended board document shape (new optional fields):
+//   parentBoardId : string | null  – ID of the containing super board, or null
+//   subBoardIds   : string[]       – ordered list of direct child board IDs
+//
+// Existing boards without these fields behave as regular top-level boards.
+// ---------------------------------------------------------------------------
+
+/**
+ * Update arbitrary fields on a board document (owner only).
+ * @param {string} boardId
+ * @param {object} data
+ * @returns {Promise<void>}
+ */
+export async function updateBoard(boardId, data) {
+  const ref = doc(db, 'boards', boardId);
+  return updateDoc(ref, data);
+}
+
+/**
+ * Merge draggedId as a sub-board of targetId.
+ * - Adds draggedId to targetId's subBoardIds array.
+ * - Sets parentBoardId on the dragged board to targetId.
+ *
+ * Callers must validate that the merge is safe (no cycles, correct ownership)
+ * before calling this function.
+ *
+ * @param {string} draggedId
+ * @param {string} targetId
+ * @returns {Promise<void>}
+ */
+export async function mergeBoardsIntoSuper(draggedId, targetId) {
+  const draggedRef = doc(db, 'boards', draggedId);
+  const targetRef = doc(db, 'boards', targetId);
+  await Promise.all([
+    updateDoc(targetRef, { subBoardIds: arrayUnion(draggedId) }),
+    updateDoc(draggedRef, { parentBoardId: targetId }),
+  ]);
+}
+
+/**
+ * Detach a sub-board from its super board, making it a top-level board again.
+ * Does NOT delete the sub-board or any of its data.
+ *
+ * @param {string} superBoardId
+ * @param {string} subBoardId
+ * @returns {Promise<void>}
+ */
+export async function removeSubBoardFromSuper(superBoardId, subBoardId) {
+  const superRef = doc(db, 'boards', superBoardId);
+  const subRef = doc(db, 'boards', subBoardId);
+  await Promise.all([
+    updateDoc(superRef, { subBoardIds: arrayRemove(subBoardId) }),
+    updateDoc(subRef, { parentBoardId: null }),
+  ]);
 }
