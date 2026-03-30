@@ -221,7 +221,7 @@ The deletion is performed entirely server-side via the `deleteMyAccount` Cloud F
 
 ---
 
-
+🔒 Privacy & Terms
 
 This app includes a [Privacy Policy](https://of8-expense-management.web.app/privacy) (`/privacy`) and [Terms of Service](https://of8-expense-management.web.app/terms) (`/terms`) for compliance with Firebase and Google Sign-In requirements.
 
