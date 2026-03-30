@@ -31,24 +31,37 @@ export function getDescendantIds(boardId, allBoards, visited = new Set()) {
 }
 
 /**
- * Return true when merging draggedId as a sub-board of targetId is allowed:
- *   • not the same board
- *   • dragged is not already a direct sub-board of target
- *   • target is not a descendant of dragged (no cycle)
+ * Return true when making childId a sub-board of parentId is allowed.
  *
- * @param {string} draggedId
- * @param {string} targetId
+ * One-level hierarchy rules (depth > 1 is not allowed):
+ *   • childId and parentId must be different boards
+ *   • child must NOT already have a parent (cannot nest a sub-board further)
+ *   • child must NOT already have sub-boards (cannot nest a super board)
+ *   • parent must NOT already have a parent (cannot attach under a sub-board)
+ *   • child is not already a direct sub-board of parent (no duplicates)
+ *
+ * @param {string} childId   – board to be nested (the "dragged" board)
+ * @param {string} parentId  – board to nest under (the "target" board)
  * @param {Array}  allBoards
  * @returns {boolean}
  */
-export function isMergeValid(draggedId, targetId, allBoards) {
-  if (draggedId === targetId) return false;
+export function isMergeValid(childId, parentId, allBoards) {
+  if (childId === parentId) return false;
 
-  const target = allBoards.find((b) => b.id === targetId);
-  if (target?.subBoardIds?.includes(draggedId)) return false;
+  const child = allBoards.find((b) => b.id === childId);
+  const parent = allBoards.find((b) => b.id === parentId);
 
-  const descendants = getDescendantIds(draggedId, allBoards);
-  if (descendants.includes(targetId)) return false;
+  // One-level: child cannot already be a sub-board (has a parent)
+  if (child?.parentBoardId) return false;
+
+  // One-level: child cannot already be a super board (has children)
+  if ((child?.subBoardIds?.length ?? 0) > 0) return false;
+
+  // One-level: parent cannot already be a sub-board (cannot nest under a sub-board)
+  if (parent?.parentBoardId) return false;
+
+  // No duplicates: child is not already a direct sub-board of parent
+  if (parent?.subBoardIds?.includes(childId)) return false;
 
   return true;
 }

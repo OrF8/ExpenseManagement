@@ -101,7 +101,9 @@ export function BoardsPage() {
 
   function handleDragStart(e, boardId) {
     const board = boards.find((b) => b.id === boardId);
-    // Only regular boards owned by the current user can be dragged
+    // Only regular top-level boards owned by the current user can be dragged.
+    // Sub-boards (parentBoardId set) and super boards (subBoardIds non-empty) are excluded.
+    if (board?.parentBoardId) { e.preventDefault(); return; }
     if ((board?.subBoardIds?.length ?? 0) > 0) { e.preventDefault(); return; }
     if (board?.ownerUid !== user?.uid) { e.preventDefault(); return; }
     setDraggingId(boardId);
@@ -447,8 +449,10 @@ export function BoardsPage() {
           <div className="grid gap-3 sm:grid-cols-2">
             {topLevelBoards.map((board) => {
               const isSuperBoard = (board.subBoardIds?.length ?? 0) > 0;
+              const isSubBoard = !!board.parentBoardId;
               const isOwner = board.ownerUid === user?.uid;
-              const isDraggable = !isSuperBoard && isOwner;
+              // Only regular top-level owned boards can initiate a drag
+              const isDraggable = !isSuperBoard && !isSubBoard && isOwner;
               const isDragging = draggingId === board.id;
               const isValidDropTarget =
                 !!draggingId &&

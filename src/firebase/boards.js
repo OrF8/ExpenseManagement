@@ -359,9 +359,10 @@ export async function mergeBoardsIntoSuper(childId, parentId) {
 /**
  * Detach a sub-board from its super board, making it a top-level board again.
  *
- * Implements Option A: collaborators who previously had only inherited access
- * (in memberUids but NOT in directMemberUids) are promoted to direct members
- * so they retain access after detachment.
+ * Implements Option B: collaborators who had only inherited access
+ * (in memberUids but NOT in directMemberUids) lose that access when the board
+ * is detached — their access came from the parent and disappears with it.
+ * Only users with direct membership (directMemberUids) remain on the board.
  *
  * Does NOT delete the sub-board or any of its data.
  *
@@ -373,7 +374,7 @@ export async function removeSubBoardFromSuper(superBoardId, subBoardId) {
   const superRef = doc(db, 'boards', superBoardId);
   const subRef = doc(db, 'boards', subBoardId);
 
-  // Read the sub-board to find inherited-only members
+  // Read the sub-board to identify inherited-only members
   const subSnap = await getDoc(subRef);
   const subData = subSnap.data() ?? {};
   const allMembers = subData.memberUids ?? [];
@@ -385,8 +386,9 @@ export async function removeSubBoardFromSuper(superBoardId, subBoardId) {
     updateDoc(superRef, { subBoardIds: arrayRemove(subBoardId) }),
     updateDoc(subRef, {
       parentBoardId: null,
-      // Promote inherited-only members to direct so access is preserved after detach
-      ...(inheritedOnly.length > 0 ? { directMemberUids: arrayUnion(...inheritedOnly) } : {}),
+      // Remove inherited-only members from memberUids: their access was via the
+      // parent board and should disappear when the board is detached.
+      ...(inheritedOnly.length > 0 ? { memberUids: arrayRemove(...inheritedOnly) } : {}),
     }),
   ]);
 }

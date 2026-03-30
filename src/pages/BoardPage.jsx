@@ -76,9 +76,14 @@ export function BoardPage() {
   }, [boardId, user, navigate]);
 
   // ---------------------------------------------------------------------------
-  // Super board helpers
+  // Board type helpers
+  // One-level hierarchy rules:
+  //   isSuperBoard : has sub-boards (no parent allowed)
+  //   isSubBoard   : has a parent (no children allowed)
+  //   regular      : neither (can become either)
   // ---------------------------------------------------------------------------
   const isSuperBoard = (board?.subBoardIds?.length ?? 0) > 0;
+  const isSubBoard = !!board?.parentBoardId;
   const isOwner = board?.ownerUid === user?.uid;
 
   const subBoards = useMemo(() => {
@@ -125,24 +130,25 @@ export function BoardPage() {
   }
 
   // ---------------------------------------------------------------------------
-  // "Add sub-board" modal (super board view, owner only)
-  // Shows owned top-level boards that can be attached as sub-boards here.
+  // "Add sub-board" modal
+  // Available for: super boards (add more sub-boards) and regular top-level boards
+  // (become a super board). NOT available for sub-boards (one-level limit).
   // ---------------------------------------------------------------------------
   const [showAddSubBoard, setShowAddSubBoard] = useState(false);
   const [attachingSubBoardId, setAttachingSubBoardId] = useState(null);
   const [attachSubBoardError, setAttachSubBoardError] = useState(null);
 
-  // Boards that can be attached: owned by user, valid merge target
+  // Boards that can be attached: owned, top-level regular boards (no parent, no children)
+  // isMergeValid enforces all one-level rules, so this filter is already sufficient.
   const attachableCandidates = useMemo(() => {
-    if (!isOwner || !board) return [];
+    if (!isOwner || !board || isSubBoard) return [];
     return allBoards.filter(
       (b) =>
         b.ownerUid === user?.uid &&
         b.id !== boardId &&
-        !b.parentBoardId && // only top-level boards
         isMergeValid(b.id, boardId, allBoards),
     );
-  }, [isOwner, board, allBoards, boardId, user?.uid]);
+  }, [isOwner, board, isSubBoard, allBoards, boardId, user?.uid]);
 
   async function handleAttachSubBoard(candidateId) {
     setAttachingSubBoardId(candidateId);
@@ -158,16 +164,17 @@ export function BoardPage() {
   }
 
   // ---------------------------------------------------------------------------
-  // "Move under board" modal (regular board view, owner only)
-  // Shows owned boards that can be a parent for this board.
+  // "Move under board" modal (regular top-level board view only)
+  // NOT available for sub-boards (already nested) or super boards (one-level limit).
   // ---------------------------------------------------------------------------
   const [showMoveUnder, setShowMoveUnder] = useState(false);
   const [movingUnder, setMovingUnder] = useState(false);
   const [moveUnderError, setMoveUnderError] = useState(null);
 
-  // Boards that can be a parent: owned by user, valid merge target
+  // Boards that can be a parent: owned top-level boards that pass one-level checks
+  // isMergeValid now rejects targets that already have a parent (sub-boards).
   const parentCandidates = useMemo(() => {
-    if (!isOwner || !board) return [];
+    if (!isOwner || !board || isSuperBoard || isSubBoard) return [];
     return allBoards.filter(
       (b) =>
         b.ownerUid === user?.uid &&
@@ -279,6 +286,11 @@ export function BoardPage() {
                   לוח-על
                 </span>
               )}
+              {isSubBoard && (
+                <span className="rounded-full bg-gray-100 dark:bg-gray-700 px-2 py-0.5 text-xs font-medium text-gray-500 dark:text-gray-400 border border-gray-200 dark:border-gray-600">
+                  לוח-משנה
+                </span>
+              )}
             </div>
           </div>
           <div className="flex gap-2 items-center">
@@ -294,7 +306,9 @@ export function BoardPage() {
               </svg>
               שיתוף
             </Button>
-            {isSuperBoard && isOwner && (
+            {/* "הוסף לוח-משנה": shown for super boards (add more) and regular top-level
+                 boards (become a super board). Hidden for sub-boards (one-level limit). */}
+            {!isSubBoard && isOwner && (
               <Button size="sm" variant="secondary" onClick={openAddSubBoardModal}>
                 <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -302,7 +316,9 @@ export function BoardPage() {
                 הוסף לוח-משנה
               </Button>
             )}
-            {!isSuperBoard && isOwner && (
+            {/* "העבר תחת לוח": shown for regular top-level boards only.
+                 Sub-boards already have a parent; super boards cannot be nested. */}
+            {!isSuperBoard && !isSubBoard && isOwner && (
               <Button size="sm" variant="secondary" onClick={openMoveUnderModal}>
                 <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7h18M3 12h18M3 17h12" />
