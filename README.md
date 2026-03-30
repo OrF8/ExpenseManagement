@@ -192,7 +192,7 @@ if (location.hostname === 'localhost') {
 
 ## 🔒 Privacy & Terms
 
-This app includes a [Privacy Policy](/src/pages/PrivacyPage.jsx) (`/privacy`) and [Terms of Service](/src/pages/TermsPage.jsx) (`/terms`) for compliance with Firebase and Google Sign-In requirements.
+This app includes a [Privacy Policy](https://of8-expense-management.web.app/privacy) (`/privacy`) and [Terms of Service](https://of8-expense-management.web.app/terms) (`/terms`) for compliance with Firebase and Google Sign-In requirements.
 
 ---
 
