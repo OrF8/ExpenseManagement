@@ -12,7 +12,7 @@ This project was built by [**Or Forshmit**](https://github.com/OrF8).
 🌐 **[Try the live app →](https://of8-expense-management.web.app/)**
 
 <p align="center">
-  <img src="https://img.shields.io/github/license/OrF8/ExpenseManagement?style=default&logo=opensourceinitiative" alt="license">
+  <img src="https://img.shields.io/badge/License-MIT-yellow.svg?logo=opensourceinitiative" alt="License: MIT">
   <img src="https://img.shields.io/github/languages/top/OrF8/ExpenseManagement?style=default&logo=javascript&color=F7DF1E" alt="top-language">
 </p>
 <p align="center">
