@@ -12,7 +12,7 @@ export function TermsPage() {
             <div className="h-8 w-8 rounded-xl bg-indigo-600 text-white flex items-center justify-center text-sm font-bold">
               ₪
             </div>
-            <span className="text-lg font-semibold text-gray-900 dark:text-gray-100">ExpenseManagement</span>
+            <span className="text-lg font-semibold text-gray-900 dark:text-gray-100">Expense Management</span>
           </Link>
         </div>
       </header>
@@ -23,13 +23,13 @@ export function TermsPage() {
 
         <div className="prose-sm text-gray-700 dark:text-gray-300 space-y-6 leading-relaxed">
           <p>
-            Welcome to ExpenseManagement. By accessing or using the application, you agree to these Terms of Service.
+            Welcome to Expense Management. By accessing or using the application, you agree to these Terms of Service.
           </p>
 
           <section>
             <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">1. Use of the Service</h2>
             <p>
-              ExpenseManagement is provided as a shared expense management application for personal or internal
+              Expense Management is provided as a shared expense management application for personal or internal
               organizational use. You agree to use the service only in a lawful and responsible manner.
             </p>
           </section>
@@ -78,7 +78,7 @@ export function TermsPage() {
           <section>
             <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">6. No Financial Advice</h2>
             <p>
-              ExpenseManagement is a tool for recording and managing information. It does not provide financial, legal,
+              Expense Management is a tool for recording and managing information. It does not provide financial, legal,
               tax, or accounting advice.
             </p>
           </section>

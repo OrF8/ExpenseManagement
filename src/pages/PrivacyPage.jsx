@@ -12,7 +12,7 @@ export function PrivacyPage() {
             <div className="h-8 w-8 rounded-xl bg-indigo-600 text-white flex items-center justify-center text-sm font-bold">
               ₪
             </div>
-            <span className="text-lg font-semibold text-gray-900 dark:text-gray-100">ExpenseManagement</span>
+            <span className="text-lg font-semibold text-gray-900 dark:text-gray-100">Expense Management</span>
           </Link>
         </div>
       </header>
@@ -23,7 +23,7 @@ export function PrivacyPage() {
 
         <div className="prose-sm text-gray-700 dark:text-gray-300 space-y-6 leading-relaxed">
           <p>
-            ExpenseManagement (&ldquo;we&rdquo;, &ldquo;our&rdquo;, or &ldquo;us&rdquo;) provides a shared expense
+            Expense Management (&ldquo;we&rdquo;, &ldquo;our&rdquo;, or &ldquo;us&rdquo;) provides a shared expense
             management application that allows users to create boards, invite collaborators, and manage shared
             transactions.
           </p>
