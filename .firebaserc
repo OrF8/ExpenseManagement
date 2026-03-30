@@ -6,7 +6,9 @@
     "expensemanagement-90ec3": {
       "hosting": {
         "main": [
-          "expensemanagement-90ec3",
+          "expensemanagement-90ec3"
+        ],
+        "oauth": [
           "of8-expense-management"
         ]
       }
