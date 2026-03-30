@@ -2,7 +2,12 @@
  * Firestore operations for boards.
  * Boards collection: boards/{boardId}
  * Board document shape:
- *   { id, title, ownerUid, memberUids: string[], createdAt }
+ *   { id, title, ownerUid, memberUids: string[], directMemberUids: string[], createdAt }
+ *
+ * Access model:
+ *   directMemberUids – users explicitly invited to this specific board
+ *   memberUids       – effective access: directMemberUids ∪ inherited access from ancestor boards
+ *                      (used by Firestore queries; maintained in sync by Cloud Functions)
  *
  * Invites subcollection: boards/{boardId}/invites/{inviteId}
  * Invite document shape:
@@ -42,6 +47,7 @@ export async function createBoard(title, uid) {
     title,
     ownerUid: uid,
     memberUids: [uid],
+    directMemberUids: [uid],
     createdAt: serverTimestamp(),
   });
 }
@@ -289,8 +295,14 @@ export async function leaveBoard(boardId) {
 // Board hierarchy helpers
 //
 // Extended board document shape (new optional fields):
-//   parentBoardId : string | null  – ID of the containing super board, or null
-//   subBoardIds   : string[]       – ordered list of direct child board IDs
+//   parentBoardId    : string | null  – ID of the containing super board, or null
+//   subBoardIds      : string[]       – ordered list of direct child board IDs
+//   directMemberUids : string[]       – users explicitly invited to this board
+//
+// Access model: membership flows DOWN the hierarchy (parent → descendants).
+//   - directMemberUids: explicitly invited users
+//   - memberUids: effective access = direct ∪ inherited from all ancestors
+//   - Being in a sub-board's directMemberUids does NOT grant access to the parent.
 //
 // Existing boards without these fields behave as regular top-level boards.
 // ---------------------------------------------------------------------------
@@ -307,46 +319,50 @@ export async function updateBoard(boardId, data) {
 }
 
 /**
- * Merge draggedId as a sub-board of targetId and reconcile membership.
- * - Adds draggedId to targetId's subBoardIds array.
- * - Sets parentBoardId on the dragged board to targetId.
- * - Unions the member lists of both boards so collaborators of either board
- *   can access both after the merge.
+ * Attach childId as a sub-board of parentId, cascading inherited membership.
+ *
+ * - Adds childId to parentId's subBoardIds.
+ * - Sets parentBoardId on the child board.
+ * - Adds all current members of the parent to the child's memberUids (inherited
+ *   access flows DOWN only: parent → child).
+ * - Does NOT update directMemberUids of the child — that reflects only explicit
+ *   invitations, not inherited access.
+ * - Does NOT add the child's members to the parent (access does not flow UP).
  *
  * Callers must validate that the merge is safe (no cycles, correct ownership)
  * before calling this function.  Both boards must be owned by the same user.
  *
- * @param {string} draggedId
- * @param {string} targetId
+ * @param {string} childId
+ * @param {string} parentId
  * @returns {Promise<void>}
  */
-export async function mergeBoardsIntoSuper(draggedId, targetId) {
-  const draggedRef = doc(db, 'boards', draggedId);
-  const targetRef = doc(db, 'boards', targetId);
+export async function mergeBoardsIntoSuper(childId, parentId) {
+  const childRef = doc(db, 'boards', childId);
+  const parentRef = doc(db, 'boards', parentId);
 
-  // Read current member lists so we can union them
-  const [draggedSnap, targetSnap] = await Promise.all([
-    getDoc(draggedRef),
-    getDoc(targetRef),
-  ]);
-
-  const draggedMembers = draggedSnap.data()?.memberUids ?? [];
-  const targetMembers = targetSnap.data()?.memberUids ?? [];
+  // Read current member list of the parent so we can cascade inherited access
+  const parentSnap = await getDoc(parentRef);
+  const parentMembers = parentSnap.data()?.memberUids ?? [];
 
   await Promise.all([
-    updateDoc(targetRef, {
-      subBoardIds: arrayUnion(draggedId),
-      ...(draggedMembers.length > 0 ? { memberUids: arrayUnion(...draggedMembers) } : {}),
+    updateDoc(parentRef, {
+      subBoardIds: arrayUnion(childId),
     }),
-    updateDoc(draggedRef, {
-      parentBoardId: targetId,
-      ...(targetMembers.length > 0 ? { memberUids: arrayUnion(...targetMembers) } : {}),
+    updateDoc(childRef, {
+      parentBoardId: parentId,
+      // Cascade parent members → child memberUids (inherited access, not direct)
+      ...(parentMembers.length > 0 ? { memberUids: arrayUnion(...parentMembers) } : {}),
     }),
   ]);
 }
 
 /**
  * Detach a sub-board from its super board, making it a top-level board again.
+ *
+ * Implements Option A: collaborators who previously had only inherited access
+ * (in memberUids but NOT in directMemberUids) are promoted to direct members
+ * so they retain access after detachment.
+ *
  * Does NOT delete the sub-board or any of its data.
  *
  * @param {string} superBoardId
@@ -356,8 +372,21 @@ export async function mergeBoardsIntoSuper(draggedId, targetId) {
 export async function removeSubBoardFromSuper(superBoardId, subBoardId) {
   const superRef = doc(db, 'boards', superBoardId);
   const subRef = doc(db, 'boards', subBoardId);
+
+  // Read the sub-board to find inherited-only members
+  const subSnap = await getDoc(subRef);
+  const subData = subSnap.data() ?? {};
+  const allMembers = subData.memberUids ?? [];
+  // Backward compat: if directMemberUids is absent treat everyone as direct
+  const directMembers = subData.directMemberUids ?? allMembers;
+  const inheritedOnly = allMembers.filter((uid) => !directMembers.includes(uid));
+
   await Promise.all([
     updateDoc(superRef, { subBoardIds: arrayRemove(subBoardId) }),
-    updateDoc(subRef, { parentBoardId: null }),
+    updateDoc(subRef, {
+      parentBoardId: null,
+      // Promote inherited-only members to direct so access is preserved after detach
+      ...(inheritedOnly.length > 0 ? { directMemberUids: arrayUnion(...inheritedOnly) } : {}),
+    }),
   ]);
 }

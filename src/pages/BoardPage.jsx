@@ -99,8 +99,6 @@ export function BoardPage() {
     [subBoardIds, subBoardTotals],
   );
 
-  // All descendant boards (used to pass to CollaboratorManager for cascade)
-  const descendantBoards = useMemo(() => subBoards, [subBoards]);
 
   // Remove-sub-board state
   const [removingSubBoardId, setRemovingSubBoardId] = useState(null);
@@ -511,12 +509,7 @@ export function BoardPage() {
         onClose={() => setShowCollabs(false)}
         title="ניהול שיתוף"
       >
-        {board && (
-          <CollaboratorManager
-            board={board}
-            descendantBoards={descendantBoards}
-          />
-        )}
+        {board && <CollaboratorManager board={board} />}
       </Modal>
 
       {/* Add Sub-Board Modal (super board view, owner only) */}
