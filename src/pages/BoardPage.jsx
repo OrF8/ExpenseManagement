@@ -26,6 +26,7 @@ import { TransactionForm } from '../components/TransactionForm';
 import { TransactionCard } from '../components/TransactionCard';
 import { TotalsSummary } from '../components/TotalsSummary';
 import { CollaboratorManager } from '../components/CollaboratorManager';
+import { BoardHierarchyActionsMenu } from '../components/ui/BoardHierarchyActionsMenu';
 
 function formatAmount(amount) {
   return new Intl.NumberFormat('he-IL', { style: 'currency', currency: 'ILS' }).format(amount);
@@ -376,25 +377,14 @@ export function BoardPage() {
               </svg>
               שיתוף
             </Button>
-            {/* "הוסף לוח-משנה": shown for super boards (add more) and regular top-level
-                 boards (become a super board). Hidden for sub-boards (one-level limit). */}
-            {!isSubBoard && isOwner && (
-              <Button size="sm" variant="secondary" onClick={openAddSubBoardModal}>
-                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                </svg>
-                הוסף לוח-משנה
-              </Button>
-            )}
-            {/* "העבר תחת לוח": shown for regular top-level boards only.
-                 Sub-boards already have a parent; super boards cannot be nested. */}
-            {!isSuperBoard && !isSubBoard && isOwner && (
-              <Button size="sm" variant="secondary" onClick={openMoveUnderModal}>
-                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7h18M3 12h18M3 17h12" />
-                </svg>
-                העבר תחת לוח
-              </Button>
+            {/* Board hierarchy actions – merged into a single dropdown menu */}
+            {isOwner && (
+              <BoardHierarchyActionsMenu
+                canAddSubBoard={!isSubBoard}
+                canMoveUnder={!isSuperBoard && !isSubBoard}
+                onAddSubBoard={openAddSubBoardModal}
+                onMoveUnder={openMoveUnderModal}
+              />
             )}
             {!isSuperBoard && (
               <Button size="sm" onClick={() => setShowAddModal(true)}>
