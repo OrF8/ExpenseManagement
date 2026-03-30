@@ -13,11 +13,11 @@ import { useBoards } from '../hooks/useBoards';
 import { useBoardTotals } from '../hooks/useBoardTotals';
 import { useAuth } from '../context/AuthContext';
 import { addTransaction, updateTransaction, deleteTransaction } from '../firebase/transactions';
-import { subscribeToBoard, removeSubBoardFromSuper, mergeBoardsIntoSuper } from '../firebase/boards';
+import { subscribeToBoard, removeSubBoardFromSuper, mergeBoardsIntoSuper, createBoard, renameBoard } from '../firebase/boards';
 import { getUserProfile } from '../firebase/users';
 import { isMergeValid } from '../utils/boardHierarchy';
 import { Button } from '../components/ui/Button';
-import { Spinner } from '../components/ui/Spinner';
+import { Input } from '../components/ui/Input';
 import { EmptyState } from '../components/ui/EmptyState';
 import { Modal } from '../components/ui/Modal';
 import { ThemeToggle } from '../components/ui/ThemeToggle';
@@ -204,12 +204,69 @@ export function BoardPage() {
 
   function openAddSubBoardModal() {
     setAttachSubBoardError(null);
+    setNewSubBoardTitle('');
+    setCreateSubBoardError(null);
     setShowAddSubBoard(true);
   }
 
   function openMoveUnderModal() {
     setMoveUnderError(null);
     setShowMoveUnder(true);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Rename board (owner only)
+  // ---------------------------------------------------------------------------
+  const [showRename, setShowRename] = useState(false);
+  const [renameTitle, setRenameTitle] = useState('');
+  const [renameSaving, setRenameSaving] = useState(false);
+  const [renameError, setRenameError] = useState(null);
+
+  function openRenameModal() {
+    setRenameTitle(board?.title ?? '');
+    setRenameError(null);
+    setShowRename(true);
+  }
+
+  async function handleRename(e) {
+    e.preventDefault();
+    const trimmed = renameTitle.trim();
+    if (!trimmed) return;
+    setRenameSaving(true);
+    setRenameError(null);
+    try {
+      await renameBoard(boardId, trimmed);
+      setShowRename(false);
+    } catch (err) {
+      setRenameError(err.message || 'שגיאה בשמירת השם. נסה שוב.');
+    } finally {
+      setRenameSaving(false);
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Create new sub-board inline (inside "הוסף לוח-משנה" modal)
+  // ---------------------------------------------------------------------------
+  const [newSubBoardTitle, setNewSubBoardTitle] = useState('');
+  const [creatingSubBoard, setCreatingSubBoard] = useState(false);
+  const [createSubBoardError, setCreateSubBoardError] = useState(null);
+
+  async function handleCreateSubBoard(e) {
+    e.preventDefault();
+    const trimmed = newSubBoardTitle.trim();
+    if (!trimmed) return;
+    setCreatingSubBoard(true);
+    setCreateSubBoardError(null);
+    try {
+      const newBoardRef = await createBoard(trimmed, user.uid);
+      await mergeBoardsIntoSuper(newBoardRef.id, boardId);
+      setNewSubBoardTitle('');
+      setShowAddSubBoard(false);
+    } catch (err) {
+      setCreateSubBoardError(err.message || 'שגיאה ביצירת לוח-המשנה. נסה שוב.');
+    } finally {
+      setCreatingSubBoard(false);
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -281,6 +338,18 @@ export function BoardPage() {
             </button>
             <div className="flex items-center gap-2">
               <h1 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{board?.title}</h1>
+              {isOwner && (
+                <button
+                  onClick={openRenameModal}
+                  className="p-1 rounded-md text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                  title="ערוך שם לוח"
+                  aria-label="ערוך שם לוח"
+                >
+                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                  </svg>
+                </button>
+              )}
               {isSuperBoard && (
                 <span className="rounded-full bg-indigo-50 dark:bg-indigo-900/50 px-2 py-0.5 text-xs font-medium text-indigo-600 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-800">
                   לוח-על
@@ -528,25 +597,58 @@ export function BoardPage() {
         {board && <CollaboratorManager board={board} />}
       </Modal>
 
-      {/* Add Sub-Board Modal (super board view, owner only) */}
+      {/* Add Sub-Board Modal (super board / regular top-level board, owner only) */}
       <Modal
         isOpen={showAddSubBoard}
         onClose={() => setShowAddSubBoard(false)}
         title="הוסף לוח-משנה"
       >
-        <div className="flex flex-col gap-4">
-          {attachSubBoardError && (
-            <p className="text-sm text-red-500 dark:text-red-400">{attachSubBoardError}</p>
-          )}
-          {attachableCandidates.length === 0 ? (
-            <p className="text-sm text-gray-500 dark:text-gray-400">
-              אין לוחות זמינים לצירוף. ניתן לצרף רק לוחות עצמאיים שבבעלותך.
+        <div className="flex flex-col gap-5">
+          {/* Section 1: Create a brand-new sub-board */}
+          <div>
+            <p className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+              יצירת לוח-משנה חדש
             </p>
-          ) : (
-            <>
-              <p className="text-sm text-gray-600 dark:text-gray-400">
-                בחר לוח לצירוף ללוח-על זה:
+            <form onSubmit={handleCreateSubBoard} className="flex flex-col gap-3">
+              <Input
+                label="שם הלוח החדש"
+                value={newSubBoardTitle}
+                onChange={(e) => setNewSubBoardTitle(e.target.value)}
+                placeholder="לדוגמה: הוצאות ינואר"
+                autoFocus
+              />
+              {createSubBoardError && (
+                <p className="text-sm text-red-500 dark:text-red-400">{createSubBoardError}</p>
+              )}
+              <Button
+                type="submit"
+                size="sm"
+                loading={creatingSubBoard}
+                disabled={!newSubBoardTitle.trim() || !!attachingSubBoardId}
+              >
+                צור וצרף
+              </Button>
+            </form>
+          </div>
+
+          {/* Divider */}
+          {attachableCandidates.length > 0 && (
+            <div className="flex items-center gap-3">
+              <div className="flex-1 h-px bg-gray-200 dark:bg-gray-700" />
+              <span className="text-xs text-gray-400 dark:text-gray-500">או</span>
+              <div className="flex-1 h-px bg-gray-200 dark:bg-gray-700" />
+            </div>
+          )}
+
+          {/* Section 2: Attach an existing board */}
+          {attachableCandidates.length > 0 && (
+            <div>
+              <p className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                צירוף לוח קיים
               </p>
+              {attachSubBoardError && (
+                <p className="text-sm text-red-500 dark:text-red-400 mb-2">{attachSubBoardError}</p>
+              )}
               <div className="flex flex-col gap-2">
                 {attachableCandidates.map((candidate) => (
                   <div
@@ -564,7 +666,7 @@ export function BoardPage() {
                     <Button
                       size="sm"
                       loading={attachingSubBoardId === candidate.id}
-                      disabled={!!attachingSubBoardId}
+                      disabled={!!attachingSubBoardId || creatingSubBoard}
                       onClick={() => handleAttachSubBoard(candidate.id)}
                     >
                       צרף
@@ -572,8 +674,9 @@ export function BoardPage() {
                   </div>
                 ))}
               </div>
-            </>
+            </div>
           )}
+
           <div className="flex justify-end">
             <Button variant="secondary" onClick={() => setShowAddSubBoard(false)}>
               סגור
@@ -636,6 +739,32 @@ export function BoardPage() {
             </Button>
           </div>
         </div>
+      </Modal>
+      {/* Rename Board Modal (owner only) */}
+      <Modal
+        isOpen={showRename}
+        onClose={() => setShowRename(false)}
+        title="ערוך שם לוח"
+      >
+        <form onSubmit={handleRename} className="flex flex-col gap-4">
+          <Input
+            label="שם הלוח"
+            value={renameTitle}
+            onChange={(e) => setRenameTitle(e.target.value)}
+            autoFocus
+          />
+          {renameError && (
+            <p className="text-sm text-red-500 dark:text-red-400">{renameError}</p>
+          )}
+          <div className="flex gap-3 justify-end">
+            <Button type="button" variant="secondary" onClick={() => setShowRename(false)}>
+              ביטול
+            </Button>
+            <Button type="submit" loading={renameSaving} disabled={!renameTitle.trim()}>
+              שמור
+            </Button>
+          </div>
+        </form>
       </Modal>
     </div>
   );

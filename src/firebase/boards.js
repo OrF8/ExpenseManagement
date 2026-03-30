@@ -319,6 +319,19 @@ export async function updateBoard(boardId, data) {
 }
 
 /**
+ * Rename a board (owner only).
+ * Validates that the title is non-empty after trimming.
+ * @param {string} boardId
+ * @param {string} newTitle
+ * @returns {Promise<void>}
+ */
+export async function renameBoard(boardId, newTitle) {
+  const trimmed = (newTitle ?? '').trim();
+  if (!trimmed) throw new Error('שם הלוח אינו יכול להיות ריק');
+  return updateBoard(boardId, { title: trimmed });
+}
+
+/**
  * Attach childId as a sub-board of parentId, cascading inherited membership.
  *
  * - Adds childId to parentId's subBoardIds.
