@@ -17,6 +17,7 @@ import { subscribeToBoard, removeSubBoardFromSuper, mergeBoardsIntoSuper, create
 import { getUserProfile } from '../firebase/users';
 import { isMergeValid } from '../utils/boardHierarchy';
 import { Button } from '../components/ui/Button';
+import { Spinner } from '../components/ui/Spinner';
 import { Input } from '../components/ui/Input';
 import { EmptyState } from '../components/ui/EmptyState';
 import { Modal } from '../components/ui/Modal';
