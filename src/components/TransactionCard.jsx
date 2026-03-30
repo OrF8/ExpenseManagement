@@ -13,9 +13,15 @@ function formatAmount(amount) {
 }
 
 function formatTransactionDate(dateStr) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return dateStr;
   const [year, month, day] = dateStr.split('-').map(Number);
   const d = new Date(year, month - 1, day);
-  if (isNaN(d.getTime())) return dateStr;
+  if (
+    isNaN(d.getTime()) ||
+    d.getFullYear() !== year ||
+    d.getMonth() + 1 !== month ||
+    d.getDate() !== day
+  ) return dateStr;
   return d.toLocaleDateString('he-IL');
 }
 
