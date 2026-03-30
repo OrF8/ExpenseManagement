@@ -96,7 +96,7 @@ export function AuthPage() {
         }
         await signUp(email, password, nickname.trim());
       }
-      navigate('/');
+      navigate('/boards');
     } catch (err) {
       setError(getHebrewError(err.code));
     } finally {
@@ -109,7 +109,7 @@ export function AuthPage() {
     setGoogleLoading(true);
     try {
       await signInWithGoogle();
-      navigate('/');
+      navigate('/boards');
     } catch (err) {
       setError(getHebrewError(err.code));
     } finally {
