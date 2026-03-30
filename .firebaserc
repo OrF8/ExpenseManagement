@@ -1,5 +1,16 @@
 {
   "projects": {
     "default": "expensemanagement-90ec3"
-  }
+  },
+  "targets": {
+    "expensemanagement-90ec3": {
+      "hosting": {
+        "main": [
+          "expensemanagement-90ec3",
+          "of8-expense-management"
+        ]
+      }
+    }
+  },
+  "etags": {}
 }
