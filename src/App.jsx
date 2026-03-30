@@ -3,6 +3,7 @@ import { AuthProvider } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
 import { PrivateRoute } from './components/PrivateRoute';
 import { AppFooter } from './components/AppFooter';
+import { LandingPage } from './pages/LandingPage';
 import { AuthPage } from './pages/AuthPage';
 import { BoardsPage } from './pages/BoardsPage';
 import { BoardPage } from './pages/BoardPage';
@@ -16,9 +17,10 @@ export default function App() {
         <BrowserRouter>
           <div className="flex flex-col min-h-screen">
             <Routes>
+              <Route path="/" element={<LandingPage />} />
               <Route path="/auth" element={<AuthPage />} />
               <Route
-                path="/"
+                path="/boards"
                 element={
                   <PrivateRoute>
                     <BoardsPage />

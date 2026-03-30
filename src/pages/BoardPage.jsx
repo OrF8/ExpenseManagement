@@ -48,7 +48,7 @@ export function BoardPage() {
       (b) => {
         if (!b || !b.memberUids.includes(user?.uid)) {
           setBoardLoading(false);
-          navigate('/');
+          navigate('/boards');
           return;
         }
         setBoard(b);
@@ -102,7 +102,7 @@ export function BoardPage() {
       <div className="min-h-screen flex items-center justify-center px-4 dark:bg-gray-950">
         <div className="text-center">
           <p className="text-red-500 dark:text-red-400 mb-4">{boardError}</p>
-          <Button variant="secondary" onClick={() => navigate('/')}>חזרה</Button>
+          <Button variant="secondary" onClick={() => navigate('/boards')}>חזרה</Button>
         </div>
       </div>
     );
@@ -115,7 +115,7 @@ export function BoardPage() {
         <div className="max-w-3xl mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <button
-              onClick={() => navigate('/')}
+              onClick={() => navigate('/boards')}
               className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
               aria-label="חזרה"
             >
