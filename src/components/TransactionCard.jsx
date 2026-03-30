@@ -12,6 +12,13 @@ function formatAmount(amount) {
   }).format(amount);
 }
 
+function formatTransactionDate(dateStr) {
+  const [year, month, day] = dateStr.split('-').map(Number);
+  const d = new Date(year, month - 1, day);
+  if (isNaN(d.getTime())) return dateStr;
+  return d.toLocaleDateString('he-IL');
+}
+
 export function TransactionCard({ transaction, onEdit, onDelete }) {
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState(null);
@@ -61,6 +68,11 @@ export function TransactionCard({ transaction, onEdit, onDelete }) {
           <p className="text-sm text-gray-600 dark:text-gray-400 truncate">{transaction.essence}</p>
           {transaction.comment && (
             <p className="text-xs text-gray-400 dark:text-gray-500 mt-1 truncate">{transaction.comment}</p>
+          )}
+          {transaction.transactionDate && (
+            <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+              {formatTransactionDate(transaction.transactionDate)}
+            </p>
           )}
         </div>
         <div className="flex items-center gap-2 shrink-0">

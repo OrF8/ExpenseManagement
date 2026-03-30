@@ -16,6 +16,7 @@ const EMPTY_FORM = {
   installmentCurrent: '',
   installmentTotal: '',
   type: '',
+  transactionDate: '',
 };
 
 function validate(form) {
@@ -26,6 +27,9 @@ function validate(form) {
   const amt = parseFloat(form.amount);
   if (!form.amount || isNaN(amt) || amt <= 0)
     errors.amount = 'סכום חייב להיות מספר חיובי';
+
+  if (form.transactionDate && isNaN(Date.parse(form.transactionDate)))
+    errors.transactionDate = 'תאריך לא תקין';
 
   if (form.type === 'credit_card') {
     if (!/^\d{4}$/.test(form.cardLast4))
@@ -69,6 +73,7 @@ export function TransactionForm({ initial, defaultName, onSubmit, onCancel, subm
               ? String(initial.installmentTotal)
               : '',
           type: initial.type || '',
+          transactionDate: initial.transactionDate || '',
         }
       : { ...EMPTY_FORM, name: defaultName || '' }
   );
@@ -114,6 +119,7 @@ export function TransactionForm({ initial, defaultName, onSubmit, onCancel, subm
         ? parseInt(form.installmentTotal, 10)
         : null,
       type: form.type,
+      ...(form.transactionDate ? { transactionDate: form.transactionDate } : {}),
     };
     try {
       setSubmitError(null);
@@ -201,6 +207,14 @@ export function TransactionForm({ initial, defaultName, onSubmit, onCancel, subm
         onChange={handleChange}
         placeholder="0.00"
         error={errors.amount}
+      />
+      <Input
+        label="תאריך עסקה (אופציונלי)"
+        name="transactionDate"
+        type="date"
+        value={form.transactionDate}
+        onChange={handleChange}
+        error={errors.transactionDate}
       />
       {form.type === 'credit_card' && (
       <div className="rounded-xl bg-gray-50 dark:bg-gray-800/50 p-4 border border-gray-100 dark:border-gray-700">
