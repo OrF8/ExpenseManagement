@@ -388,6 +388,37 @@ exports.leaveBoard = onCall(async (request) => {
   return { success: true };
 });
 
+// ---------------------------------------------------------------------------
+// Shared board-deletion helper
+// ---------------------------------------------------------------------------
+
+/**
+ * Delete a single board document and all its known subcollections
+ * (invites, transactions).  Does NOT check ownership — callers are
+ * responsible for authorisation before invoking this helper.
+ *
+ * Firestore does NOT automatically delete subcollections when a parent
+ * document is deleted.  All subcollections must be cleared explicitly to
+ * avoid orphaned data.
+ *
+ * @param {string} boardId
+ * @returns {Promise<void>}
+ */
+async function deleteBoardData(boardId) {
+  const boardRef = db.collection('boards').doc(boardId);
+
+  // Delete all invite documents in the invites subcollection
+  const invitesSnap = await boardRef.collection('invites').get();
+  await Promise.all(invitesSnap.docs.map((d) => d.ref.delete()));
+
+  // Delete all transaction documents in the transactions subcollection
+  const transactionsSnap = await boardRef.collection('transactions').get();
+  await Promise.all(transactionsSnap.docs.map((d) => d.ref.delete()));
+
+  // Delete the board document itself
+  await boardRef.delete();
+}
+
 /**
  * deleteBoard
  *
@@ -431,18 +462,110 @@ exports.deleteBoard = onCall(async (request) => {
     throw new HttpsError('permission-denied', 'רק בעל הלוח יכול למחוק אותו');
   }
 
-  // 4. Delete all invite documents in the invites subcollection
-  const invitesSnap = await boardRef.collection('invites').get();
-  const deleteInvites = invitesSnap.docs.map((d) => d.ref.delete());
-  await Promise.all(deleteInvites);
+  // 4. Delegate to shared helper
+  await deleteBoardData(boardId);
 
-  // 5. Delete all transaction documents in the transactions subcollection
-  const transactionsSnap = await boardRef.collection('transactions').get();
-  const deleteTransactions = transactionsSnap.docs.map((d) => d.ref.delete());
-  await Promise.all(deleteTransactions);
+  return { success: true };
+});
 
-  // 6. Delete the board document itself
-  await boardRef.delete();
+/**
+ * deleteMyAccount
+ *
+ * Callable function that permanently deletes the authenticated user's account
+ * and all data they own.  The user identity is derived from the authenticated
+ * request — the client never provides a UID.
+ *
+ * ## Deletion order
+ *
+ * 1. All boards owned by the caller (ownerUid == callerUid), including every
+ *    board in their hierarchy (descendants reachable via subBoardIds).
+ *    For each board: invites subcollection → transactions subcollection →
+ *    board document.
+ *
+ *    Ownership invariant: all boards in a hierarchy share the same ownerUid.
+ *    The UI enforces this by requiring the caller to own both the dragged
+ *    board and the drop target when merging into a super-board.  Therefore
+ *    querying ownerUid == callerUid already captures all boards in every
+ *    hierarchy the user created, without needing to traverse parents.
+ *
+ * 2. Membership cleanup: the caller's UID is removed from memberUids and
+ *    directMemberUids on every board they do NOT own (i.e. boards where they
+ *    are a collaborator).  This prevents orphaned UID references.
+ *
+ * 3. User profile document at users/{uid}.
+ *
+ * 4. Firebase Auth user record (must be last so the function runs with a
+ *    valid auth context throughout).
+ */
+exports.deleteMyAccount = onCall(async (request) => {
+  // 1. Require authentication — UID comes from the verified token, never from the client
+  if (!request.auth) {
+    throw new HttpsError('unauthenticated', 'עליך להיות מחובר כדי למחוק את החשבון');
+  }
+
+  const uid = request.auth.uid;
+  console.log(`deleteMyAccount: starting deletion for uid=${uid}`);
+
+  // 2. Find all boards owned by the user
+  const ownedBoardsSnap = await db.collection('boards')
+    .where('ownerUid', '==', uid)
+    .get();
+
+  console.log(`deleteMyAccount: found ${ownedBoardsSnap.size} owned board(s)`);
+
+  // 3. Collect all board IDs to delete (owned boards + all their descendants).
+  //    A Set is used to deduplicate in case a board appears in multiple traversals.
+  const boardIdsToDelete = new Set();
+  for (const boardDoc of ownedBoardsSnap.docs) {
+    boardIdsToDelete.add(boardDoc.id);
+    const descendantIds = await getDescendantBoardIds(boardDoc.id);
+    descendantIds.forEach((id) => boardIdsToDelete.add(id));
+  }
+
+  console.log(`deleteMyAccount: will delete ${boardIdsToDelete.size} board(s) in total (including descendants)`);
+
+  // 4. Delete each board and its subcollections (invites, transactions)
+  const deletionResults = await Promise.allSettled(
+    [...boardIdsToDelete].map((boardId) => deleteBoardData(boardId))
+  );
+  deletionResults.forEach((r, i) => {
+    if (r.status === 'rejected') {
+      const boardId = [...boardIdsToDelete][i];
+      console.error(`deleteMyAccount: failed to delete board ${boardId}:`, r.reason);
+    }
+  });
+
+  // 5. Remove the user from memberUids/directMemberUids on boards they do NOT own
+  //    (boards where the user is a collaborator).  Failures are logged but do not
+  //    abort the deletion — the user's auth record is still removed below.
+  const memberBoardsSnap = await db.collection('boards')
+    .where('memberUids', 'array-contains', uid)
+    .get();
+
+  const memberCleanupResults = await Promise.allSettled(
+    memberBoardsSnap.docs
+      .filter((d) => d.data().ownerUid !== uid) // skip owned boards (already deleted above)
+      .map((d) =>
+        d.ref.update({
+          memberUids: admin.firestore.FieldValue.arrayRemove(uid),
+          directMemberUids: admin.firestore.FieldValue.arrayRemove(uid),
+        })
+      )
+  );
+  memberCleanupResults.forEach((r) => {
+    if (r.status === 'rejected') {
+      console.error('deleteMyAccount: failed to clean up board membership:', r.reason);
+    }
+  });
+
+  // 6. Delete the user's Firestore profile document (users/{uid})
+  await db.collection('users').doc(uid).delete();
+  console.log(`deleteMyAccount: deleted Firestore profile for uid=${uid}`);
+
+  // 7. Delete the Firebase Auth user — must be last so the function
+  //    can run with a valid auth context throughout all preceding steps.
+  await admin.auth().deleteUser(uid);
+  console.log(`deleteMyAccount: deleted Auth user uid=${uid}`);
 
   return { success: true };
 });

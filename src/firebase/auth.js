@@ -8,7 +8,8 @@ import {
   signOut,
   sendPasswordResetEmail,
 } from 'firebase/auth';
-import { auth, googleProvider } from './config';
+import { httpsCallable } from 'firebase/functions';
+import { auth, googleProvider, functions } from './config';
 import { createUserProfile, getUserProfile } from './users';
 
 /** Sign up with email, password, and a display nickname */
@@ -54,4 +55,26 @@ export async function logOut() {
 /** Send a password-reset email to the given address */
 export async function resetPassword(email) {
   return sendPasswordResetEmail(auth, email);
+}
+
+/**
+ * Permanently delete the current user's account and all associated data.
+ *
+ * Delegates to the `deleteMyAccount` Cloud Function which:
+ *   - Verifies authentication server-side (UID is never provided by the client)
+ *   - Deletes every board owned by the user and all descendant boards,
+ *     including their subcollections (invites, transactions)
+ *   - Removes the user from memberUids/directMemberUids on boards they do not own
+ *   - Deletes the user's Firestore profile document
+ *   - Deletes the Firebase Auth user record
+ *
+ * After this call succeeds the auth session is invalidated; the caller should
+ * redirect to the sign-in / landing screen and clear any local state.
+ *
+ * @returns {Promise<{ success: boolean }>}
+ */
+export async function deleteMyAccount() {
+  const fn = httpsCallable(functions, 'deleteMyAccount');
+  const result = await fn();
+  return result.data;
 }
