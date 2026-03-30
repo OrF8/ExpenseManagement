@@ -8,14 +8,14 @@
  *  - Drag-and-drop a board card onto another to merge them into a super board.
  */
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useBoards } from '../hooks/useBoards';
 import { useBoardTotals } from '../hooks/useBoardTotals';
 import { useIncomingInvites } from '../hooks/useIncomingInvites';
 import { useAuth } from '../context/AuthContext';
 import { createBoard, deleteBoard, mergeBoardsIntoSuper, removeSubBoardFromSuper } from '../firebase/boards';
 import { acceptBoardInvite, declineBoardInvite } from '../firebase/invites';
-import { logOut } from '../firebase/auth';
+import { logOut, deleteMyAccount } from '../firebase/auth';
 import { getUserProfile, updateNickname } from '../firebase/users';
 import { isMergeValid, getAggregateTotalForBoard } from '../utils/boardHierarchy';
 import { Button } from '../components/ui/Button';
@@ -32,6 +32,7 @@ function formatAmount(amount) {
 
 export function BoardsPage() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const { boards, loading, error } = useBoards();
   const { invites: incomingInvites } = useIncomingInvites();
   const [showCreate, setShowCreate] = useState(false);
@@ -48,6 +49,12 @@ export function BoardsPage() {
   const [editNicknameValue, setEditNicknameValue] = useState('');
   const [editNicknameError, setEditNicknameError] = useState(null);
   const [savingNickname, setSavingNickname] = useState(false);
+
+  // Profile / Account modal state
+  const [showProfile, setShowProfile] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteAccountError, setDeleteAccountError] = useState(null);
 
   // Load current user's nickname
   useEffect(() => {
@@ -209,6 +216,54 @@ export function BoardsPage() {
   }
 
   // ---------------------------------------------------------------------------
+  // Profile / Account modal
+  // ---------------------------------------------------------------------------
+  function openProfile() {
+    setDeleteAccountError(null);
+    setShowProfile(true);
+  }
+
+  function closeProfile() {
+    setShowProfile(false);
+    closeEditNickname();
+    setDeleteAccountError(null);
+  }
+
+  function openDeleteConfirm() {
+    setDeleteAccountError(null);
+    setShowDeleteConfirm(true);
+  }
+
+  function closeDeleteConfirm() {
+    setShowDeleteConfirm(false);
+    setDeleteAccountError(null);
+  }
+
+  async function handleDeleteAccount() {
+    // Guard against duplicate submits
+    if (deleting) return;
+    setDeleting(true);
+    setDeleteAccountError(null);
+    try {
+      await deleteMyAccount();
+      // Explicit exit: close modals, clear state, and navigate to the landing page.
+      // This is the primary path for a successful deletion.
+      // If navigation fails for any reason, fall back to a full page reload.
+      closeDeleteConfirm();
+      closeProfile();
+      try {
+        navigate('/');
+      } catch {
+        window.location.href = '/';
+      }
+    } catch (err) {
+      console.error('Failed to delete account:', err);
+      setDeleteAccountError(err.message || 'שגיאה במחיקת החשבון. נסה שוב.');
+      setDeleting(false);
+    }
+  }
+
+  // ---------------------------------------------------------------------------
   // Create board
   // ---------------------------------------------------------------------------
   async function handleCreate(e) {
@@ -320,15 +375,12 @@ export function BoardsPage() {
             <h1 className="text-lg font-semibold text-gray-900 dark:text-gray-100">ניהול הוצאות</h1>
           </div>
           <div className="flex items-center gap-3">
-            <span className="text-xs text-gray-500 dark:text-gray-400 hidden sm:block">
-              {nickname || user?.email}
-            </span>
             <ThemeToggle />
-            <Button variant="ghost" size="sm" onClick={openEditNickname}>
-              ערוך כינוי
-            </Button>
-            <Button variant="ghost" size="sm" onClick={handleSignOut}>
-              יציאה
+            <Button variant="ghost" size="sm" onClick={openProfile} className="flex items-center gap-1.5">
+              <svg className="h-4 w-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5.121 17.804A13.937 13.937 0 0112 16c2.5 0 4.847.655 6.879 1.804M15 10a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+              <span className="hidden sm:inline">{nickname || user?.email?.split('@')[0] || 'חשבון'}</span>
             </Button>
           </div>
         </div>
@@ -576,29 +628,110 @@ export function BoardsPage() {
         </form>
       </Modal>
 
-      {/* Edit Nickname Modal */}
+      {/* Profile / Account Modal */}
       <Modal
-        isOpen={showEditNickname}
-        onClose={closeEditNickname}
-        title="ערוך כינוי"
+        isOpen={showProfile}
+        onClose={closeProfile}
+        title="הגדרות חשבון"
       >
-        <form onSubmit={handleSaveNickname} className="flex flex-col gap-4">
-          <Input
-            label="כינוי"
-            value={editNicknameValue}
-            onChange={(e) => setEditNicknameValue(e.target.value)}
-            error={editNicknameError}
-            autoFocus
-          />
+        <div className="flex flex-col gap-5">
+          {/* Profile info */}
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-400 font-semibold text-sm select-none">
+              {(nickname || user?.email || '?')[0].toUpperCase()}
+            </div>
+            <div className="min-w-0">
+              <p className="font-medium text-gray-900 dark:text-gray-100 truncate">{nickname || '—'}</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{user?.email}</p>
+            </div>
+          </div>
+
+          {/* Edit nickname */}
+          {showEditNickname ? (
+            <form onSubmit={handleSaveNickname} className="flex flex-col gap-3">
+              <Input
+                label="כינוי חדש"
+                value={editNicknameValue}
+                onChange={(e) => setEditNicknameValue(e.target.value)}
+                error={editNicknameError}
+                autoFocus
+              />
+              <div className="flex gap-2 justify-end">
+                <Button type="button" variant="secondary" size="sm" onClick={closeEditNickname}>
+                  ביטול
+                </Button>
+                <Button type="submit" size="sm" loading={savingNickname} disabled={!editNicknameValue.trim()}>
+                  שמור
+                </Button>
+              </div>
+            </form>
+          ) : (
+            <Button variant="secondary" size="sm" onClick={openEditNickname} className="self-start">
+              שנה כינוי
+            </Button>
+          )}
+
+          {/* Sign out */}
+          <Button variant="secondary" size="sm" onClick={handleSignOut} className="self-start">
+            יציאה
+          </Button>
+
+          {/* Destructive zone — account deletion */}
+          <div className="border-t border-red-200 dark:border-red-800/60 pt-5">
+            <div className="rounded-xl border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/10 p-4">
+              <h3 className="font-semibold text-red-700 dark:text-red-400 mb-2">מחיקת חשבון</h3>
+              <p className="text-sm text-red-600/90 dark:text-red-500 mb-4 leading-relaxed">
+                מחיקת החשבון תסיר לצמיתות את חשבונך וכל הנתונים שלך,
+                כולל כל הלוחות שיצרת — אפילו לוחות משותפים עם אחרים —
+                ואת כל הנתונים תחתם. פעולה זו אינה ניתנת לביטול.
+              </p>
+              <Button variant="danger" size="sm" onClick={openDeleteConfirm}>
+                מחק חשבון
+              </Button>
+            </div>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Delete Account Confirmation Modal */}
+      <Modal
+        isOpen={showDeleteConfirm}
+        onClose={deleting ? () => {} : closeDeleteConfirm}
+        title="מחיקת חשבון לצמיתות"
+      >
+        <div className="flex flex-col gap-4">
+          {/* Warning list */}
+          <div className="rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 p-4">
+            <ul className="text-sm text-red-700 dark:text-red-400 space-y-1.5 list-disc list-inside">
+              <li>החשבון יימחק לצמיתות</li>
+              <li>כל הלוחות שיצרת יימחקו, כולל לוחות משותפים</li>
+              <li>כל הנתונים תחת אותם לוחות (הוצאות, הזמנות) יימחקו</li>
+              <li>פעולה זו אינה ניתנת לביטול</li>
+            </ul>
+          </div>
+
+          {deleteAccountError && (
+            <p className="text-sm text-red-500 dark:text-red-400">{deleteAccountError}</p>
+          )}
+
           <div className="flex gap-3 justify-end">
-            <Button type="button" variant="secondary" onClick={closeEditNickname}>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={closeDeleteConfirm}
+              disabled={deleting}
+            >
               ביטול
             </Button>
-            <Button type="submit" loading={savingNickname} disabled={!editNicknameValue.trim()}>
-              שמור
+            <Button
+              variant="danger"
+              loading={deleting}
+              onClick={handleDeleteAccount}
+            >
+              מחק חשבון לצמיתות
             </Button>
           </div>
-        </form>
+        </div>
       </Modal>
     </div>
   );

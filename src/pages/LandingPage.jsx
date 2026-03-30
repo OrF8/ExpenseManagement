@@ -106,13 +106,6 @@ export function LandingPage() {
             </div>
           ))}
         </section>
-
-        <Link
-          to="/auth"
-          className="mt-6 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-base font-semibold px-8 py-3 transition-colors shadow-sm"
-        >
-          Sign in to your account
-        </Link>
       </main>
     </div>
   );
