@@ -1,6 +1,12 @@
 /**
  * Collaborator management UI for a board.
  * Allows the board owner to invite collaborators by email and manage pending invites.
+ *
+ * Props:
+ *   board              – current board object
+ *   descendantBoards   – optional array of descendant board objects that the
+ *                        current user owns; invites and member removals will be
+ *                        cascaded to these boards automatically.
  */
 import { useState, useEffect, useRef } from 'react';
 import { createBoardInvite, subscribeToBoardInvites, deleteBoardInvite, removeBoardMember, leaveBoard } from '../firebase/boards';
@@ -9,7 +15,7 @@ import { useAuth } from '../context/AuthContext';
 import { Input } from './ui/Input';
 import { Button } from './ui/Button';
 
-export function CollaboratorManager({ board }) {
+export function CollaboratorManager({ board, descendantBoards = [] }) {
   const { user } = useAuth();
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
@@ -23,6 +29,9 @@ export function CollaboratorManager({ board }) {
   const successTimerRef = useRef(null);
 
   const isOwner = user?.uid === board.ownerUid;
+
+  // Sub-boards owned by the current user — used for cascade operations
+  const ownedDescendants = descendantBoards.filter((b) => b.ownerUid === user?.uid);
 
   // Subscribe to board invites (owner only — rules enforce this server-side)
   useEffect(() => {
@@ -66,7 +75,19 @@ export function CollaboratorManager({ board }) {
     setError(null);
     setSuccess(false);
     try {
+      // Invite to the main board first (this validates the email / user)
       await createBoardInvite(board.id, email, user, board.title);
+
+      // Cascade invite to all owned descendant boards; ignore errors for boards
+      // where the person is already a member or an invite already exists.
+      if (ownedDescendants.length > 0) {
+        await Promise.allSettled(
+          ownedDescendants.map((sub) =>
+            createBoardInvite(sub.id, email, user, sub.title),
+          ),
+        );
+      }
+
       setEmail('');
       setSuccess(true);
       if (successTimerRef.current) clearTimeout(successTimerRef.current);
@@ -92,6 +113,14 @@ export function CollaboratorManager({ board }) {
     setRemoveError(null);
     try {
       await removeBoardMember(board.id, memberUid);
+      // Cascade removal to owned descendant boards (best effort)
+      if (ownedDescendants.length > 0) {
+        await Promise.allSettled(
+          ownedDescendants
+            .filter((sub) => sub.memberUids?.includes(memberUid))
+            .map((sub) => removeBoardMember(sub.id, memberUid)),
+        );
+      }
     } catch (err) {
       setRemoveError(err.message);
     }
@@ -136,6 +165,8 @@ export function CollaboratorManager({ board }) {
       {success && (
         <p className="text-sm text-green-600 dark:text-green-400 font-medium">
           ✓ ההזמנה נרשמה בהצלחה
+          {ownedDescendants.length === 1 && ' (כולל לוח-משנה אחד)'}
+          {ownedDescendants.length > 1 && ` (כולל ${ownedDescendants.length} לוחות-משנה)`}
         </p>
       )}
 

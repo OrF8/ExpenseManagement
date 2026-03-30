@@ -4,7 +4,7 @@
  * Behaviour:
  *  - Regular board: shows transactions and totals (existing behaviour).
  *  - Super board (board.subBoardIds?.length > 0): shows sub-board grid with
- *    aggregate total and an affordance to remove each sub-board.
+ *    aggregate total and affordances to remove or add sub-boards.
  */
 import { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
@@ -13,8 +13,9 @@ import { useBoards } from '../hooks/useBoards';
 import { useBoardTotals } from '../hooks/useBoardTotals';
 import { useAuth } from '../context/AuthContext';
 import { addTransaction, updateTransaction, deleteTransaction } from '../firebase/transactions';
-import { subscribeToBoard, removeSubBoardFromSuper } from '../firebase/boards';
+import { subscribeToBoard, removeSubBoardFromSuper, mergeBoardsIntoSuper } from '../firebase/boards';
 import { getUserProfile } from '../firebase/users';
+import { isMergeValid } from '../utils/boardHierarchy';
 import { Button } from '../components/ui/Button';
 import { Spinner } from '../components/ui/Spinner';
 import { EmptyState } from '../components/ui/EmptyState';
@@ -98,6 +99,9 @@ export function BoardPage() {
     [subBoardIds, subBoardTotals],
   );
 
+  // All descendant boards (used to pass to CollaboratorManager for cascade)
+  const descendantBoards = useMemo(() => subBoards, [subBoards]);
+
   // Remove-sub-board state
   const [removingSubBoardId, setRemovingSubBoardId] = useState(null);
   const [removeSubBoardError, setRemoveSubBoardError] = useState(null);
@@ -120,6 +124,87 @@ export function BoardPage() {
     } finally {
       setRemovingSubBoardId(null);
     }
+  }
+
+  // ---------------------------------------------------------------------------
+  // "Add sub-board" modal (super board view, owner only)
+  // Shows owned top-level boards that can be attached as sub-boards here.
+  // ---------------------------------------------------------------------------
+  const [showAddSubBoard, setShowAddSubBoard] = useState(false);
+  const [attachingSubBoardId, setAttachingSubBoardId] = useState(null);
+  const [attachSubBoardError, setAttachSubBoardError] = useState(null);
+
+  // Boards that can be attached: owned by user, valid merge target
+  const attachableCandidates = useMemo(() => {
+    if (!isOwner || !board) return [];
+    return allBoards.filter(
+      (b) =>
+        b.ownerUid === user?.uid &&
+        b.id !== boardId &&
+        !b.parentBoardId && // only top-level boards
+        isMergeValid(b.id, boardId, allBoards),
+    );
+  }, [isOwner, board, allBoards, boardId, user?.uid]);
+
+  async function handleAttachSubBoard(candidateId) {
+    setAttachingSubBoardId(candidateId);
+    setAttachSubBoardError(null);
+    try {
+      await mergeBoardsIntoSuper(candidateId, boardId);
+      setShowAddSubBoard(false);
+    } catch (err) {
+      setAttachSubBoardError(err.message || 'שגיאה בצירוף הלוח. נסה שוב.');
+    } finally {
+      setAttachingSubBoardId(null);
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // "Move under board" modal (regular board view, owner only)
+  // Shows owned boards that can be a parent for this board.
+  // ---------------------------------------------------------------------------
+  const [showMoveUnder, setShowMoveUnder] = useState(false);
+  const [movingUnder, setMovingUnder] = useState(false);
+  const [moveUnderError, setMoveUnderError] = useState(null);
+
+  // Boards that can be a parent: owned by user, valid merge target
+  const parentCandidates = useMemo(() => {
+    if (!isOwner || !board) return [];
+    return allBoards.filter(
+      (b) =>
+        b.ownerUid === user?.uid &&
+        b.id !== boardId &&
+        isMergeValid(boardId, b.id, allBoards),
+    );
+  }, [isOwner, board, allBoards, boardId, user?.uid]);
+
+  async function handleMoveUnder(parentId) {
+    const parent = allBoards.find((b) => b.id === parentId);
+    const confirmed = window.confirm(
+      `להעביר את "${board?.title}" תחת "${parent?.title ?? parentId}"?`,
+    );
+    if (!confirmed) return;
+
+    setMovingUnder(true);
+    setMoveUnderError(null);
+    try {
+      await mergeBoardsIntoSuper(boardId, parentId);
+      // After attachment, navigate to the parent super board
+      navigate(`/board/${parentId}`);
+    } catch (err) {
+      setMoveUnderError(err.message || 'שגיאה בהעברת הלוח. נסה שוב.');
+      setMovingUnder(false);
+    }
+  }
+
+  function openAddSubBoardModal() {
+    setAttachSubBoardError(null);
+    setShowAddSubBoard(true);
+  }
+
+  function openMoveUnderModal() {
+    setMoveUnderError(null);
+    setShowMoveUnder(true);
   }
 
   // ---------------------------------------------------------------------------
@@ -211,6 +296,22 @@ export function BoardPage() {
               </svg>
               שיתוף
             </Button>
+            {isSuperBoard && isOwner && (
+              <Button size="sm" variant="secondary" onClick={openAddSubBoardModal}>
+                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+                הוסף לוח-משנה
+              </Button>
+            )}
+            {!isSuperBoard && isOwner && (
+              <Button size="sm" variant="secondary" onClick={openMoveUnderModal}>
+                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7h18M3 12h18M3 17h12" />
+                </svg>
+                העבר תחת לוח
+              </Button>
+            )}
             {!isSuperBoard && (
               <Button size="sm" onClick={() => setShowAddModal(true)}>
                 <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -249,9 +350,11 @@ export function BoardPage() {
             )}
 
             <div>
-              <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-3">
-                לוחות-משנה
-              </h2>
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+                  לוחות-משנה
+                </h2>
+              </div>
               {subBoards.length === 0 ? (
                 <EmptyState
                   icon={
@@ -260,7 +363,14 @@ export function BoardPage() {
                     </svg>
                   }
                   title="אין לוחות-משנה"
-                  description="גרור לוחות מרשימת הלוחות כדי לשלב אותם כאן"
+                  description="גרור לוחות מרשימת הלוחות כדי לשלב אותם כאן, או לחץ 'הוסף לוח-משנה'"
+                  action={
+                    isOwner ? (
+                      <Button variant="secondary" onClick={openAddSubBoardModal}>
+                        הוסף לוח-משנה
+                      </Button>
+                    ) : null
+                  }
                 />
               ) : (
                 <div className="grid gap-3 sm:grid-cols-2">
@@ -401,7 +511,122 @@ export function BoardPage() {
         onClose={() => setShowCollabs(false)}
         title="ניהול שיתוף"
       >
-        {board && <CollaboratorManager board={board} />}
+        {board && (
+          <CollaboratorManager
+            board={board}
+            descendantBoards={descendantBoards}
+          />
+        )}
+      </Modal>
+
+      {/* Add Sub-Board Modal (super board view, owner only) */}
+      <Modal
+        isOpen={showAddSubBoard}
+        onClose={() => setShowAddSubBoard(false)}
+        title="הוסף לוח-משנה"
+      >
+        <div className="flex flex-col gap-4">
+          {attachSubBoardError && (
+            <p className="text-sm text-red-500 dark:text-red-400">{attachSubBoardError}</p>
+          )}
+          {attachableCandidates.length === 0 ? (
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              אין לוחות זמינים לצירוף. ניתן לצרף רק לוחות עצמאיים שבבעלותך.
+            </p>
+          ) : (
+            <>
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                בחר לוח לצירוף ללוח-על זה:
+              </p>
+              <div className="flex flex-col gap-2">
+                {attachableCandidates.map((candidate) => (
+                  <div
+                    key={candidate.id}
+                    className="flex items-center justify-between rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 px-4 py-3"
+                  >
+                    <div>
+                      <p className="font-medium text-gray-900 dark:text-gray-100 text-sm">
+                        {candidate.title}
+                      </p>
+                      <p className="text-xs text-gray-400 dark:text-gray-500">
+                        {candidate.memberUids?.length ?? 0} משתתפים
+                      </p>
+                    </div>
+                    <Button
+                      size="sm"
+                      loading={attachingSubBoardId === candidate.id}
+                      disabled={!!attachingSubBoardId}
+                      onClick={() => handleAttachSubBoard(candidate.id)}
+                    >
+                      צרף
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+          <div className="flex justify-end">
+            <Button variant="secondary" onClick={() => setShowAddSubBoard(false)}>
+              סגור
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Move Under Board Modal (regular board view, owner only) */}
+      <Modal
+        isOpen={showMoveUnder}
+        onClose={() => setShowMoveUnder(false)}
+        title="העבר תחת לוח"
+      >
+        <div className="flex flex-col gap-4">
+          {moveUnderError && (
+            <p className="text-sm text-red-500 dark:text-red-400">{moveUnderError}</p>
+          )}
+          {parentCandidates.length === 0 ? (
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              אין לוחות זמינים. ניתן להעביר רק תחת לוחות שבבעלותך שאינם גורמים למעגלים.
+            </p>
+          ) : (
+            <>
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                בחר לוח-על שתחתיו יוצב לוח זה:
+              </p>
+              <div className="flex flex-col gap-2">
+                {parentCandidates.map((parent) => (
+                  <div
+                    key={parent.id}
+                    className="flex items-center justify-between rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 px-4 py-3"
+                  >
+                    <div>
+                      <p className="font-medium text-gray-900 dark:text-gray-100 text-sm">
+                        {parent.title}
+                      </p>
+                      {(parent.subBoardIds?.length ?? 0) > 0 && (
+                        <p className="text-xs text-indigo-500 dark:text-indigo-400">
+                          לוח-על · {parent.subBoardIds.length} לוחות-משנה
+                        </p>
+                      )}
+                    </div>
+                    <Button
+                      size="sm"
+                      loading={movingUnder}
+                      disabled={movingUnder}
+                      onClick={() => handleMoveUnder(parent.id)}
+                    >
+                      העבר
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+          <div className="flex justify-end">
+            <Button variant="secondary" onClick={() => setShowMoveUnder(false)}>
+              סגור
+            </Button>
+          </div>
+        </div>
       </Modal>
     </div>
   );

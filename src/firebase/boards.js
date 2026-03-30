@@ -307,12 +307,14 @@ export async function updateBoard(boardId, data) {
 }
 
 /**
- * Merge draggedId as a sub-board of targetId.
+ * Merge draggedId as a sub-board of targetId and reconcile membership.
  * - Adds draggedId to targetId's subBoardIds array.
  * - Sets parentBoardId on the dragged board to targetId.
+ * - Unions the member lists of both boards so collaborators of either board
+ *   can access both after the merge.
  *
  * Callers must validate that the merge is safe (no cycles, correct ownership)
- * before calling this function.
+ * before calling this function.  Both boards must be owned by the same user.
  *
  * @param {string} draggedId
  * @param {string} targetId
@@ -321,9 +323,25 @@ export async function updateBoard(boardId, data) {
 export async function mergeBoardsIntoSuper(draggedId, targetId) {
   const draggedRef = doc(db, 'boards', draggedId);
   const targetRef = doc(db, 'boards', targetId);
+
+  // Read current member lists so we can union them
+  const [draggedSnap, targetSnap] = await Promise.all([
+    getDoc(draggedRef),
+    getDoc(targetRef),
+  ]);
+
+  const draggedMembers = draggedSnap.data()?.memberUids ?? [];
+  const targetMembers = targetSnap.data()?.memberUids ?? [];
+
   await Promise.all([
-    updateDoc(targetRef, { subBoardIds: arrayUnion(draggedId) }),
-    updateDoc(draggedRef, { parentBoardId: targetId }),
+    updateDoc(targetRef, {
+      subBoardIds: arrayUnion(draggedId),
+      ...(draggedMembers.length > 0 ? { memberUids: arrayUnion(...draggedMembers) } : {}),
+    }),
+    updateDoc(draggedRef, {
+      parentBoardId: targetId,
+      ...(targetMembers.length > 0 ? { memberUids: arrayUnion(...targetMembers) } : {}),
+    }),
   ]);
 }
 

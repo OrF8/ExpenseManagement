@@ -66,8 +66,19 @@ export function BoardsPage() {
   // ---------------------------------------------------------------------------
   // Hierarchy-aware board lists
   // ---------------------------------------------------------------------------
+  // A board is shown at the top level when:
+  //   a) it has no parent (it is already a top-level board), OR
+  //   b) its parent board is not accessible to the current user
+  //      (e.g. the user was invited directly to a sub-board).
+  // This prevents accessible child boards from disappearing from the list.
   const topLevelBoards = useMemo(
-    () => boards.filter((b) => !b.parentBoardId),
+    () =>
+      boards.filter((b) => {
+        if (!b.parentBoardId) return true;
+        // If the parent is among the user's boards, hide this board at top level
+        // (it will be shown inside the parent's super-board view instead).
+        return !boards.some((p) => p.id === b.parentBoardId);
+      }),
     [boards],
   );
 
