@@ -2,7 +2,7 @@
  * Form for creating or editing a transaction.
  * Validates all fields per requirements.
  */
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Input } from './ui/Input';
 import { Button } from './ui/Button';
 import { TRANSACTION_TYPE_LABELS } from '../constants/transactionTypes';
@@ -16,6 +16,7 @@ const EMPTY_FORM = {
   installmentCurrent: '',
   installmentTotal: '',
   type: '',
+  transactionDate: '',
 };
 
 function validate(form) {
@@ -26,6 +27,27 @@ function validate(form) {
   const amt = parseFloat(form.amount);
   if (!form.amount || isNaN(amt) || amt <= 0)
     errors.amount = 'סכום חייב להיות מספר חיובי';
+
+  if (form.transactionDate) {
+    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+    if (!dateRegex.test(form.transactionDate)) {
+      errors.transactionDate = 'תאריך לא תקין';
+    } else {
+      const [y, m, d] = form.transactionDate.split('-').map(Number);
+      const parsed = new Date(y, m - 1, d);
+      if (
+        parsed.getFullYear() !== y ||
+        parsed.getMonth() + 1 !== m ||
+        parsed.getDate() !== d
+      ) {
+        errors.transactionDate = 'תאריך לא תקין';
+      } else {
+        const today = new Date();
+        const todayNorm = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+        if (parsed > todayNorm) errors.transactionDate = 'לא ניתן להזין תאריך עתידי';
+      }
+    }
+  }
 
   if (form.type === 'credit_card') {
     if (!/^\d{4}$/.test(form.cardLast4))
@@ -69,11 +91,20 @@ export function TransactionForm({ initial, defaultName, onSubmit, onCancel, subm
               ? String(initial.installmentTotal)
               : '',
           type: initial.type || '',
+          transactionDate: initial.transactionDate || '',
         }
       : { ...EMPTY_FORM, name: defaultName || '' }
   );
   const [errors, setErrors] = useState({});
   const [submitError, setSubmitError] = useState(null);
+
+  const todayStr = useMemo(() => {
+    const now = new Date();
+    const y = now.getFullYear();
+    const m = String(now.getMonth() + 1).padStart(2, '0');
+    const d = String(now.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }, []);
 
   function handleChange(e) {
     const { name, value } = e.target;
@@ -114,6 +145,7 @@ export function TransactionForm({ initial, defaultName, onSubmit, onCancel, subm
         ? parseInt(form.installmentTotal, 10)
         : null,
       type: form.type,
+      ...(form.transactionDate ? { transactionDate: form.transactionDate } : {}),
     };
     try {
       setSubmitError(null);
@@ -201,6 +233,15 @@ export function TransactionForm({ initial, defaultName, onSubmit, onCancel, subm
         onChange={handleChange}
         placeholder="0.00"
         error={errors.amount}
+      />
+      <Input
+        label="תאריך עסקה (אופציונלי)"
+        name="transactionDate"
+        type="date"
+        max={todayStr}
+        value={form.transactionDate}
+        onChange={handleChange}
+        error={errors.transactionDate}
       />
       {form.type === 'credit_card' && (
       <div className="rounded-xl bg-gray-50 dark:bg-gray-800/50 p-4 border border-gray-100 dark:border-gray-700">
