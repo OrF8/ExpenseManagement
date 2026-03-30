@@ -8,6 +8,7 @@ import {
   addDoc,
   updateDoc,
   deleteDoc,
+  getDocs,
   onSnapshot,
   query,
   orderBy,
@@ -70,4 +71,18 @@ export async function updateTransaction(boardId, txId, data) {
 export async function deleteTransaction(boardId, txId) {
   const ref = doc(db, 'boards', boardId, 'transactions', txId);
   return deleteDoc(ref);
+}
+
+/**
+ * Compute the grand total of all transaction amounts for a board (one-shot read).
+ * @param {string} boardId
+ * @returns {Promise<number>}
+ */
+export async function getBoardTotal(boardId) {
+  const snap = await getDocs(txRef(boardId));
+  let total = 0;
+  snap.docs.forEach((d) => {
+    total += Number(d.data().amount) || 0;
+  });
+  return total;
 }

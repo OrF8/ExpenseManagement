@@ -1,15 +1,23 @@
 /**
  * Main boards listing page.
+ *
+ * Features:
+ *  - Shows only top-level boards (parentBoardId is null/undefined).
+ *  - Displays aggregate total expenses on each board card before entering.
+ *  - Super boards show a badge and their sub-board count.
+ *  - Drag-and-drop a board card onto another to merge them into a super board.
  */
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { useBoards } from '../hooks/useBoards';
+import { useBoardTotals } from '../hooks/useBoardTotals';
 import { useIncomingInvites } from '../hooks/useIncomingInvites';
 import { useAuth } from '../context/AuthContext';
-import { createBoard, deleteBoard } from '../firebase/boards';
+import { createBoard, deleteBoard, mergeBoardsIntoSuper, removeSubBoardFromSuper } from '../firebase/boards';
 import { acceptBoardInvite, declineBoardInvite } from '../firebase/invites';
 import { logOut } from '../firebase/auth';
 import { getUserProfile, updateNickname } from '../firebase/users';
+import { isMergeValid, getAggregateTotalForBoard } from '../utils/boardHierarchy';
 import { Button } from '../components/ui/Button';
 import { Spinner } from '../components/ui/Spinner';
 import { EmptyState } from '../components/ui/EmptyState';
@@ -17,6 +25,10 @@ import { Input } from '../components/ui/Input';
 import { Modal } from '../components/ui/Modal';
 import { ThemeToggle } from '../components/ui/ThemeToggle';
 import logoIcon from '../assets/logo-icon.png';
+
+function formatAmount(amount) {
+  return new Intl.NumberFormat('he-IL', { style: 'currency', currency: 'ILS' }).format(amount);
+}
 
 export function BoardsPage() {
   const { user } = useAuth();
@@ -51,6 +63,118 @@ export function BoardsPage() {
     loadProfile();
   }, [user]);
 
+  // ---------------------------------------------------------------------------
+  // Hierarchy-aware board lists
+  // ---------------------------------------------------------------------------
+  // A board is shown at the top level when:
+  //   a) it has no parent (it is already a top-level board), OR
+  //   b) its parent board is not accessible to the current user
+  //      (e.g. the user was invited directly to a sub-board).
+  // This prevents accessible child boards from disappearing from the list.
+  const topLevelBoards = useMemo(
+    () =>
+      boards.filter((b) => {
+        if (!b.parentBoardId) return true;
+        // If the parent is among the user's boards, hide this board at top level
+        // (it will be shown inside the parent's super-board view instead).
+        return !boards.some((p) => p.id === b.parentBoardId);
+      }),
+    [boards],
+  );
+
+  const allBoardIds = useMemo(() => boards.map((b) => b.id), [boards]);
+  const { totals: boardTotals } = useBoardTotals(allBoardIds);
+
+  function getDisplayTotal(boardId) {
+    return getAggregateTotalForBoard(boardId, boardTotals, boards);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Drag-and-drop merge
+  // ---------------------------------------------------------------------------
+  const [draggingId, setDraggingId] = useState(null);
+  const [dragOverId, setDragOverId] = useState(null);
+  const [merging, setMerging] = useState(false);
+  const [mergeError, setMergeError] = useState(null);
+  // Track drag-enter/leave nesting to avoid flickering when hovering child elements
+  const dragDepthRef = useRef({});
+
+  function handleDragStart(e, boardId) {
+    const board = boards.find((b) => b.id === boardId);
+    // Only regular top-level boards owned by the current user can be dragged.
+    // Sub-boards (parentBoardId set) and super boards (subBoardIds non-empty) are excluded.
+    if (board?.parentBoardId) { e.preventDefault(); return; }
+    if ((board?.subBoardIds?.length ?? 0) > 0) { e.preventDefault(); return; }
+    if (board?.ownerUid !== user?.uid) { e.preventDefault(); return; }
+    setDraggingId(boardId);
+    setMergeError(null);
+    e.dataTransfer.effectAllowed = 'move';
+  }
+
+  function handleDragEnd() {
+    setDraggingId(null);
+    setDragOverId(null);
+    dragDepthRef.current = {};
+  }
+
+  function handleDragOver(e, boardId) {
+    e.preventDefault();
+    if (!draggingId || boardId === draggingId) return;
+    const target = boards.find((b) => b.id === boardId);
+    if (!isMergeValid(draggingId, boardId, boards)) return;
+    if (target?.ownerUid !== user?.uid) return;
+    e.dataTransfer.dropEffect = 'move';
+    setDragOverId(boardId);
+  }
+
+  function handleDragEnter(e, boardId) {
+    e.preventDefault();
+    dragDepthRef.current[boardId] = (dragDepthRef.current[boardId] ?? 0) + 1;
+  }
+
+  function handleDragLeave(e, boardId) {
+    const depth = (dragDepthRef.current[boardId] ?? 1) - 1;
+    dragDepthRef.current[boardId] = depth;
+    if (depth <= 0) {
+      dragDepthRef.current[boardId] = 0;
+      setDragOverId((prev) => (prev === boardId ? null : prev));
+    }
+  }
+
+  async function handleDrop(e, targetBoardId) {
+    e.preventDefault();
+    dragDepthRef.current[targetBoardId] = 0;
+    setDragOverId(null);
+    const fromId = draggingId;
+    setDraggingId(null);
+
+    if (!fromId || fromId === targetBoardId) return;
+
+    const dragged = boards.find((b) => b.id === fromId);
+    const target = boards.find((b) => b.id === targetBoardId);
+    if (!dragged || !target) return;
+    if (!isMergeValid(fromId, targetBoardId, boards)) return;
+    if (target.ownerUid !== user?.uid) return;
+
+    const confirmed = window.confirm(
+      `לשלב את "${dragged.title}" כלוח-משנה תחת "${target.title}"?`,
+    );
+    if (!confirmed) return;
+
+    setMerging(true);
+    setMergeError(null);
+    try {
+      await mergeBoardsIntoSuper(fromId, targetBoardId);
+    } catch (err) {
+      setMergeError(err.message || 'שגיאה בשילוב הלוחות. נסה שוב.');
+    } finally {
+      setMerging(false);
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Nickname
+  // ---------------------------------------------------------------------------
   function openEditNickname() {
     setEditNicknameValue(nickname);
     setEditNicknameError(null);
@@ -84,6 +208,9 @@ export function BoardsPage() {
     }
   }
 
+  // ---------------------------------------------------------------------------
+  // Create board
+  // ---------------------------------------------------------------------------
   async function handleCreate(e) {
     e.preventDefault();
     const title = newTitle.trim();
@@ -101,6 +228,9 @@ export function BoardsPage() {
     }
   }
 
+  // ---------------------------------------------------------------------------
+  // Invites
+  // ---------------------------------------------------------------------------
   function setInviteAction(inviteId, patch) {
     setInviteActions((prev) => ({
       ...prev,
@@ -112,8 +242,6 @@ export function BoardsPage() {
     setInviteAction(invite.id, { accepting: true, error: null });
     try {
       await acceptBoardInvite(invite.boardId, invite.id);
-      // The invite will disappear from the list via the Firestore subscription,
-      // and the board will appear via the boards subscription.
     } catch (err) {
       setInviteAction(invite.id, {
         accepting: false,
@@ -126,7 +254,6 @@ export function BoardsPage() {
     setInviteAction(invite.id, { declining: true, error: null });
     try {
       await declineBoardInvite(invite.boardId, invite.id);
-      // The invite will disappear from the list via the Firestore subscription.
     } catch (err) {
       setInviteAction(invite.id, {
         declining: false,
@@ -135,14 +262,30 @@ export function BoardsPage() {
     }
   }
 
+  // ---------------------------------------------------------------------------
+  // Delete board
+  // ---------------------------------------------------------------------------
   const [deletingBoardId, setDeletingBoardId] = useState(null);
   const [deleteError, setDeleteError] = useState(null);
 
   async function handleDeleteBoard(boardId) {
-    if (!window.confirm('האם אתה בטוח שברצונך למחוק את הלוח? פעולה זו אינה ניתנת לביטול.')) return;
+    const board = boards.find((b) => b.id === boardId);
+    const subCount = board?.subBoardIds?.length ?? 0;
+    const message =
+      subCount > 0
+        ? `הלוח מכיל ${subCount} לוחות-משנה. לוחות-המשנה יהפכו ללוחות עצמאיים.\nהאם אתה בטוח שברצונך למחוק את הלוח? פעולה זו אינה ניתנת לביטול.`
+        : 'האם אתה בטוח שברצונך למחוק את הלוח? פעולה זו אינה ניתנת לביטול.';
+    if (!window.confirm(message)) return;
+
     setDeletingBoardId(boardId);
     setDeleteError(null);
     try {
+      // Detach sub-boards first so they become independent top-level boards
+      if (subCount > 0 && board.subBoardIds) {
+        await Promise.all(
+          board.subBoardIds.map((subId) => removeSubBoardFromSuper(boardId, subId)),
+        );
+      }
       await deleteBoard(boardId);
     } catch (err) {
       setDeleteError(err.message || 'שגיאה במחיקת הלוח. נסה שוב.');
@@ -151,6 +294,9 @@ export function BoardsPage() {
     }
   }
 
+  // ---------------------------------------------------------------------------
+  // Sign out
+  // ---------------------------------------------------------------------------
   const [signOutError, setSignOutError] = useState(null);
 
   async function handleSignOut() {
@@ -161,6 +307,9 @@ export function BoardsPage() {
     }
   }
 
+  // ---------------------------------------------------------------------------
+  // Render
+  // ---------------------------------------------------------------------------
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
       {/* Header */}
@@ -186,13 +335,15 @@ export function BoardsPage() {
       </header>
 
       <main className="max-w-3xl mx-auto px-4 py-8">
-        {(error || signOutError || deleteError) && (
+        {(error || signOutError || deleteError || mergeError) && (
           <div className="mb-4 rounded-xl bg-red-50 dark:bg-red-900/30 border border-red-100 dark:border-red-800 px-4 py-3 text-sm text-red-600 dark:text-red-400">
-            {error ? `שגיאה בטעינת הלוחות: ${error}` : deleteError || signOutError}
+            {error
+              ? `שגיאה בטעינת הלוחות: ${error}`
+              : mergeError || deleteError || signOutError}
           </div>
         )}
 
-        {/* Incoming invites section — only rendered when invites are loaded and non-empty */}
+        {/* Incoming invites section */}
         {incomingInvites.length > 0 && (
           <section className="mb-8">
             <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-4">הזמנות נכנסות</h2>
@@ -262,11 +413,24 @@ export function BoardsPage() {
           </Button>
         </div>
 
+        {draggingId && (
+          <p className="mb-3 text-xs text-indigo-600 dark:text-indigo-400 text-center">
+            גרור לוח זה מעל לוח אחר כדי לשלב אותם
+          </p>
+        )}
+
+        {merging && (
+          <div className="mb-4 flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
+            <Spinner size="sm" />
+            משלב לוחות…
+          </div>
+        )}
+
         {loading ? (
           <div className="flex justify-center py-20">
             <Spinner size="lg" />
           </div>
-        ) : boards.length === 0 ? (
+        ) : topLevelBoards.length === 0 ? (
           <EmptyState
             icon={
               <svg className="h-16 w-16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -283,44 +447,100 @@ export function BoardsPage() {
           />
         ) : (
           <div className="grid gap-3 sm:grid-cols-2">
-            {boards.map((board) => (
-              <div
-                key={board.id}
-                className="group rounded-2xl bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 shadow-sm hover:shadow-md hover:border-indigo-100 dark:hover:border-indigo-700 transition-all"
-              >
-                <Link
-                  to={`/board/${board.id}`}
-                  className="block p-5"
+            {topLevelBoards.map((board) => {
+              const isSuperBoard = (board.subBoardIds?.length ?? 0) > 0;
+              const isSubBoard = !!board.parentBoardId;
+              const isOwner = board.ownerUid === user?.uid;
+              // Only regular top-level owned boards can initiate a drag
+              const isDraggable = !isSuperBoard && !isSubBoard && isOwner;
+              const isDragging = draggingId === board.id;
+              const isValidDropTarget =
+                !!draggingId &&
+                draggingId !== board.id &&
+                isMergeValid(draggingId, board.id, boards) &&
+                board.ownerUid === user?.uid;
+              const isDragOver = dragOverId === board.id && isValidDropTarget;
+              const displayTotal = getDisplayTotal(board.id);
+
+              return (
+                <div
+                  key={board.id}
+                  draggable={isDraggable}
+                  onDragStart={isDraggable ? (e) => handleDragStart(e, board.id) : undefined}
+                  onDragEnd={isDraggable ? handleDragEnd : undefined}
+                  onDragOver={isValidDropTarget ? (e) => handleDragOver(e, board.id) : undefined}
+                  onDragEnter={isValidDropTarget ? (e) => handleDragEnter(e, board.id) : undefined}
+                  onDragLeave={isValidDropTarget ? (e) => handleDragLeave(e, board.id) : undefined}
+                  onDrop={isValidDropTarget ? (e) => handleDrop(e, board.id) : undefined}
+                  className={[
+                    'group rounded-2xl bg-white dark:bg-gray-800 border shadow-sm transition-all',
+                    isDragging
+                      ? 'opacity-50 border-gray-200 dark:border-gray-700'
+                      : isDragOver
+                      ? 'border-indigo-400 dark:border-indigo-500 ring-2 ring-indigo-300 dark:ring-indigo-600 shadow-md'
+                      : 'border-gray-100 dark:border-gray-700 hover:shadow-md hover:border-indigo-100 dark:hover:border-indigo-700',
+                    isDraggable ? 'cursor-grab active:cursor-grabbing' : '',
+                  ]
+                    .filter(Boolean)
+                    .join(' ')}
                 >
-                  <div className="flex items-start justify-between mb-3">
-                    <h3 className="font-semibold text-gray-900 dark:text-gray-100 group-hover:text-indigo-700 dark:group-hover:text-indigo-400 transition-colors">
-                      {board.title}
-                    </h3>
-                    <div className="h-8 w-8 rounded-xl bg-indigo-50 dark:bg-indigo-900/50 flex items-center justify-center">
-                      <svg className="h-4 w-4 text-indigo-500 dark:text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2" />
-                      </svg>
+                  <Link to={`/board/${board.id}`} className="block p-5">
+                    <div className="flex items-start justify-between mb-2">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h3 className="font-semibold text-gray-900 dark:text-gray-100 group-hover:text-indigo-700 dark:group-hover:text-indigo-400 transition-colors">
+                          {board.title}
+                        </h3>
+                        {isSuperBoard && (
+                          <span className="rounded-full bg-indigo-50 dark:bg-indigo-900/50 px-2 py-0.5 text-xs font-medium text-indigo-600 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-800">
+                            לוח-על · {board.subBoardIds.length}
+                          </span>
+                        )}
+                      </div>
+                      <div className="h-8 w-8 shrink-0 rounded-xl bg-indigo-50 dark:bg-indigo-900/50 flex items-center justify-center">
+                        {isSuperBoard ? (
+                          <svg className="h-4 w-4 text-indigo-500 dark:text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                          </svg>
+                        ) : (
+                          <svg className="h-4 w-4 text-indigo-500 dark:text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2" />
+                          </svg>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                  <p className="text-xs text-gray-400 dark:text-gray-500">
-                    {board.memberUids.length} משתתפים
-                  </p>
-                </Link>
-                {board.ownerUid === user?.uid && (
-                  <div className="px-5 pb-4 flex justify-end">
-                    <Button
-                      size="sm"
-                      variant="danger"
-                      loading={deletingBoardId === board.id}
-                      onClick={() => handleDeleteBoard(board.id)}
-                    >
-                      מחק
-                    </Button>
-                  </div>
-                )}
-              </div>
-            ))}
+
+                    <div className="flex items-center justify-between mt-3">
+                      <p className="text-xs text-gray-400 dark:text-gray-500">
+                        {board.memberUids.length} משתתפים
+                      </p>
+                      <span className="text-sm font-semibold text-indigo-700 dark:text-indigo-400 tabular-nums">
+                        {formatAmount(displayTotal)}
+                      </span>
+                    </div>
+                  </Link>
+
+                  {isOwner && (
+                    <div className="px-5 pb-4 flex justify-end">
+                      <Button
+                        size="sm"
+                        variant="danger"
+                        loading={deletingBoardId === board.id}
+                        onClick={() => handleDeleteBoard(board.id)}
+                      >
+                        מחק
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
+        )}
+
+        {topLevelBoards.length > 1 && !draggingId && (
+          <p className="mt-4 text-center text-xs text-gray-400 dark:text-gray-600">
+            גרור לוח מעל לוח אחר כדי לשלב אותם ללוח-על
+          </p>
         )}
       </main>
 

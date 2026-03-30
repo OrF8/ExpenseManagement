@@ -42,14 +42,14 @@ export function LandingPage() {
 
         <p className="text-lg text-gray-600 dark:text-gray-300 max-w-xl leading-relaxed">
           A simple web app for tracking and managing personal or shared expenses.
-          Create boards, record transactions, and collaborate with others — all in one place.
+          Create boards, record transactions, and collaborate with others – all in one place.
         </p>
 
         <Link
           to="/auth"
           className="mt-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-base font-semibold px-8 py-3 transition-colors shadow-sm"
         >
-          Get started — Sign in
+          Get started – Sign in
         </Link>
 
         {/* Features */}
