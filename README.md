@@ -39,6 +39,7 @@ This project was built by [**Or Forshmit**](https://github.com/OrF8).
 - [⚡ Cloud Functions](#-cloud-functions)
 - [👤 Profile & Account Management](#-profile--account-management)
 - [🔒 Privacy & Terms](#-privacy--terms)
+- [🤝🏼 Contributing](#-contributing)
 - [📄 License](#-license)
 
 ---
@@ -224,6 +225,11 @@ The deletion is performed entirely server-side via the `deleteMyAccount` Cloud F
 ## 🔒 Privacy & Terms
 
 This app includes a [Privacy Policy](https://of8-expense-management.web.app/privacy) (`/privacy`) and [Terms of Service](https://of8-expense-management.web.app/terms) (`/terms`) for compliance with Firebase and Google Sign-In requirements.
+
+---
+
+## 🤝🏼 Contributing
+See [CONTRIBUTING.md](./CONTRIBUTING.md)
 
 ---
 
