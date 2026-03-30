@@ -22,7 +22,7 @@ function formatTransactionDate(dateStr) {
     d.getMonth() + 1 !== month ||
     d.getDate() !== day
   ) return dateStr;
-  return d.toLocaleDateString('he-IL');
+  return `${String(day).padStart(2, '0')}/${String(month).padStart(2, '0')}/${year}`;
 }
 
 export function TransactionCard({ transaction, onEdit, onDelete }) {
