@@ -525,13 +525,13 @@ exports.deleteMyAccount = onCall(async (request) => {
   console.log(`deleteMyAccount: will delete ${boardIdsToDelete.size} board(s) in total (including descendants)`);
 
   // 4. Delete each board and its subcollections (invites, transactions)
+  const boardIdsArray = [...boardIdsToDelete];
   const deletionResults = await Promise.allSettled(
-    [...boardIdsToDelete].map((boardId) => deleteBoardData(boardId))
+    boardIdsArray.map((boardId) => deleteBoardData(boardId))
   );
   deletionResults.forEach((r, i) => {
     if (r.status === 'rejected') {
-      const boardId = [...boardIdsToDelete][i];
-      console.error(`deleteMyAccount: failed to delete board ${boardId}:`, r.reason);
+      console.error(`deleteMyAccount: failed to delete board ${boardIdsArray[i]}:`, r.reason);
     }
   });
 
@@ -544,7 +544,10 @@ exports.deleteMyAccount = onCall(async (request) => {
 
   const memberCleanupResults = await Promise.allSettled(
     memberBoardsSnap.docs
-      .filter((d) => d.data().ownerUid !== uid) // skip owned boards (already deleted above)
+      .filter((d) => {
+        const data = d.data();
+        return data.ownerUid !== uid; // skip owned boards (already deleted above)
+      })
       .map((d) =>
         d.ref.update({
           memberUids: admin.firestore.FieldValue.arrayRemove(uid),
