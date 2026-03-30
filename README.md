@@ -1,34 +1,113 @@
-# ניהול הוצאות - Expense Management
+# 💰 ניהול הוצאות — Expense Management
 
-A production-ready Hebrew RTL collaborative expense management web app.
+**Expense Management** is a collaborative Hebrew RTL web app for tracking shared expenses across families, roommates, and partners — all in one place, in real time.
 
-## Tech Stack
+Instead of juggling spreadsheets or lengthy message threads, ask yourself:
+- How do you keep everyone aligned when managing shared household or group costs?
+- How do you track installment payments across multiple credit cards without losing count?
+- How do you see running totals per card, instantly, without doing the math yourself?
 
-- React + Vite
-- Tailwind CSS v4
-- Firebase (Authentication + Firestore + Cloud Functions)
-- React Router v7
+This project was built by [**Or Forshmit**](https://github.com/OrF8).
 
-## Prerequisites
+🌐 **[Try the live app →](https://of8-expense-management.web.app/)**
 
-- Node.js 18+
-- A Firebase project with Authentication and Firestore enabled
+<p align="center">
+  <img src="https://img.shields.io/badge/License-MIT-yellow.svg?logo=opensourceinitiative" alt="License: MIT">
+  <img src="https://img.shields.io/github/languages/top/OrF8/ExpenseManagement?style=default&logo=javascript&color=F7DF1E" alt="top-language">
+</p>
+<p align="center">
+  <img src="https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=white" alt="react">
+  <img src="https://img.shields.io/badge/Vite-7-646CFF?logo=vite&logoColor=white" alt="vite">
+  <img src="https://img.shields.io/badge/Firebase-12-FFCA28?logo=firebase&logoColor=black" alt="firebase">
+  <img src="https://img.shields.io/badge/Tailwind_CSS-4-06B6D4?logo=tailwindcss&logoColor=white" alt="tailwind">
+  <img src="https://img.shields.io/badge/React_Router-7-CA4245?logo=reactrouter&logoColor=white" alt="react-router">
+</p>
 
-## Installation
+---
+
+## 🔗 Table of Contents
+
+- [📍 Overview](#-overview)
+- [✨ Key Features](#-key-features)
+- [📁 Project Structure](#-project-structure)
+- [🚀 Getting Started](#-getting-started)
+  - [☑️ Prerequisites](#%EF%B8%8F-prerequisites)
+  - [⚙️ Installation](#%EF%B8%8F-installation)
+  - [🔧 Configuration](#-configuration)
+  - [▶️ Running Locally](#%EF%B8%8F-running-locally)
+- [🔥 Firebase Setup](#-firebase-setup)
+- [⚡ Cloud Functions](#-cloud-functions)
+- [🔒 Privacy & Terms](#-privacy--terms)
+- [📄 License](#-license)
+
+---
+
+## 📍 Overview
+
+Managing shared expenses is harder than it sounds. Between split rent, grocery runs, shared subscriptions, and multi-installment purchases, keeping everyone aligned quickly turns into a full-time job.
+
+**Expense Management** solves this with a real-time collaborative board system — each board is a shared ledger where members can log, track, and review transactions together. Invite collaborators by email, track credit card installments, and see running totals per card — all in a clean, native Hebrew RTL interface.
+
+---
+
+## ✨ Key Features
+
+- 🔐 **Authentication** — email/password and Google Sign-In via Firebase Auth
+- 📋 **Collaborative boards** — create shared expense boards and manage multiple ledgers
+- 👥 **Invitation system** — invite collaborators by email; accept or decline via secure Cloud Functions
+- 💳 **Transaction tracking** — log expenses with card last-4, name, description, and amount
+- 📊 **Installment support** — track payments as installment X of Y (תשלום X מתוך Y)
+- 💰 **Auto-calculated totals** — per-card subtotals and a grand total, always up to date
+- 🔄 **Real-time updates** — Firestore listeners push changes to all board members instantly
+- 🌐 **Full Hebrew RTL UI** — built natively for right-to-left layout
+- 🌙 **Dark / light mode** — theme preference persisted locally
+
+---
+
+## 📁 Project Structure
+
+```
+ExpenseManagement/
+├── src/
+│   ├── pages/           # Route-level views (Auth, Boards, BoardPage, Landing, Privacy, Terms)
+│   ├── components/      # Reusable UI components (TransactionCard, TransactionForm, CollaboratorManager, …)
+│   │   └── ui/          # Primitive components (Button, Input, Modal, Spinner, ThemeToggle)
+│   ├── firebase/        # Firestore & Auth wrappers (auth, boards, invites, transactions, users)
+│   ├── hooks/           # Custom React hooks (useBoards, useTransactions, useIncomingInvites)
+│   ├── context/         # React context providers (AuthContext, ThemeContext)
+│   ├── constants/       # Shared constants (transactionTypes)
+│   └── assets/          # Logos and images
+├── functions/           # Firebase Cloud Functions (acceptBoardInvite, declineBoardInvite, removeBoardMember, leaveBoard)
+├── public/              # Static assets (favicon, PWA icons, og-image)
+├── firestore.rules      # Firestore security rules
+├── firebase.json        # Firebase project configuration
+└── vite.config.js       # Vite / PWA build configuration
+```
+
+---
+
+## 🚀 Getting Started
+
+### ☑️ Prerequisites
+
+- **Node.js** 18+
+- A **Firebase project** with Authentication and Firestore enabled
+
+### ⚙️ Installation
 
 ```bash
+git clone https://github.com/OrF8/ExpenseManagement.git
+cd ExpenseManagement
 npm install
 ```
 
-## Configuration
+### 🔧 Configuration
 
 Copy `.env.example` to `.env` and fill in your Firebase project values:
 
 ```bash
 cp .env.example .env
 ```
-
-Required environment variables:
 
 | Variable | Description |
 |---|---|
@@ -39,7 +118,7 @@ Required environment variables:
 | `VITE_FIREBASE_MESSAGING_SENDER_ID` | Firebase messaging sender ID |
 | `VITE_FIREBASE_APP_ID` | Firebase app ID |
 
-## Running Locally
+### ▶️ Running Locally
 
 ```bash
 npm run dev
@@ -47,141 +126,32 @@ npm run dev
 
 The app will be available at `http://localhost:5173`.
 
-## Building for Production
+To build and preview a production bundle:
 
 ```bash
 npm run build
 npm run preview
 ```
 
-## Firebase Setup
+---
 
-1. Create a Firebase project at https://console.firebase.google.com
+## 🔥 Firebase Setup
+
+1. Create a Firebase project at [console.firebase.google.com](https://console.firebase.google.com)
 2. Enable **Authentication** → sign-in methods: Email/Password and Google
 3. Enable **Firestore Database** in production mode
 4. Enable **Cloud Functions** (requires the Blaze pay-as-you-go plan)
-5. Deploy the Firestore security rules. The rules live in `firestore.rules` at the repo root. You can deploy them with the Firebase CLI:
+5. Deploy the security rules from [`firestore.rules`](./firestore.rules):
 
 ```bash
 firebase deploy --only firestore:rules
 ```
 
-Or copy the contents of `firestore.rules` into the Firebase console → Firestore → Rules tab manually.
+> The rules restrict board access to members, invite access to the board owner and invited user, and user-profile writes to the profile owner. See [`firestore.rules`](./firestore.rules) for the full definition.
 
-<details>
-<summary>View current rules</summary>
+---
 
-```
-rules_version = '2';
-service cloud.firestore {
-  match /databases/{database}/documents {
-
-    function signedIn() {
-      return request.auth != null;
-    }
-
-    function signedInEmail() {
-      return signedIn() && request.auth.token.email != null
-        ? request.auth.token.email.lower()
-        : null;
-    }
-
-    function isBoardMemberByDoc(boardDoc) {
-      return signedIn()
-        && request.auth.uid in boardDoc.memberUids;
-    }
-
-    function isBoardOwnerByDoc(boardDoc) {
-      return signedIn()
-        && boardDoc.ownerUid == request.auth.uid;
-    }
-
-    function isBoardMember(boardId) {
-      return signedIn()
-        && request.auth.uid in get(
-          /databases/$(database)/documents/boards/$(boardId)
-        ).data.memberUids;
-    }
-
-    function isBoardOwner(boardId) {
-      return signedIn()
-        && get(
-          /databases/$(database)/documents/boards/$(boardId)
-        ).data.ownerUid == request.auth.uid;
-    }
-
-    match /boards/{boardId} {
-      allow create: if signedIn()
-        && request.resource.data.ownerUid == request.auth.uid
-        && request.auth.uid in request.resource.data.memberUids;
-
-      allow read: if isBoardMemberByDoc(resource.data);
-
-      allow update: if isBoardOwnerByDoc(resource.data);
-      allow delete: if isBoardOwnerByDoc(resource.data);
-    }
-
-    match /boards/{boardId}/transactions/{transactionId} {
-      allow read, create, update, delete: if isBoardMember(boardId);
-    }
-
-    match /boards/{boardId}/invites/{inviteId} {
-      allow create: if isBoardOwner(boardId)
-        && request.resource.data.boardId == boardId
-        && request.resource.data.invitedByUid == request.auth.uid
-        && request.resource.data.invitedEmail is string
-        && request.resource.data.invitedEmailLower is string
-        && request.resource.data.status == "pending"
-        && request.resource.data.acceptedAt == null
-        && request.resource.data.declinedAt == null;
-
-      allow read: if isBoardOwner(boardId)
-        || (
-          signedInEmail() != null
-          && resource.data.invitedEmailLower == signedInEmail()
-        );
-
-      allow update, delete: if isBoardOwner(boardId);
-    }
-
-    // Required for collectionGroup('invites') queries used in the incoming-invites UI.
-    // Firestore collection-group queries are only permitted when a wildcard-path rule
-    // explicitly grants access; the nested match above covers direct-path reads only.
-    match /{path=**}/invites/{inviteId} {
-      allow read: if signedInEmail() != null
-        && resource.data.invitedEmailLower == signedInEmail();
-    }
-
-    // User profiles — created on email/password sign-up; readable by any signed-in user
-    // (required for invite flows that look up users by email / UID).
-    // Updates are restricted to the nickname field only — email, emailLower, and
-    // createdAt are immutable after account creation.
-    match /users/{uid} {
-      allow create: if request.auth != null && request.auth.uid == uid;
-      allow read: if request.auth != null;
-      allow update: if request.auth != null
-        && request.auth.uid == uid
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['nickname']);
-      allow delete: if false;
-    }
-  }
-}
-```
-
-</details>
-
-## Features
-
-- 🔐 Authentication with email/password and Google Sign-In
-- 📋 Create and manage collaborative expense boards
-- 👥 Invite collaborators by email; invitees can accept or decline invitations via secure Cloud Functions
-- 💳 Track transactions with card last-4, name, essence, amount
-- 📊 Installment tracking (תשלום X מתוך Y)
-- 💰 Auto-calculated totals per card and grand total
-- 🔄 Real-time updates via Firestore listeners
-- 🌐 Full Hebrew RTL UI
-
-## Firebase Functions Setup & Deployment
+## ⚡ Cloud Functions
 
 The `functions/` directory contains four callable Cloud Functions:
 
@@ -189,49 +159,43 @@ The `functions/` directory contains four callable Cloud Functions:
 |---|---|
 | `acceptBoardInvite` | Atomically adds the caller to `board.memberUids` and marks the invite accepted |
 | `declineBoardInvite` | Marks the invite as declined |
-| `removeBoardMember` | Allows the board owner to remove a non-owner member from `board.memberUids` |
-| `leaveBoard` | Allows a non-owner member to remove themselves from `board.memberUids` |
+| `removeBoardMember` | Allows the board owner to remove a non-owner member |
+| `leaveBoard` | Allows a non-owner member to remove themselves from a board |
 
-### Prerequisites
+**Requirements:** Firebase CLI (`npm install -g firebase-tools`) and the Blaze (pay-as-you-go) plan.
 
-- Firebase CLI: `npm install -g firebase-tools`
-- Firebase Blaze (pay-as-you-go) plan — required for Cloud Functions
-
-### First-time setup
+**Deploy:**
 
 ```bash
-# Log in to Firebase
 firebase login
-
-# Link the project (run from repo root)
-firebase use --add
-# Select your project and give it an alias (e.g. "default")
-```
-
-### Deploy the functions
-
-```bash
-# Install functions dependencies
+firebase use --add          # link your project and give it an alias (e.g. "default")
 cd functions && npm install && cd ..
-
-# Deploy only the functions
 firebase deploy --only functions
 ```
 
-### Local emulation (optional)
+**Local emulation (optional):**
 
 ```bash
-# Start the Functions emulator alongside Firestore
 firebase emulators:start --only functions,firestore
 ```
 
-When running locally against the emulator, update `src/firebase/config.js` to
-connect to it:
+To connect the app to the local emulator, add to `src/firebase/config.js`:
 
 ```js
 import { connectFunctionsEmulator } from 'firebase/functions';
-// Add after the existing exports:
 if (location.hostname === 'localhost') {
   connectFunctionsEmulator(functions, 'localhost', 5001);
 }
 ```
+
+---
+
+## 🔒 Privacy & Terms
+
+This app includes a [Privacy Policy](https://of8-expense-management.web.app/privacy) (`/privacy`) and [Terms of Service](https://of8-expense-management.web.app/terms) (`/terms`) for compliance with Firebase and Google Sign-In requirements.
+
+---
+
+## 📄 License
+
+This project is licensed under the MIT License. See the [LICENSE](./LICENSE) file for details.
