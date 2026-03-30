@@ -9,6 +9,8 @@ Instead of juggling spreadsheets or lengthy message threads, ask yourself:
 
 This project was built by [**Or Forshmit**](https://github.com/OrF8).
 
+🌐 **[Try the live app →](https://of8-expense-management.web.app/)**
+
 <p align="center">
   <img src="https://img.shields.io/github/license/OrF8/ExpenseManagement?style=default&logo=opensourceinitiative" alt="license">
   <img src="https://img.shields.io/github/languages/top/OrF8/ExpenseManagement?style=default&logo=javascript&color=F7DF1E" alt="top-language">
@@ -27,7 +29,6 @@ This project was built by [**Or Forshmit**](https://github.com/OrF8).
 
 - [📍 Overview](#-overview)
 - [✨ Key Features](#-key-features)
-- [📸 Screenshots](#-screenshots)
 - [📁 Project Structure](#-project-structure)
 - [🚀 Getting Started](#-getting-started)
   - [☑️ Prerequisites](#%EF%B8%8F-prerequisites)
@@ -37,6 +38,7 @@ This project was built by [**Or Forshmit**](https://github.com/OrF8).
 - [🔥 Firebase Setup](#-firebase-setup)
 - [⚡ Cloud Functions](#-cloud-functions)
 - [🔒 Privacy & Terms](#-privacy--terms)
+- [📄 License](#-license)
 
 ---
 
@@ -59,12 +61,6 @@ Managing shared expenses is harder than it sounds. Between split rent, grocery r
 - 🔄 **Real-time updates** — Firestore listeners push changes to all board members instantly
 - 🌐 **Full Hebrew RTL UI** — built natively for right-to-left layout
 - 🌙 **Dark / light mode** — theme preference persisted locally
-
----
-
-## 📸 Screenshots
-
-> _Screenshots coming soon. Clone the repo and run it locally to see it in action._
 
 ---
 
@@ -197,3 +193,9 @@ if (location.hostname === 'localhost') {
 ## 🔒 Privacy & Terms
 
 This app includes a [Privacy Policy](/src/pages/PrivacyPage.jsx) (`/privacy`) and [Terms of Service](/src/pages/TermsPage.jsx) (`/terms`) for compliance with Firebase and Google Sign-In requirements.
+
+---
+
+## 📄 License
+
+This project is licensed under the MIT License. See the [LICENSE](./LICENSE) file for details.
