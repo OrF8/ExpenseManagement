@@ -12,7 +12,13 @@
  * Invites subcollection: boards/{boardId}/invites/{inviteId}
  * Invite document shape:
  *   { boardId, boardTitle, invitedByUid, invitedByEmail, invitedEmail, invitedEmailLower,
- *     invitedUid, status, createdAt, acceptedAt, declinedAt }
+ *     invitedUid, createdAt, expiresAt }
+ *
+ * Invitation lifecycle:
+ *   - A document's existence means the invitation is pending.
+ *   - Accepted/rejected invitations are deleted immediately.
+ *   - `expiresAt` is set to createdAt + 24 hours for Firestore TTL auto-deletion.
+ *   - App logic also enforces expiry: invitations with expiresAt <= now are ignored.
  */
 import {
   collection,
@@ -26,6 +32,7 @@ import {
   where,
   onSnapshot,
   serverTimestamp,
+  Timestamp,
   updateDoc,
   arrayUnion,
   arrayRemove,
@@ -129,7 +136,7 @@ export function subscribeToBoard(boardId, onData, onError) {
 /**
  * Create a pending invite for a collaborator by email.
  * Validates that the target email belongs to a registered user, that the user
- * is not already a board member, and that no pending invite exists for them.
+ * is not already a board member, and that no active (non-expired) invite exists.
  * @param {string} boardId
  * @param {string} email - Raw email entered by the owner (will be normalised)
  * @param {{ uid: string, email: string }} currentUser - Firebase Auth user object
@@ -166,16 +173,27 @@ export async function createBoardInvite(boardId, email, currentUser, boardTitle 
 
   const invitesRef = collection(db, 'boards', boardId, 'invites');
 
-  // Prevent duplicate pending invites for the same user (by UID)
-  const duplicateQ = query(
-    invitesRef,
-    where('invitedUid', '==', targetProfile.uid),
-    where('status', '==', 'pending')
-  );
+  // Prevent duplicate active (non-expired) invites for the same user (by UID).
+  // Expired docs may still physically exist until TTL removes them, so we check
+  // expiresAt client-side.  Documents without expiresAt (legacy) are treated as active.
+  const duplicateQ = query(invitesRef, where('invitedUid', '==', targetProfile.uid));
   const existing = await getDocs(duplicateQ);
-  if (!existing.empty) {
+  const now = Date.now();
+  const hasActiveInvite = existing.docs.some((d) => {
+    const data = d.data();
+    const expiresAt = data.expiresAt;
+    if (!expiresAt) return true; // legacy doc without expiry — treat as active
+    return expiresAt.toMillis() > now;
+  });
+  if (hasActiveInvite) {
     throw new Error('כבר קיימת הזמנה פתוחה למשתמש זה');
   }
+
+  const createdAt = serverTimestamp();
+  // expiresAt uses Timestamp.fromMillis for a consistent, clock-skew-resistant value.
+  // TTL field: configure the `expiresAt` field on the `invites` collection group
+  // in the Firebase console (or via gcloud) to enable automatic document deletion.
+  const expiresAt = Timestamp.fromMillis(now + 24 * 60 * 60 * 1000);
 
   return addDoc(invitesRef, {
     boardId,
@@ -185,10 +203,8 @@ export async function createBoardInvite(boardId, email, currentUser, boardTitle 
     invitedEmail: normalizedEmail,
     invitedEmailLower: normalizedEmail,
     invitedUid: targetProfile.uid,
-    status: 'pending',
-    createdAt: serverTimestamp(),
-    acceptedAt: null,
-    declinedAt: null,
+    createdAt,
+    expiresAt,
   });
 }
 
@@ -212,17 +228,15 @@ export function subscribeToBoardInvites(boardId, onData, onError) {
 }
 
 /**
- * Subscribe to real-time updates of pending invites addressed to a specific email.
+ * Subscribe to real-time updates of pending (non-expired) invites addressed to a specific email.
  * Uses a collection-group query across all boards' invites subcollections.
  *
  * The query intentionally uses only a single equality filter on `invitedEmailLower`
  * so that Firestore's automatically-created single-field collection-group index is
- * sufficient — no custom composite index needs to be deployed.  Adding a second
- * `where('status', '==', 'pending')` or an `orderBy('createdAt', 'desc')` clause
- * would require a manually-created collection-group composite index on
- * (invitedEmailLower, status, createdAt); without it the query fails with a
- * "requires an index" error that surfaces to the user as an empty list.
- * Status filtering and chronological sorting are therefore done client-side below.
+ * sufficient — no custom composite index needs to be deployed.
+ * Expiry filtering and chronological sorting are done client-side.
+ *
+ * Backward compatibility: documents without `expiresAt` (legacy) are treated as active.
  *
  * @param {string} email - The invited user's email (will be normalized to lowercase)
  * @param {function} onData - Callback receiving array of pending invite objects
@@ -238,9 +252,16 @@ export function subscribeToIncomingInvites(email, onData, onError) {
   return onSnapshot(
     q,
     (snap) => {
+      const now = Date.now();
       const allDocs = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
       const invites = allDocs
-        .filter((inv) => inv.status === 'pending')
+        .filter((inv) => {
+          // A document's existence means it is pending.
+          // Exclude documents that have already expired (expiresAt <= now).
+          // Legacy documents without expiresAt are treated as active.
+          if (!inv.expiresAt) return true;
+          return inv.expiresAt.toMillis() > now;
+        })
         .sort((a, b) => {
           const aMs = a.createdAt?.toMillis?.() ?? 0;
           const bMs = b.createdAt?.toMillis?.() ?? 0;

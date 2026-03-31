@@ -134,7 +134,12 @@ export function CollaboratorManager({ board }) {
     }
   }
 
-  const pendingInvites = invites.filter((i) => i.status === 'pending');
+  // All documents in the invites subcollection are pending by definition.
+  // Filter out any that have expired (TTL may not have removed them yet).
+  const pendingInvites = invites.filter((i) => {
+    if (!i.expiresAt) return true; // legacy doc without expiry — treat as active
+    return i.expiresAt.toMillis() > Date.now();
+  });
 
   function renderMemberRow(uid, { inherited = false } = {}) {
     const profile = memberProfiles.find((p) => p.uid === uid);
