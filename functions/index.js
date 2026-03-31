@@ -85,84 +85,85 @@ async function getDescendantBoardIds(boardId) {
 exports.acceptBoardInvite = onCall(
     { enforceAppCheck: true },
     async (request) => {
-  // 1. Require authentication
-  if (!request.auth) {
-    throw new HttpsError('unauthenticated', 'עליך להיות מחובר כדי לקבל הזמנה');
-  }
-
-  const uid = request.auth.uid;
-  const callerEmail = (request.auth.token.email || '').toLowerCase();
-
-  const { boardId, inviteId } = request.data || {};
-  if (!boardId || !inviteId) {
-    throw new HttpsError('invalid-argument', 'boardId ו-inviteId נדרשים');
-  }
-
-  const inviteRef = db.collection('boards').doc(boardId).collection('invites').doc(inviteId);
-  const boardRef = db.collection('boards').doc(boardId);
-
-  await db.runTransaction(async (tx) => {
-    // 2. Load and verify the invite document
-    const inviteSnap = await tx.get(inviteRef);
-    if (!inviteSnap.exists) {
-      throw new HttpsError('not-found', 'ההזמנה לא נמצאה');
-    }
-
-    const invite = inviteSnap.data();
-
-    // 3. Verify invite has not expired.
-    // Legacy documents without expiresAt are treated as active for backward compatibility.
-    if (invite.expiresAt && invite.expiresAt.toMillis() <= Date.now()) {
-      throw new HttpsError('failed-precondition', 'פג תוקף ההזמנה');
-    }
-
-    // 4. Verify caller email matches the invite
-    if ((invite.invitedEmailLower || '') !== callerEmail) {
-      throw new HttpsError('permission-denied', 'אין לך הרשאה לקבל הזמנה זו');
-    }
-
-    // 5. Load the board document inside the same transaction
-    const boardSnap = await tx.get(boardRef);
-    if (!boardSnap.exists) {
-      throw new HttpsError('not-found', 'הלוח לא נמצא');
-    }
-
-    const board = boardSnap.data();
-    const memberUids = board.memberUids || [];
-
-    // 6. Atomically delete the invite document and add UID to board (no duplication)
-    tx.delete(inviteRef);
-
-    if (!memberUids.includes(uid)) {
-      // Add to both memberUids (effective access) and directMemberUids (direct membership)
-      tx.update(boardRef, {
-        memberUids: admin.firestore.FieldValue.arrayUnion(uid),
-        directMemberUids: admin.firestore.FieldValue.arrayUnion(uid),
-      });
-    }
-  });
-
-  // 7. Cascade inherited access to all descendant boards (outside the transaction
-  //    for scalability).  Only memberUids is updated on descendants — NOT
-  //    directMemberUids — because the user is a direct member of this board only.
-  const descendantIds = await getDescendantBoardIds(boardId);
-  if (descendantIds.length > 0) {
-    const results = await Promise.allSettled(
-      descendantIds.map((descId) =>
-        db.collection('boards').doc(descId).update({
-          memberUids: admin.firestore.FieldValue.arrayUnion(uid),
-        })
-      )
-    );
-    results.forEach((r, i) => {
-      if (r.status === 'rejected') {
-        console.error(`acceptBoardInvite: failed to cascade memberUids to descendant ${descendantIds[i]}:`, r.reason);
+      // 1. Require authentication
+      if (!request.auth) {
+        throw new HttpsError('unauthenticated', 'עליך להיות מחובר כדי לקבל הזמנה');
       }
-    });
-  }
 
-  return { success: true };
-});
+      const uid = request.auth.uid;
+      const callerEmail = (request.auth.token.email || '').toLowerCase();
+
+      const {boardId, inviteId} = request.data || {};
+      if (!boardId || !inviteId) {
+        throw new HttpsError('invalid-argument', 'boardId ו-inviteId נדרשים');
+      }
+
+      const inviteRef = db.collection('boards').doc(boardId).collection('invites').doc(inviteId);
+      const boardRef = db.collection('boards').doc(boardId);
+
+      await db.runTransaction(async (tx) => {
+        // 2. Load and verify the invite document
+        const inviteSnap = await tx.get(inviteRef);
+        if (!inviteSnap.exists) {
+          throw new HttpsError('not-found', 'ההזמנה לא נמצאה');
+        }
+
+        const invite = inviteSnap.data();
+
+        // 3. Verify invite has not expired.
+        // Legacy documents without expiresAt are treated as active for backward compatibility.
+        if (invite.expiresAt && invite.expiresAt.toMillis() <= Date.now()) {
+          throw new HttpsError('failed-precondition', 'פג תוקף ההזמנה');
+        }
+
+        // 4. Verify caller email matches the invite
+        if ((invite.invitedEmailLower || '') !== callerEmail) {
+          throw new HttpsError('permission-denied', 'אין לך הרשאה לקבל הזמנה זו');
+        }
+
+        // 5. Load the board document inside the same transaction
+        const boardSnap = await tx.get(boardRef);
+        if (!boardSnap.exists) {
+          throw new HttpsError('not-found', 'הלוח לא נמצא');
+        }
+
+        const board = boardSnap.data();
+        const memberUids = board.memberUids || [];
+
+        // 6. Atomically delete the invite document and add UID to board (no duplication)
+        tx.delete(inviteRef);
+
+        if (!memberUids.includes(uid)) {
+          // Add to both memberUids (effective access) and directMemberUids (direct membership)
+          tx.update(boardRef, {
+            memberUids: admin.firestore.FieldValue.arrayUnion(uid),
+            directMemberUids: admin.firestore.FieldValue.arrayUnion(uid),
+          });
+        }
+      });
+
+      // 7. Cascade inherited access to all descendant boards (outside the transaction
+      //    for scalability).  Only memberUids is updated on descendants — NOT
+      //    directMemberUids — because the user is a direct member of this board only.
+      const descendantIds = await getDescendantBoardIds(boardId);
+      if (descendantIds.length > 0) {
+        const results = await Promise.allSettled(
+            descendantIds.map((descId) =>
+                db.collection('boards').doc(descId).update({
+                  memberUids: admin.firestore.FieldValue.arrayUnion(uid),
+                })
+            )
+        );
+        results.forEach((r, i) => {
+          if (r.status === 'rejected') {
+            console.error(`acceptBoardInvite: failed to cascade memberUids to descendant ${descendantIds[i]}:`, r.reason);
+          }
+        });
+      }
+
+      return {success: true};
+    }
+);
 
 /**
  * declineBoardInvite
@@ -178,44 +179,45 @@ exports.acceptBoardInvite = onCall(
 exports.declineBoardInvite = onCall(
     { enforceAppCheck: true },
     async (request) => {
-  // 1. Require authentication
-  if (!request.auth) {
-    throw new HttpsError('unauthenticated', 'עליך להיות מחובר כדי לדחות הזמנה');
-  }
+      // 1. Require authentication
+      if (!request.auth) {
+        throw new HttpsError('unauthenticated', 'עליך להיות מחובר כדי לדחות הזמנה');
+      }
 
-  const callerEmail = (request.auth.token.email || '').toLowerCase();
+      const callerEmail = (request.auth.token.email || '').toLowerCase();
 
-  const { boardId, inviteId } = request.data || {};
-  if (!boardId || !inviteId) {
-    throw new HttpsError('invalid-argument', 'boardId ו-inviteId נדרשים');
-  }
+      const {boardId, inviteId} = request.data || {};
+      if (!boardId || !inviteId) {
+        throw new HttpsError('invalid-argument', 'boardId ו-inviteId נדרשים');
+      }
 
-  const inviteRef = db.collection('boards').doc(boardId).collection('invites').doc(inviteId);
+      const inviteRef = db.collection('boards').doc(boardId).collection('invites').doc(inviteId);
 
-  // 2. Load and verify the invite document
-  const inviteSnap = await inviteRef.get();
-  if (!inviteSnap.exists) {
-    throw new HttpsError('not-found', 'ההזמנה לא נמצאה');
-  }
+      // 2. Load and verify the invite document
+      const inviteSnap = await inviteRef.get();
+      if (!inviteSnap.exists) {
+        throw new HttpsError('not-found', 'ההזמנה לא נמצאה');
+      }
 
-  const invite = inviteSnap.data();
+      const invite = inviteSnap.data();
 
-  // 3. Verify invite has not expired.
-  // Legacy documents without expiresAt are treated as active for backward compatibility.
-  if (invite.expiresAt && invite.expiresAt.toMillis() <= Date.now()) {
-    throw new HttpsError('failed-precondition', 'פג תוקף ההזמנה');
-  }
+      // 3. Verify invite has not expired.
+      // Legacy documents without expiresAt are treated as active for backward compatibility.
+      if (invite.expiresAt && invite.expiresAt.toMillis() <= Date.now()) {
+        throw new HttpsError('failed-precondition', 'פג תוקף ההזמנה');
+      }
 
-  // 4. Verify caller email matches the invite
-  if ((invite.invitedEmailLower || '') !== callerEmail) {
-    throw new HttpsError('permission-denied', 'אין לך הרשאה לדחות הזמנה זו');
-  }
+      // 4. Verify caller email matches the invite
+      if ((invite.invitedEmailLower || '') !== callerEmail) {
+        throw new HttpsError('permission-denied', 'אין לך הרשאה לדחות הזמנה זו');
+      }
 
-  // 5. Delete the invite document — no declined marker is kept
-  await inviteRef.delete();
+      // 5. Delete the invite document — no declined marker is kept
+      await inviteRef.delete();
 
-  return { success: true };
-});
+      return {success: true};
+    }
+);
 
 /**
  * removeBoardMember
@@ -235,78 +237,79 @@ exports.declineBoardInvite = onCall(
 exports.removeBoardMember = onCall(
     { enforceAppCheck: true },
     async (request) => {
-  // 1. Require authentication
-  if (!request.auth) {
-    throw new HttpsError('unauthenticated', 'עליך להיות מחובר כדי להסיר חבר');
-  }
-
-  const callerUid = request.auth.uid;
-
-  const { boardId, memberUid } = request.data || {};
-  if (!boardId || !memberUid) {
-    throw new HttpsError('invalid-argument', 'boardId ו-memberUid נדרשים');
-  }
-
-  const boardRef = db.collection('boards').doc(boardId);
-
-  // 2. Load the board document
-  const boardSnap = await boardRef.get();
-  if (!boardSnap.exists) {
-    throw new HttpsError('not-found', 'הלוח לא נמצא');
-  }
-
-  const board = boardSnap.data();
-
-  // 3. Verify caller is the board owner
-  if (board.ownerUid !== callerUid) {
-    throw new HttpsError('permission-denied', 'רק בעל הלוח יכול להסיר חברים');
-  }
-
-  // 4. Reject if trying to remove the owner
-  if (memberUid === board.ownerUid) {
-    throw new HttpsError('invalid-argument', 'לא ניתן להסיר את בעל הלוח');
-  }
-
-  // 5. Verify the target member is currently on the board
-  const memberUids = board.memberUids || [];
-  if (!memberUids.includes(memberUid)) {
-    throw new HttpsError('not-found', 'המשתמש אינו חבר בלוח');
-  }
-
-  // 6. Remove the member from both memberUids and directMemberUids of this board
-  await boardRef.update({
-    memberUids: admin.firestore.FieldValue.arrayRemove(memberUid),
-    directMemberUids: admin.firestore.FieldValue.arrayRemove(memberUid),
-  });
-
-  // 7. Cascade: remove inherited access from all descendants,
-  //    but only when the member does NOT have direct access on that descendant.
-  //    Backward compat: if directMemberUids is absent, treat all memberUids as direct.
-  const descendantIds = await getDescendantBoardIds(boardId);
-  if (descendantIds.length > 0) {
-    const results = await Promise.allSettled(
-      descendantIds.map(async (descId) => {
-        const descSnap = await db.collection('boards').doc(descId).get();
-        if (!descSnap.exists) return;
-        const descData = descSnap.data();
-        // Fall back to memberUids when directMemberUids is not yet set (backward compat)
-        const directMembers = descData.directMemberUids ?? descData.memberUids ?? [];
-        if (!directMembers.includes(memberUid)) {
-          await db.collection('boards').doc(descId).update({
-            memberUids: admin.firestore.FieldValue.arrayRemove(memberUid),
-          });
-        }
-      })
-    );
-    results.forEach((r, i) => {
-      if (r.status === 'rejected') {
-        console.error(`removeBoardMember: failed to cascade removal to descendant ${descendantIds[i]}:`, r.reason);
+      // 1. Require authentication
+      if (!request.auth) {
+        throw new HttpsError('unauthenticated', 'עליך להיות מחובר כדי להסיר חבר');
       }
-    });
-  }
 
-  return { success: true };
-});
+      const callerUid = request.auth.uid;
+
+      const {boardId, memberUid} = request.data || {};
+      if (!boardId || !memberUid) {
+        throw new HttpsError('invalid-argument', 'boardId ו-memberUid נדרשים');
+      }
+
+      const boardRef = db.collection('boards').doc(boardId);
+
+      // 2. Load the board document
+      const boardSnap = await boardRef.get();
+      if (!boardSnap.exists) {
+        throw new HttpsError('not-found', 'הלוח לא נמצא');
+      }
+
+      const board = boardSnap.data();
+
+      // 3. Verify caller is the board owner
+      if (board.ownerUid !== callerUid) {
+        throw new HttpsError('permission-denied', 'רק בעל הלוח יכול להסיר חברים');
+      }
+
+      // 4. Reject if trying to remove the owner
+      if (memberUid === board.ownerUid) {
+        throw new HttpsError('invalid-argument', 'לא ניתן להסיר את בעל הלוח');
+      }
+
+      // 5. Verify the target member is currently on the board
+      const memberUids = board.memberUids || [];
+      if (!memberUids.includes(memberUid)) {
+        throw new HttpsError('not-found', 'המשתמש אינו חבר בלוח');
+      }
+
+      // 6. Remove the member from both memberUids and directMemberUids of this board
+      await boardRef.update({
+        memberUids: admin.firestore.FieldValue.arrayRemove(memberUid),
+        directMemberUids: admin.firestore.FieldValue.arrayRemove(memberUid),
+      });
+
+      // 7. Cascade: remove inherited access from all descendants,
+      //    but only when the member does NOT have direct access on that descendant.
+      //    Backward compat: if directMemberUids is absent, treat all memberUids as direct.
+      const descendantIds = await getDescendantBoardIds(boardId);
+      if (descendantIds.length > 0) {
+        const results = await Promise.allSettled(
+            descendantIds.map(async (descId) => {
+              const descSnap = await db.collection('boards').doc(descId).get();
+              if (!descSnap.exists) return;
+              const descData = descSnap.data();
+              // Fall back to memberUids when directMemberUids is not yet set (backward compat)
+              const directMembers = descData.directMemberUids ?? descData.memberUids ?? [];
+              if (!directMembers.includes(memberUid)) {
+                await db.collection('boards').doc(descId).update({
+                  memberUids: admin.firestore.FieldValue.arrayRemove(memberUid),
+                });
+              }
+            })
+        );
+        results.forEach((r, i) => {
+          if (r.status === 'rejected') {
+            console.error(`removeBoardMember: failed to cascade removal to descendant ${descendantIds[i]}:`, r.reason);
+          }
+        });
+      }
+
+      return {success: true};
+    }
+);
 
 /**
  * leaveBoard
@@ -325,73 +328,74 @@ exports.removeBoardMember = onCall(
 exports.leaveBoard = onCall(
     { enforceAppCheck: true },
     async (request) => {
-  // 1. Require authentication
-  if (!request.auth) {
-    throw new HttpsError('unauthenticated', 'עליך להיות מחובר כדי לעזוב לוח');
-  }
-
-  const callerUid = request.auth.uid;
-
-  const { boardId } = request.data || {};
-  if (!boardId) {
-    throw new HttpsError('invalid-argument', 'boardId נדרש');
-  }
-
-  const boardRef = db.collection('boards').doc(boardId);
-
-  // 2. Load the board document
-  const boardSnap = await boardRef.get();
-  if (!boardSnap.exists) {
-    throw new HttpsError('not-found', 'הלוח לא נמצא');
-  }
-
-  const board = boardSnap.data();
-
-  // 3. Reject if the caller is the board owner
-  if (board.ownerUid === callerUid) {
-    throw new HttpsError('permission-denied', 'בעל הלוח אינו יכול לעזוב את הלוח');
-  }
-
-  // 4. Verify the caller is currently a member of the board
-  const memberUids = board.memberUids || [];
-  if (!memberUids.includes(callerUid)) {
-    throw new HttpsError('not-found', 'אינך חבר בלוח זה');
-  }
-
-  // 5. Remove the caller from both memberUids and directMemberUids of this board
-  await boardRef.update({
-    memberUids: admin.firestore.FieldValue.arrayRemove(callerUid),
-    directMemberUids: admin.firestore.FieldValue.arrayRemove(callerUid),
-  });
-
-  // 6. Cascade: remove inherited access from all descendants,
-  //    but only when the caller does NOT have direct access on that descendant.
-  //    Backward compat: if directMemberUids is absent, treat all memberUids as direct.
-  const descendantIds = await getDescendantBoardIds(boardId);
-  if (descendantIds.length > 0) {
-    const results = await Promise.allSettled(
-      descendantIds.map(async (descId) => {
-        const descSnap = await db.collection('boards').doc(descId).get();
-        if (!descSnap.exists) return;
-        const descData = descSnap.data();
-        // Fall back to memberUids when directMemberUids is not yet set (backward compat)
-        const directMembers = descData.directMemberUids ?? descData.memberUids ?? [];
-        if (!directMembers.includes(callerUid)) {
-          await db.collection('boards').doc(descId).update({
-            memberUids: admin.firestore.FieldValue.arrayRemove(callerUid),
-          });
-        }
-      })
-    );
-    results.forEach((r, i) => {
-      if (r.status === 'rejected') {
-        console.error(`leaveBoard: failed to cascade removal to descendant ${descendantIds[i]}:`, r.reason);
+      // 1. Require authentication
+      if (!request.auth) {
+        throw new HttpsError('unauthenticated', 'עליך להיות מחובר כדי לעזוב לוח');
       }
-    });
-  }
 
-  return { success: true };
-});
+      const callerUid = request.auth.uid;
+
+      const {boardId} = request.data || {};
+      if (!boardId) {
+        throw new HttpsError('invalid-argument', 'boardId נדרש');
+      }
+
+      const boardRef = db.collection('boards').doc(boardId);
+
+      // 2. Load the board document
+      const boardSnap = await boardRef.get();
+      if (!boardSnap.exists) {
+        throw new HttpsError('not-found', 'הלוח לא נמצא');
+      }
+
+      const board = boardSnap.data();
+
+      // 3. Reject if the caller is the board owner
+      if (board.ownerUid === callerUid) {
+        throw new HttpsError('permission-denied', 'בעל הלוח אינו יכול לעזוב את הלוח');
+      }
+
+      // 4. Verify the caller is currently a member of the board
+      const memberUids = board.memberUids || [];
+      if (!memberUids.includes(callerUid)) {
+        throw new HttpsError('not-found', 'אינך חבר בלוח זה');
+      }
+
+      // 5. Remove the caller from both memberUids and directMemberUids of this board
+      await boardRef.update({
+        memberUids: admin.firestore.FieldValue.arrayRemove(callerUid),
+        directMemberUids: admin.firestore.FieldValue.arrayRemove(callerUid),
+      });
+
+      // 6. Cascade: remove inherited access from all descendants,
+      //    but only when the caller does NOT have direct access on that descendant.
+      //    Backward compat: if directMemberUids is absent, treat all memberUids as direct.
+      const descendantIds = await getDescendantBoardIds(boardId);
+      if (descendantIds.length > 0) {
+        const results = await Promise.allSettled(
+            descendantIds.map(async (descId) => {
+              const descSnap = await db.collection('boards').doc(descId).get();
+              if (!descSnap.exists) return;
+              const descData = descSnap.data();
+              // Fall back to memberUids when directMemberUids is not yet set (backward compat)
+              const directMembers = descData.directMemberUids ?? descData.memberUids ?? [];
+              if (!directMembers.includes(callerUid)) {
+                await db.collection('boards').doc(descId).update({
+                  memberUids: admin.firestore.FieldValue.arrayRemove(callerUid),
+                });
+              }
+            })
+        );
+        results.forEach((r, i) => {
+          if (r.status === 'rejected') {
+            console.error(`leaveBoard: failed to cascade removal to descendant ${descendantIds[i]}:`, r.reason);
+          }
+        });
+      }
+
+      return {success: true};
+    }
+);
 
 // ---------------------------------------------------------------------------
 // Shared board-deletion helper
@@ -442,38 +446,39 @@ async function deleteBoardData(boardId) {
 exports.deleteBoard = onCall(
     { enforceAppCheck: true },
     async (request) => {
-  // 1. Require authentication
-  if (!request.auth) {
-    throw new HttpsError('unauthenticated', 'עליך להיות מחובר כדי למחוק לוח');
-  }
+      // 1. Require authentication
+      if (!request.auth) {
+        throw new HttpsError('unauthenticated', 'עליך להיות מחובר כדי למחוק לוח');
+      }
 
-  const callerUid = request.auth.uid;
+      const callerUid = request.auth.uid;
 
-  const { boardId } = request.data || {};
-  if (!boardId) {
-    throw new HttpsError('invalid-argument', 'boardId נדרש');
-  }
+      const {boardId} = request.data || {};
+      if (!boardId) {
+        throw new HttpsError('invalid-argument', 'boardId נדרש');
+      }
 
-  const boardRef = db.collection('boards').doc(boardId);
+      const boardRef = db.collection('boards').doc(boardId);
 
-  // 2. Load the board document
-  const boardSnap = await boardRef.get();
-  if (!boardSnap.exists) {
-    throw new HttpsError('not-found', 'הלוח לא נמצא');
-  }
+      // 2. Load the board document
+      const boardSnap = await boardRef.get();
+      if (!boardSnap.exists) {
+        throw new HttpsError('not-found', 'הלוח לא נמצא');
+      }
 
-  const board = boardSnap.data();
+      const board = boardSnap.data();
 
-  // 3. Verify caller is the board owner
-  if (board.ownerUid !== callerUid) {
-    throw new HttpsError('permission-denied', 'רק בעל הלוח יכול למחוק אותו');
-  }
+      // 3. Verify caller is the board owner
+      if (board.ownerUid !== callerUid) {
+        throw new HttpsError('permission-denied', 'רק בעל הלוח יכול למחוק אותו');
+      }
 
-  // 4. Delegate to shared helper
-  await deleteBoardData(boardId);
+      // 4. Delegate to shared helper
+      await deleteBoardData(boardId);
 
-  return { success: true };
-});
+      return {success: true};
+    }
+);
 
 /**
  * deleteMyAccount
@@ -507,87 +512,88 @@ exports.deleteBoard = onCall(
 exports.deleteMyAccount = onCall(
     { enforceAppCheck: true },
     async (request) => {
-  // 1. Require authentication — UID comes from the verified token, never from the client
-  if (!request.auth) {
-    throw new HttpsError('unauthenticated', 'עליך להיות מחובר כדי למחוק את החשבון');
-  }
+      // 1. Require authentication — UID comes from the verified token, never from the client
+      if (!request.auth) {
+        throw new HttpsError('unauthenticated', 'עליך להיות מחובר כדי למחוק את החשבון');
+      }
 
-  const uid = request.auth.uid;
-  console.log(`deleteMyAccount: starting deletion for uid=${uid}`);
+      const uid = request.auth.uid;
+      console.log(`deleteMyAccount: starting deletion for uid=${uid}`);
 
-  // 2. Find all boards owned by the user
-  const ownedBoardsSnap = await db.collection('boards')
-    .where('ownerUid', '==', uid)
-    .get();
+      // 2. Find all boards owned by the user
+      const ownedBoardsSnap = await db.collection('boards')
+          .where('ownerUid', '==', uid)
+          .get();
 
-  console.log(`deleteMyAccount: found ${ownedBoardsSnap.size} owned board(s)`);
+      console.log(`deleteMyAccount: found ${ownedBoardsSnap.size} owned board(s)`);
 
-  // 3. Collect all board IDs to delete (owned boards + all their descendants).
-  //    A Set is used to deduplicate in case a board appears in multiple traversals.
-  const boardIdsToDelete = new Set();
-  for (const boardDoc of ownedBoardsSnap.docs) {
-    boardIdsToDelete.add(boardDoc.id);
-    const descendantIds = await getDescendantBoardIds(boardDoc.id);
-    descendantIds.forEach((id) => boardIdsToDelete.add(id));
-  }
+      // 3. Collect all board IDs to delete (owned boards + all their descendants).
+      //    A Set is used to deduplicate in case a board appears in multiple traversals.
+      const boardIdsToDelete = new Set();
+      for (const boardDoc of ownedBoardsSnap.docs) {
+        boardIdsToDelete.add(boardDoc.id);
+        const descendantIds = await getDescendantBoardIds(boardDoc.id);
+        descendantIds.forEach((id) => boardIdsToDelete.add(id));
+      }
 
-  console.log(`deleteMyAccount: will delete ${boardIdsToDelete.size} board(s) in total (including descendants)`);
+      console.log(`deleteMyAccount: will delete ${boardIdsToDelete.size} board(s) in total (including descendants)`);
 
-  // 4. Delete each board and its subcollections (invites, transactions).
-  //    Use Promise.all (not allSettled) so that any board deletion failure throws
-  //    immediately and prevents the account from being finalized as deleted while
-  //    data still exists.  The product rule is: everything owned by the user must
-  //    be removed; partial cleanup is not acceptable.
-  const boardIdsArray = [...boardIdsToDelete];
-  try {
-    await Promise.all(boardIdsArray.map((boardId) => deleteBoardData(boardId)));
-  } catch (err) {
-    console.error('deleteMyAccount: failed to delete owned board data, aborting account deletion:', err);
-    throw new HttpsError(
-      'internal',
-      'שגיאה במחיקת נתוני הלוחות. החשבון לא נמחק. נסה שוב.',
-    );
-  }
+      // 4. Delete each board and its subcollections (invites, transactions).
+      //    Use Promise.all (not allSettled) so that any board deletion failure throws
+      //    immediately and prevents the account from being finalized as deleted while
+      //    data still exists.  The product rule is: everything owned by the user must
+      //    be removed; partial cleanup is not acceptable.
+      const boardIdsArray = [...boardIdsToDelete];
+      try {
+        await Promise.all(boardIdsArray.map((boardId) => deleteBoardData(boardId)));
+      } catch (err) {
+        console.error('deleteMyAccount: failed to delete owned board data, aborting account deletion:', err);
+        throw new HttpsError(
+            'internal',
+            'שגיאה במחיקת נתוני הלוחות. החשבון לא נמחק. נסה שוב.',
+        );
+      }
 
-  // 5. Remove the user from memberUids/directMemberUids on boards they do NOT own
-  //    (boards where the user is a collaborator).  This prevents orphaned UID
-  //    references on other users' boards.  Failures here are also treated as fatal:
-  //    leaving stale UID references behind could cause permission and display bugs
-  //    for other board members.
-  const memberBoardsSnap = await db.collection('boards')
-    .where('memberUids', 'array-contains', uid)
-    .get();
+      // 5. Remove the user from memberUids/directMemberUids on boards they do NOT own
+      //    (boards where the user is a collaborator).  This prevents orphaned UID
+      //    references on other users' boards.  Failures here are also treated as fatal:
+      //    leaving stale UID references behind could cause permission and display bugs
+      //    for other board members.
+      const memberBoardsSnap = await db.collection('boards')
+          .where('memberUids', 'array-contains', uid)
+          .get();
 
-  const nonOwnedBoards = memberBoardsSnap.docs.filter((d) => {
-    const data = d.data();
-    return data.ownerUid !== uid; // skip owned boards (already deleted above)
-  });
+      const nonOwnedBoards = memberBoardsSnap.docs.filter((d) => {
+        const data = d.data();
+        return data.ownerUid !== uid; // skip owned boards (already deleted above)
+      });
 
-  try {
-    await Promise.all(
-      nonOwnedBoards.map((d) =>
-        d.ref.update({
-          memberUids: admin.firestore.FieldValue.arrayRemove(uid),
-          directMemberUids: admin.firestore.FieldValue.arrayRemove(uid),
-        })
-      )
-    );
-  } catch (err) {
-    console.error('deleteMyAccount: failed to clean up board membership, aborting account deletion:', err);
-    throw new HttpsError(
-      'internal',
-      'שגיאה בניקוי חברות בלוחות. החשבון לא נמחק. נסה שוב.',
-    );
-  }
+      try {
+        await Promise.all(
+            nonOwnedBoards.map((d) =>
+                d.ref.update({
+                  memberUids: admin.firestore.FieldValue.arrayRemove(uid),
+                  directMemberUids: admin.firestore.FieldValue.arrayRemove(uid),
+                })
+            )
+        );
+      } catch (err) {
+        console.error('deleteMyAccount: failed to clean up board membership, aborting account deletion:', err);
+        throw new HttpsError(
+            'internal',
+            'שגיאה בניקוי חברות בלוחות. החשבון לא נמחק. נסה שוב.',
+        );
+      }
 
-  // 6. Delete the user's Firestore profile document (users/{uid})
-  await db.collection('users').doc(uid).delete();
-  console.log(`deleteMyAccount: deleted Firestore profile for uid=${uid}`);
+      // 6. Delete the user's Firestore profile document (users/{uid})
+      await db.collection('users').doc(uid).delete();
+      console.log(`deleteMyAccount: deleted Firestore profile for uid=${uid}`);
 
-  // 7. Delete the Firebase Auth user — must be last so the function
-  //    can run with a valid auth context throughout all preceding steps.
-  await admin.auth().deleteUser(uid);
-  console.log(`deleteMyAccount: deleted Auth user uid=${uid}`);
+      // 7. Delete the Firebase Auth user — must be last so the function
+      //    can run with a valid auth context throughout all preceding steps.
+      await admin.auth().deleteUser(uid);
+      console.log(`deleteMyAccount: deleted Auth user uid=${uid}`);
 
-  return { success: true };
-});
+      return {success: true};
+    }
+);

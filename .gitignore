@@ -28,5 +28,6 @@ functions/node_modules
 
 # Environment variables
 .env
+.env.preview
 .env.local
 .env.*.local
