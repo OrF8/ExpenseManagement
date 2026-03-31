@@ -190,9 +190,10 @@ export async function createBoardInvite(boardId, email, currentUser, boardTitle 
   }
 
   const createdAt = serverTimestamp();
-  // expiresAt uses Timestamp.fromMillis for a consistent, clock-skew-resistant value.
-  // TTL field: configure the `expiresAt` field on the `invites` collection group
-  // in the Firebase console (or via gcloud) to enable automatic document deletion.
+  // Note: expiresAt is derived from the client clock (Date.now()) and is used
+  // for TTL auto-deletion and client-side filtering only. It may be affected
+  // by clock skew or user tampering, so any authoritative expiry checks
+  // should be enforced via server-side logic or security rules.
   const expiresAt = Timestamp.fromMillis(now + 24 * 60 * 60 * 1000);
 
   return addDoc(invitesRef, {
