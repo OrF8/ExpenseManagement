@@ -37,6 +37,7 @@ This project was built by [**Or Forshmit**](https://github.com/OrF8).
   - [▶️ Running Locally](#%EF%B8%8F-running-locally)
 - [🔥 Firebase Setup](#-firebase-setup)
 - [⚡ Cloud Functions](#-cloud-functions)
+- [🛡️ Security: Firebase App Check](#️-security-firebase-app-check)
 - [👤 Profile & Account Management](#-profile--account-management)
 - [🔒 Privacy & Terms](#-privacy--terms)
 - [🤝🏼 Contributing](#-contributing)
@@ -192,6 +193,61 @@ if (location.hostname === 'localhost') {
   connectFunctionsEmulator(functions, 'localhost', 5001);
 }
 ```
+
+---
+
+## 🛡️ Security: Firebase App Check
+
+[Firebase App Check](https://firebase.google.com/docs/app-check) protects backend resources from abuse by ensuring that only requests originating from the legitimate app are processed. It complements Firebase Authentication — Authentication identifies *who* is making a request, while App Check verifies *what* is making the request.
+
+### What Is Protected
+
+| Resource | Protection |
+|---|---|
+| **Cloud Firestore** | App Check tokens are verified on read/write operations |
+| **Callable Cloud Functions** | All six callable functions enforce App Check (`enforceAppCheck: true`) |
+
+### How It Works
+
+1. **Frontend initialization** — On startup, the app initializes App Check using `ReCaptchaEnterpriseProvider` from the Firebase SDK.
+2. **Automatic token attachment** — The Firebase SDK automatically attaches a valid App Check token to every Firestore and Functions request.
+3. **Backend verification** — Firebase services verify the token server-side before processing the request.
+4. **Callable function enforcement** — All callable Cloud Functions are declared with `enforceAppCheck: true`, so requests without a valid App Check token are rejected.
+
+### Environment Setup
+
+Two additional environment variables are required beyond the standard Firebase config:
+
+| Variable | Description |
+|---|---|
+| `VITE_RECAPTCHA_ENTERPRISE_SITE_KEY` | reCAPTCHA Enterprise site key from Google Cloud Console |
+| `VITE_APPCHECK_DEBUG` | Set to `true` to force debug mode (e.g. in preview/CI environments) |
+| `VITE_APPCHECK_DEBUG_TOKEN` | Pre-created debug token registered in Firebase Console |
+
+#### Local Development
+
+App Check runs in debug mode automatically during `npm run dev`. A debug token is printed in the browser console:
+
+```
+App Check debug token: <token>
+```
+
+Register this token in **Firebase Console → App Check → Apps → your app → Debug tokens**.
+
+#### Preview Deployments (PRs)
+
+Use debug mode with a pre-created token to avoid relying on the browser console. Set the following in your CI/CD environment variables:
+
+```
+VITE_APPCHECK_DEBUG=true
+VITE_APPCHECK_DEBUG_TOKEN=<your-debug-token>
+```
+
+Register the same token in Firebase Console → App Check → Debug tokens.
+
+#### Production
+
+No additional configuration needed. The app uses reCAPTCHA Enterprise to obtain real App Check tokens automatically. Ensure `VITE_RECAPTCHA_ENTERPRISE_SITE_KEY` is set to your production reCAPTCHA Enterprise site key.
 
 ---
 
