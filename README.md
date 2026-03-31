@@ -209,7 +209,7 @@ if (location.hostname === 'localhost') {
 
 ### How It Works
 
-1. **Frontend initialization** — On startup, the app initializes App Check using `ReCaptchaEnterpriseProvider` from the Firebase SDK.
+1. **Frontend initialization** — On startup, the app initializes App Check using `ReCaptchaV3Provider` from the Firebase SDK.
 2. **Automatic token attachment** — The Firebase SDK automatically attaches a valid App Check token to every Firestore and Functions request.
 3. **Backend verification** — Firebase services verify the token server-side before processing the request.
 4. **Callable function enforcement** — All callable Cloud Functions are declared with `enforceAppCheck: true`, so requests without a valid App Check token are rejected.
@@ -220,7 +220,7 @@ Two additional environment variables are required beyond the standard Firebase c
 
 | Variable | Description |
 |---|---|
-| `VITE_RECAPTCHA_ENTERPRISE_SITE_KEY` | reCAPTCHA Enterprise site key from Google Cloud Console |
+| `VITE_RECAPTCHA_V3_SITE_KEY` | reCAPTCHA site key from Google Cloud Console |
 | `VITE_APPCHECK_DEBUG` | Set to `true` to force debug mode (e.g. in preview/CI environments) |
 | `VITE_APPCHECK_DEBUG_TOKEN` | Pre-created debug token registered in Firebase Console |
 
@@ -247,7 +247,7 @@ Register the same token in Firebase Console → App Check → Debug tokens.
 
 #### Production
 
-No additional configuration needed. The app uses reCAPTCHA Enterprise to obtain real App Check tokens automatically. Ensure `VITE_RECAPTCHA_ENTERPRISE_SITE_KEY` is set to your production reCAPTCHA Enterprise site key.
+No additional configuration needed. The app uses reCAPTCHA to obtain real App Check tokens automatically. Ensure `VITE_RECAPTCHA_V3_SITE_KEY` is set to your production reCAPTCHA site key.
 
 ---
 
