@@ -19,7 +19,7 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 
-// Optional debug mode for development.
+// Enable App Check debug mode in development builds or when VITE_APPCHECK_DEBUG is 'true'.
 // Register the printed token in Firebase Console -> App Check -> Debug tokens.
 if (import.meta.env.DEV || import.meta.env.VITE_APPCHECK_DEBUG === 'true') {
   self.FIREBASE_APPCHECK_DEBUG_TOKEN =
