@@ -82,7 +82,9 @@ async function getDescendantBoardIds(boardId) {
  * @param {string} request.data.boardId  - ID of the board document
  * @param {string} request.data.inviteId - ID of the invite document
  */
-exports.acceptBoardInvite = onCall(async (request) => {
+exports.acceptBoardInvite = onCall(
+    { enforceAppCheck: true },
+    async (request) => {
   // 1. Require authentication
   if (!request.auth) {
     throw new HttpsError('unauthenticated', 'עליך להיות מחובר כדי לקבל הזמנה');
@@ -173,7 +175,9 @@ exports.acceptBoardInvite = onCall(async (request) => {
  * @param {string} request.data.boardId  - ID of the board document
  * @param {string} request.data.inviteId - ID of the invite document
  */
-exports.declineBoardInvite = onCall(async (request) => {
+exports.declineBoardInvite = onCall(
+    { enforceAppCheck: true },
+    async (request) => {
   // 1. Require authentication
   if (!request.auth) {
     throw new HttpsError('unauthenticated', 'עליך להיות מחובר כדי לדחות הזמנה');
@@ -228,7 +232,9 @@ exports.declineBoardInvite = onCall(async (request) => {
  * @param {string} request.data.boardId   - ID of the board document
  * @param {string} request.data.memberUid - UID of the member to remove
  */
-exports.removeBoardMember = onCall(async (request) => {
+exports.removeBoardMember = onCall(
+    { enforceAppCheck: true },
+    async (request) => {
   // 1. Require authentication
   if (!request.auth) {
     throw new HttpsError('unauthenticated', 'עליך להיות מחובר כדי להסיר חבר');
@@ -316,7 +322,9 @@ exports.removeBoardMember = onCall(async (request) => {
  * @param {object} request.data
  * @param {string} request.data.boardId - ID of the board document
  */
-exports.leaveBoard = onCall(async (request) => {
+exports.leaveBoard = onCall(
+    { enforceAppCheck: true },
+    async (request) => {
   // 1. Require authentication
   if (!request.auth) {
     throw new HttpsError('unauthenticated', 'עליך להיות מחובר כדי לעזוב לוח');
@@ -431,7 +439,9 @@ async function deleteBoardData(boardId) {
  * @param {object} request.data
  * @param {string} request.data.boardId - ID of the board document
  */
-exports.deleteBoard = onCall(async (request) => {
+exports.deleteBoard = onCall(
+    { enforceAppCheck: true },
+    async (request) => {
   // 1. Require authentication
   if (!request.auth) {
     throw new HttpsError('unauthenticated', 'עליך להיות מחובר כדי למחוק לוח');
@@ -494,7 +504,9 @@ exports.deleteBoard = onCall(async (request) => {
  * 4. Firebase Auth user record (must be last so the function runs with a
  *    valid auth context throughout).
  */
-exports.deleteMyAccount = onCall(async (request) => {
+exports.deleteMyAccount = onCall(
+    { enforceAppCheck: true },
+    async (request) => {
   // 1. Require authentication — UID comes from the verified token, never from the client
   if (!request.auth) {
     throw new HttpsError('unauthenticated', 'עליך להיות מחובר כדי למחוק את החשבון');
