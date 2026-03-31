@@ -57,9 +57,8 @@ service cloud.firestore {
         && request.resource.data.invitedByUid == request.auth.uid
         && request.resource.data.invitedEmail is string
         && request.resource.data.invitedEmailLower is string
-        && request.resource.data.status == "pending"
-        && request.resource.data.acceptedAt == null
-        && request.resource.data.declinedAt == null;
+        && request.resource.data.createdAt is timestamp
+        && request.resource.data.expiresAt is timestamp;
 
       allow read: if isBoardOwner(boardId)
         || (
@@ -67,7 +66,11 @@ service cloud.firestore {
           && resource.data.invitedEmailLower == signedInEmail()
         );
 
-      allow update, delete: if isBoardOwner(boardId);
+      allow delete: if isBoardOwner(boardId)
+        || (
+          signedInEmail() != null
+          && resource.data.invitedEmailLower == signedInEmail()
+        );
     }
 
     // Required for collectionGroup('invites') queries used in the incoming-invites UI.

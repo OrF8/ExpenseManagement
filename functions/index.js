@@ -71,7 +71,7 @@ async function getDescendantBoardIds(boardId) {
  *
  * Callable function that allows an authenticated user to accept a board invite
  * addressed to their email.  The operation is performed inside a Firestore
- * transaction so that the invite status update and the memberUids array-union
+ * transaction so that the invite deletion and the memberUids array-union
  * are always atomic.
  *
  * After the transaction, the caller's UID is also added to the memberUids of
@@ -108,9 +108,10 @@ exports.acceptBoardInvite = onCall(async (request) => {
 
     const invite = inviteSnap.data();
 
-    // 3. Verify invite is still pending
-    if (invite.status !== 'pending') {
-      throw new HttpsError('failed-precondition', 'ההזמנה אינה ממתינה לאישור');
+    // 3. Verify invite has not expired.
+    // Legacy documents without expiresAt are treated as active for backward compatibility.
+    if (invite.expiresAt && invite.expiresAt.toMillis() <= Date.now()) {
+      throw new HttpsError('failed-precondition', 'פג תוקף ההזמנה');
     }
 
     // 4. Verify caller email matches the invite
@@ -127,11 +128,8 @@ exports.acceptBoardInvite = onCall(async (request) => {
     const board = boardSnap.data();
     const memberUids = board.memberUids || [];
 
-    // 6. Atomically update invite status and add UID to board (no duplication)
-    tx.update(inviteRef, {
-      status: 'accepted',
-      acceptedAt: admin.firestore.FieldValue.serverTimestamp(),
-    });
+    // 6. Atomically delete the invite document and add UID to board (no duplication)
+    tx.delete(inviteRef);
 
     if (!memberUids.includes(uid)) {
       // Add to both memberUids (effective access) and directMemberUids (direct membership)
@@ -168,7 +166,8 @@ exports.acceptBoardInvite = onCall(async (request) => {
  * declineBoardInvite
  *
  * Callable function that allows an authenticated user to decline a board invite
- * addressed to their email.
+ * addressed to their email.  Declines are handled by deleting the invitation
+ * document so no rejected marker is left in Firestore.
  *
  * @param {object} request.data
  * @param {string} request.data.boardId  - ID of the board document
@@ -197,9 +196,10 @@ exports.declineBoardInvite = onCall(async (request) => {
 
   const invite = inviteSnap.data();
 
-  // 3. Verify invite is still pending
-  if (invite.status !== 'pending') {
-    throw new HttpsError('failed-precondition', 'ההזמנה אינה ממתינה לאישור');
+  // 3. Verify invite has not expired.
+  // Legacy documents without expiresAt are treated as active for backward compatibility.
+  if (invite.expiresAt && invite.expiresAt.toMillis() <= Date.now()) {
+    throw new HttpsError('failed-precondition', 'פג תוקף ההזמנה');
   }
 
   // 4. Verify caller email matches the invite
@@ -207,11 +207,8 @@ exports.declineBoardInvite = onCall(async (request) => {
     throw new HttpsError('permission-denied', 'אין לך הרשאה לדחות הזמנה זו');
   }
 
-  // 5. Mark invite as declined
-  await inviteRef.update({
-    status: 'declined',
-    declinedAt: admin.firestore.FieldValue.serverTimestamp(),
-  });
+  // 5. Delete the invite document — no declined marker is kept
+  await inviteRef.delete();
 
   return { success: true };
 });

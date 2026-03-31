@@ -62,7 +62,7 @@ export function LandingPage() {
                 </svg>
               ),
               title: 'Expense Boards',
-              description: 'Create dedicated boards for any project, trip, household, or group — and keep all related expenses in one place.',
+              description: 'Create dedicated boards for any project, trip, household, or group – and keep all related expenses in one place.',
             },
             {
               icon: (
@@ -71,7 +71,7 @@ export function LandingPage() {
                 </svg>
               ),
               title: 'Transaction Tracking',
-              description: 'Record and organize transactions with names, amounts, payment types, installments, and comments.',
+              description: 'Record and organize transactions with names, amounts, payment types, installments, date and comments.',
             },
             {
               icon: (
@@ -89,7 +89,7 @@ export function LandingPage() {
                 </svg>
               ),
               title: 'Secure Sign-in',
-              description: 'Sign in securely with your Google account or with an email and password powered by Firebase Authentication.',
+              description: 'Sign in securely with your Google account or with an email and password, powered by Firebase Authentication.',
             },
           ].map((feature) => (
             <div
