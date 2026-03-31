@@ -58,7 +58,10 @@ service cloud.firestore {
         && request.resource.data.invitedEmail is string
         && request.resource.data.invitedEmailLower is string
         && request.resource.data.createdAt is timestamp
-        && request.resource.data.expiresAt is timestamp;
+        && request.resource.data.expiresAt is timestamp
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.expiresAt >= request.time
+        && request.resource.data.expiresAt <= request.time + duration.value(24, 'h');
 
       allow read: if isBoardOwner(boardId)
         || (
