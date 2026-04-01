@@ -54,6 +54,11 @@ export function BoardPage() {
    */
   const [activePaymentFilterKey, setActivePaymentFilterKey] = useState(null);
 
+  // Clear the payment-method filter whenever the user navigates to a different board
+  useEffect(() => {
+    setActivePaymentFilterKey(null);
+  }, [boardId]);
+
   // Load current user's nickname for defaulting the transaction name
   useEffect(() => {
     if (!user?.uid) return;
@@ -119,6 +124,8 @@ export function BoardPage() {
 
   /**
    * Returns filtered transactions based on the active payment-method filter key.
+   * Uses the same null-coalescing as the totals hook (useTransactions) to ensure
+   * the filter key always matches what was used to build perGroup entries.
    * key format: "card:XXXX" or "type:<typeName>"
    */
   const visibleTransactions = useMemo(() => {
@@ -126,28 +133,33 @@ export function BoardPage() {
     return transactions.filter((tx) => {
       if (activePaymentFilterKey.startsWith('card:')) {
         const last4 = activePaymentFilterKey.slice(5);
-        return tx.type === 'credit_card' && tx.cardLast4 === last4;
+        // Mirror the totals hook: `tx.cardLast4 ?? ''`
+        return tx.type === 'credit_card' && (tx.cardLast4 ?? '') === last4;
       }
       if (activePaymentFilterKey.startsWith('type:')) {
         const typeName = activePaymentFilterKey.slice(5);
-        return tx.type === typeName;
+        // Mirror the totals hook: `tx.type ?? 'unknown'`
+        return (tx.type ?? 'unknown') === typeName;
       }
       return false;
     });
   }, [transactions, activePaymentFilterKey]);
 
   /**
-   * Derives TransactionForm initial values from an active payment-method filter key.
-   * Returns undefined when no filter is active (form uses its own defaults).
+   * Derives the defaultPaymentMethod value for TransactionForm from an active
+   * payment-method filter key. Returns undefined when no filter is active, or
+   * when the type is not a recognised transaction type (e.g. 'unknown').
    */
-  function paymentFilterToFormInitial(filterKey, defaultName) {
+  function paymentFilterToDefaultPaymentMethod(filterKey) {
     if (!filterKey) return undefined;
-    const base = { name: defaultName || '', essence: '', comment: '', amount: '', installmentCurrent: '', installmentTotal: '', transactionDate: '' };
     if (filterKey.startsWith('card:')) {
-      return { ...base, type: 'credit_card', cardLast4: filterKey.slice(5) };
+      return { type: 'credit_card', cardLast4: filterKey.slice(5) };
     }
     if (filterKey.startsWith('type:')) {
-      return { ...base, type: filterKey.slice(5), cardLast4: '' };
+      const typeName = filterKey.slice(5);
+      // Only prefill recognised types so the form doesn't show an invalid/unselectable value
+      if (!Object.prototype.hasOwnProperty.call(TRANSACTION_TYPE_LABELS, typeName)) return undefined;
+      return { type: typeName };
     }
     return undefined;
   }
@@ -647,7 +659,7 @@ export function BoardPage() {
       >
         <TransactionForm
           defaultName={userNickname}
-          initial={paymentFilterToFormInitial(activePaymentFilterKey, userNickname)}
+          defaultPaymentMethod={paymentFilterToDefaultPaymentMethod(activePaymentFilterKey)}
           onSubmit={handleAdd}
           onCancel={() => setShowAddModal(false)}
           submitting={submitting}

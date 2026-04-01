@@ -73,7 +73,14 @@ function validate(form) {
   return errors;
 }
 
-export function TransactionForm({ initial, defaultName, onSubmit, onCancel, submitting }) {
+/**
+ * @param {object} [initial]         – Existing transaction data for edit mode.
+ * @param {string} [defaultName]     – Pre-filled name for create mode.
+ * @param {{type: string, cardLast4?: string}} [defaultPaymentMethod]
+ *   Pre-fills just the payment-method fields (type + cardLast4) in create mode,
+ *   without triggering edit-mode behaviour (submit button stays "הוסף עסקה").
+ */
+export function TransactionForm({ initial, defaultName, defaultPaymentMethod, onSubmit, onCancel, submitting }) {
   const [form, setForm] = useState(
     initial
       ? {
@@ -93,7 +100,12 @@ export function TransactionForm({ initial, defaultName, onSubmit, onCancel, subm
           type: initial.type || '',
           transactionDate: initial.transactionDate || '',
         }
-      : { ...EMPTY_FORM, name: defaultName || '' }
+      : {
+          ...EMPTY_FORM,
+          name: defaultName || '',
+          type: defaultPaymentMethod?.type || '',
+          cardLast4: defaultPaymentMethod?.cardLast4 || '',
+        }
   );
   const [errors, setErrors] = useState({});
   const [submitError, setSubmitError] = useState(null);
