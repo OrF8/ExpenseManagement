@@ -27,6 +27,7 @@ import { TransactionCard } from '../components/TransactionCard';
 import { TotalsSummary } from '../components/TotalsSummary';
 import { CollaboratorManager } from '../components/CollaboratorManager';
 import { BoardHierarchyActionsMenu } from '../components/ui/BoardHierarchyActionsMenu';
+import { TRANSACTION_TYPE_LABELS } from '../constants/transactionTypes';
 
 function formatAmount(amount) {
   return new Intl.NumberFormat('he-IL', { style: 'currency', currency: 'ILS' }).format(amount);
@@ -46,6 +47,17 @@ export function BoardPage() {
   const [showCollabs, setShowCollabs] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [userNickname, setUserNickname] = useState('');
+  /**
+   * Active payment-method filter.
+   * null  → no filter active
+   * string → a perGroup key, e.g. "card:1234" or "type:cash"
+   */
+  const [activePaymentFilterKey, setActivePaymentFilterKey] = useState(null);
+
+  // Clear the payment-method filter whenever the user navigates to a different board
+  useEffect(() => {
+    setActivePaymentFilterKey(null);
+  }, [boardId]);
 
   // Load current user's nickname for defaulting the transaction name
   useEffect(() => {
@@ -106,8 +118,66 @@ export function BoardPage() {
     [subBoardIds, subBoardTotals],
   );
 
+  // ---------------------------------------------------------------------------
+  // Payment-method filter helpers
+  // ---------------------------------------------------------------------------
 
-  // Remove-sub-board state
+  /**
+   * Returns filtered transactions based on the active payment-method filter key.
+   * Uses the same null-coalescing as the totals hook (useTransactions) to ensure
+   * the filter key always matches what was used to build perGroup entries.
+   * key format: "card:XXXX" or "type:<typeName>"
+   */
+  const visibleTransactions = useMemo(() => {
+    if (!activePaymentFilterKey) return transactions;
+    return transactions.filter((tx) => {
+      if (activePaymentFilterKey.startsWith('card:')) {
+        const last4 = activePaymentFilterKey.slice(5);
+        // Mirror the totals hook: `tx.cardLast4 ?? ''`
+        return tx.type === 'credit_card' && (tx.cardLast4 ?? '') === last4;
+      }
+      if (activePaymentFilterKey.startsWith('type:')) {
+        const typeName = activePaymentFilterKey.slice(5);
+        // Mirror the totals hook: `tx.type ?? 'unknown'`
+        return (tx.type ?? 'unknown') === typeName;
+      }
+      return false;
+    });
+  }, [transactions, activePaymentFilterKey]);
+
+  /**
+   * Derives the defaultPaymentMethod value for TransactionForm from an active
+   * payment-method filter key. Returns undefined when no filter is active, or
+   * when the type is not a recognised transaction type (e.g. 'unknown').
+   */
+  function paymentFilterToDefaultPaymentMethod(filterKey) {
+    if (!filterKey) return undefined;
+    if (filterKey.startsWith('card:')) {
+      return { type: 'credit_card', cardLast4: filterKey.slice(5) };
+    }
+    if (filterKey.startsWith('type:')) {
+      const typeName = filterKey.slice(5);
+      // Only prefill recognised types so the form doesn't show an invalid/unselectable value
+      if (!Object.prototype.hasOwnProperty.call(TRANSACTION_TYPE_LABELS, typeName)) return undefined;
+      return { type: typeName };
+    }
+    return undefined;
+  }
+
+  /**
+   * Human-readable label for the active payment-method filter.
+   */
+  function paymentFilterLabel(filterKey) {
+    if (!filterKey) return '';
+    if (filterKey.startsWith('card:')) return `****${filterKey.slice(5)}`;
+    if (filterKey.startsWith('type:')) {
+      const typeName = filterKey.slice(5);
+      return TRANSACTION_TYPE_LABELS[typeName] || typeName;
+    }
+    return filterKey;
+  }
+
+
   const [removingSubBoardId, setRemovingSubBoardId] = useState(null);
   const [removeSubBoardError, setRemoveSubBoardError] = useState(null);
 
@@ -501,7 +571,31 @@ export function BoardPage() {
           /* ---------------------------------------------------------------- */
           <>
             {/* Totals */}
-            <TotalsSummary totals={totals} />
+            <TotalsSummary
+              totals={totals}
+              activeFilterKey={activePaymentFilterKey}
+              onFilterChange={setActivePaymentFilterKey}
+            />
+
+            {/* Active payment-method filter indicator */}
+            {activePaymentFilterKey && (
+              <div className="flex items-center gap-2 rounded-xl bg-indigo-50 dark:bg-indigo-950/50 border border-indigo-200 dark:border-indigo-800 px-4 py-2 text-sm">
+                <span className="text-indigo-600 dark:text-indigo-400">
+                  מסונן לפי: <strong>{paymentFilterLabel(activePaymentFilterKey)}</strong>
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setActivePaymentFilterKey(null)}
+                  className="mr-auto flex items-center gap-1 text-indigo-500 hover:text-indigo-700 dark:hover:text-indigo-300 transition-colors"
+                  aria-label="נקה סינון"
+                >
+                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                  נקה סינון
+                </button>
+              </div>
+            )}
 
             {/* Transactions */}
             <div>
@@ -519,24 +613,30 @@ export function BoardPage() {
                 <div className="flex justify-center py-12">
                   <Spinner />
                 </div>
-              ) : transactions.length === 0 ? (
+              ) : visibleTransactions.length === 0 ? (
                 <EmptyState
                   icon={
                     <svg className="h-14 w-14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
                     </svg>
                   }
-                  title="אין עסקאות עדיין"
-                  description="הוסף את העסקה הראשונה כדי להתחיל לעקוב"
+                  title={activePaymentFilterKey ? 'אין עסקאות בסינון זה' : 'אין עסקאות עדיין'}
+                  description={activePaymentFilterKey ? 'אין עסקאות התואמות לאמצעי התשלום שנבחר' : 'הוסף את העסקה הראשונה כדי להתחיל לעקוב'}
                   action={
-                    <Button onClick={() => setShowAddModal(true)}>
-                      הוסף עסקה ראשונה
-                    </Button>
+                    activePaymentFilterKey ? (
+                      <Button variant="secondary" onClick={() => setActivePaymentFilterKey(null)}>
+                        נקה סינון
+                      </Button>
+                    ) : (
+                      <Button onClick={() => setShowAddModal(true)}>
+                        הוסף עסקה ראשונה
+                      </Button>
+                    )
                   }
                 />
               ) : (
                 <div className="flex flex-col gap-2">
-                  {transactions.map((tx) => (
+                  {visibleTransactions.map((tx) => (
                     <TransactionCard
                       key={tx.id}
                       transaction={tx}
@@ -559,6 +659,7 @@ export function BoardPage() {
       >
         <TransactionForm
           defaultName={userNickname}
+          defaultPaymentMethod={paymentFilterToDefaultPaymentMethod(activePaymentFilterKey)}
           onSubmit={handleAdd}
           onCancel={() => setShowAddModal(false)}
           submitting={submitting}
