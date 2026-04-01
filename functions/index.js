@@ -2,6 +2,8 @@
  * Firebase Cloud Functions for Expense Management.
  *
  * Callable functions:
+ * - createBoardInvite    : allows the board owner to create an email-based invite without client-side reads
+ *                          from /users; prevents duplicate active invites
  *   - acceptBoardInvite  : atomically adds the caller to board memberUids/directMemberUids and marks invite accepted;
  *                          also cascades memberUids addition to all descendant boards (inherited access)
  *   - declineBoardInvite : marks the invite as declined
@@ -10,6 +12,13 @@
  *   - leaveBoard         : allows a non-owner member to remove themselves from a board;
  *                          cascades removal from descendants unless user has direct access there
  *   - deleteBoard        : allows the board owner to fully delete a board and all its subcollections (invites, transactions)
+ *   - deleteMyAccount    : permanently deletes the authenticated user's account and all data they own, including:
+ *                          - all boards where they are owner (ownerUid == callerUid), including every board in their
+ *                            hierarchy (descendants reachable via subBoardIds)
+ *                          - membership cleanup: the caller's UID is removed from memberUids and directMemberUids on
+ *                            every board they do NOT own
+ *                          - user profile document at users/{uid}
+ *                          - Firebase Auth user record
  *
  * ## Access model
  * Each board document has two membership fields:
@@ -65,6 +74,107 @@ async function getDescendantBoardIds(boardId) {
   await traverse(boardId);
   return result;
 }
+
+/**
+ * createBoardInvite
+ *
+ * Callable function that allows a board owner to invite a collaborator by email.
+ * This runs server-side to avoid broad client reads from /users.
+ *
+ * @param {object} request.data
+ * @param {string} request.data.boardId
+ * @param {string} request.data.invitedEmail
+ */
+exports.createBoardInvite = onCall(
+    { enforceAppCheck: true },
+    async (request) => {
+        if (!request.auth) {
+            throw new HttpsError('unauthenticated', 'עליך להיות מחובר כדי לשלוח הזמנה');
+        }
+
+        const {boardId, invitedEmail} = request.data || {};
+        if (!boardId || !invitedEmail) {
+            throw new HttpsError('invalid-argument', 'boardId ו-invitedEmail נדרשים');
+        }
+
+        const normalizedEmail = String(invitedEmail).trim().toLowerCase();
+
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
+            throw new HttpsError('invalid-argument', 'כתובת הדוא״ל שהוזנה אינה תקינה');
+        }
+
+        // Ensure invite target exists in users collection
+        const userByEmailSnap = await db
+            .collection('users')
+            .where('emailLower', '==', normalizedEmail)
+            .limit(1)
+            .get();
+
+        if (userByEmailSnap.empty) {
+            throw new HttpsError('failed-precondition','לא נמצא משתמש רשום עם כתובת דוא״ל זו');
+        }
+
+        const callerEmail = (request.auth.token.email || '').trim().toLowerCase();
+
+        if (normalizedEmail === callerEmail) {
+            throw new HttpsError('failed-precondition', 'לא ניתן להזמין את עצמך ללוח');
+        }
+
+        const callerUid = request.auth.uid;
+        const boardRef = db.collection('boards').doc(boardId);
+        const invitesRef = boardRef.collection('invites');
+        const targetUid = userByEmailSnap.docs[0].id;
+
+        const result = await db.runTransaction(async (tx) => {
+            const boardSnap = await tx.get(boardRef);
+            if (!boardSnap.exists) {
+                throw new HttpsError('not-found', 'הלוח לא נמצא');
+            }
+
+            const board = boardSnap.data();
+            if (board.ownerUid !== callerUid) {
+                throw new HttpsError('permission-denied', 'רק בעל הלוח יכול להזמין משתתפים');
+            }
+
+            // Prevent re-inviting users who already have access to this board
+            if ((board.memberUids || []).includes(targetUid)) {
+                throw new HttpsError('failed-precondition', 'המשתמש כבר חבר בלוח');
+            }
+
+            const existingSnap = await tx.get(
+                invitesRef.where('invitedEmailLower', '==', normalizedEmail).limit(20),
+            );
+            const now = Date.now();
+            const hasActiveInvite = existingSnap.docs.some((docSnap) => {
+                const existing = docSnap.data();
+                if (!existing.expiresAt) return true; // legacy invite without expiry
+                return existing.expiresAt.toMillis() > now;
+            });
+
+            if (hasActiveInvite) {
+                throw new HttpsError('already-exists', 'כבר קיימת הזמנה פתוחה למשתמש זה');
+            }
+
+            const createdAt = admin.firestore.Timestamp.now();
+            const expiresAt = admin.firestore.Timestamp.fromMillis(now + 24 * 60 * 60 * 1000);
+            const inviteRef = invitesRef.doc();
+            tx.set(inviteRef, {
+                boardId,
+                boardTitle: board.title || '',
+                invitedByUid: callerUid,
+                invitedByEmail: request.auth.token.email || null,
+                invitedEmail: normalizedEmail,
+                invitedEmailLower: normalizedEmail,
+                createdAt,
+                expiresAt,
+            });
+
+            return {inviteId: inviteRef.id};
+        });
+
+        return {success: true, ...result};
+    },
+);
 
 /**
  * acceptBoardInvite

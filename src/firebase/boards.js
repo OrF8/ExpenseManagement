@@ -11,8 +11,7 @@
  *
  * Invites subcollection: boards/{boardId}/invites/{inviteId}
  * Invite document shape:
- *   { boardId, boardTitle, invitedByUid, invitedByEmail, invitedEmail, invitedEmailLower,
- *     invitedUid, createdAt, expiresAt }
+ *   { boardId, boardTitle, invitedByUid, invitedByEmail, invitedEmail, invitedEmailLower, createdAt, expiresAt }
  *
  * Invitation lifecycle:
  *   - A document's existence means the invitation is pending.
@@ -27,19 +26,16 @@ import {
   addDoc,
   deleteDoc,
   getDoc,
-  getDocs,
   query,
   where,
   onSnapshot,
   serverTimestamp,
-  Timestamp,
   updateDoc,
   arrayUnion,
   arrayRemove,
 } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { db, functions } from './config';
-import { getUserProfileByEmail } from './users';
 
 const boardsRef = () => collection(db, 'boards');
 
@@ -135,15 +131,14 @@ export function subscribeToBoard(boardId, onData, onError) {
 
 /**
  * Create a pending invite for a collaborator by email.
- * Validates that the target email belongs to a registered user, that the user
- * is not already a board member, and that no active (non-expired) invite exists.
+ * Validation and persistence are handled by the secure createBoardInvite
+ * callable function to avoid client-side reads from /users.
  * @param {string} boardId
- * @param {string} email - Raw email entered by the owner (will be normalised)
- * @param {{ uid: string, email: string }} currentUser - Firebase Auth user object
- * @param {string} [boardTitle=''] - Title of the board being shared
- * @returns {Promise<DocumentReference>}
+ * @param {string} email - Raw email entered by the owner (will be normalized)
+ * @param {{ email: string }} currentUser - Firebase Auth user object
+ * @returns {Promise<{ success: boolean, inviteId: string }>}
  */
-export async function createBoardInvite(boardId, email, currentUser, boardTitle = '') {
+export async function createBoardInvite(boardId, email, currentUser) {
   const normalizedEmail = email.trim().toLowerCase();
 
   // Basic email format validation
@@ -156,57 +151,20 @@ export async function createBoardInvite(boardId, email, currentUser, boardTitle 
     throw new Error('לא ניתן להזמין את עצמך ללוח');
   }
 
-  // Resolve target user from the users collection
-  const targetProfile = await getUserProfileByEmail(normalizedEmail);
-  if (!targetProfile) {
-    throw new Error('לא נמצא משתמש רשום עם כתובת דוא״ל זו');
+  const fn = httpsCallable(functions, 'createBoardInvite');
+  try {
+    const result = await fn({ boardId, invitedEmail: normalizedEmail });
+    return result.data;
+  } catch (err) {
+    const code = err?.code || '';
+    if (code === 'functions/unauthenticated') throw new Error('עליך להתחבר כדי להזמין משתתפים');
+    if (code === 'functions/permission-denied') throw new Error('אין לך הרשאה להזמין משתתפים ללוח זה');
+    if (code === 'functions/not-found') throw new Error('הלוח לא נמצא');
+    if (code === 'functions/already-exists') throw new Error('כבר קיימת הזמנה פתוחה לכתובת זו');
+    if (code === 'functions/invalid-argument') throw new Error('כתובת הדוא״ל שהוזנה אינה תקינה');
+    if (code === 'functions/failed-precondition') throw new Error(err?.message || 'לא ניתן ליצור הזמנה');
+    throw new Error('יצירת ההזמנה נכשלה. נסה שוב');
   }
-
-  // Reject if the resolved user is already a board member
-  const board = await getBoard(boardId);
-  if (!board) {
-    throw new Error('הלוח לא נמצא');
-  }
-  if (board.memberUids?.includes(targetProfile.uid)) {
-    throw new Error('משתמש זה כבר חבר בלוח');
-  }
-
-  const invitesRef = collection(db, 'boards', boardId, 'invites');
-
-  // Prevent duplicate active (non-expired) invites for the same user (by UID).
-  // Expired docs may still physically exist until TTL removes them, so we check
-  // expiresAt client-side.  Documents without expiresAt (legacy) are treated as active.
-  const duplicateQ = query(invitesRef, where('invitedUid', '==', targetProfile.uid));
-  const existing = await getDocs(duplicateQ);
-  const now = Date.now();
-  const hasActiveInvite = existing.docs.some((d) => {
-    const data = d.data();
-    const expiresAt = data.expiresAt;
-    if (!expiresAt) return true; // legacy doc without expiry — treat as active
-    return expiresAt.toMillis() > now;
-  });
-  if (hasActiveInvite) {
-    throw new Error('כבר קיימת הזמנה פתוחה למשתמש זה');
-  }
-
-  const createdAt = serverTimestamp();
-  // Note: expiresAt is derived from the client clock (Date.now()) and is used
-  // for TTL auto-deletion and client-side filtering only. It may be affected
-  // by clock skew or user tampering, so any authoritative expiry checks
-  // should be enforced via server-side logic or security rules.
-  const expiresAt = Timestamp.fromMillis(now + 24 * 60 * 60 * 1000);
-
-  return addDoc(invitesRef, {
-    boardId,
-    boardTitle,
-    invitedByUid: currentUser.uid,
-    invitedByEmail: currentUser.email ?? null,
-    invitedEmail: normalizedEmail,
-    invitedEmailLower: normalizedEmail,
-    invitedUid: targetProfile.uid,
-    createdAt,
-    expiresAt,
-  });
 }
 
 /**
