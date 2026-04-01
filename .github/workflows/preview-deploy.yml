@@ -1,0 +1,155 @@
+name: Deploy PR Preview Channel
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  detect-functions-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      functions_changed: ${{ steps.filter.outputs.functions_changed }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Detect whether functions changed
+        id: filter
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const files = await github.paginate(
+              github.rest.pulls.listFiles,
+              {
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: context.payload.pull_request.number,
+                per_page: 100,
+              }
+            );
+
+            const functionsChanged = files.some(file =>
+              file.filename === 'functions' || file.filename.startsWith('functions/')
+            );
+
+            core.setOutput('functions_changed', functionsChanged ? 'true' : 'false');
+
+  deploy-preview:
+    runs-on: ubuntu-latest
+    needs: detect-functions-changes
+    environment: preview
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install root dependencies
+        run: npm ci
+
+      - name: Build preview
+        run: npx vite build --mode preview
+        env:
+          VITE_FIREBASE_API_KEY: ${{ secrets.VITE_FIREBASE_API_KEY }}
+          VITE_FIREBASE_AUTH_DOMAIN: ${{ secrets.VITE_FIREBASE_AUTH_DOMAIN }}
+          VITE_FIREBASE_PROJECT_ID: ${{ secrets.VITE_FIREBASE_PROJECT_ID }}
+          VITE_FIREBASE_STORAGE_BUCKET: ${{ secrets.VITE_FIREBASE_STORAGE_BUCKET }}
+          VITE_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.VITE_FIREBASE_MESSAGING_SENDER_ID }}
+          VITE_FIREBASE_APP_ID: ${{ secrets.VITE_FIREBASE_APP_ID }}
+          VITE_RECAPTCHA_V3_SITE_KEY: ${{ secrets.VITE_RECAPTCHA_V3_SITE_KEY }}
+          VITE_APPCHECK_DEBUG: ${{ secrets.VITE_APPCHECK_DEBUG }}
+          VITE_APPCHECK_DEBUG_TOKEN: ${{ secrets.VITE_APPCHECK_DEBUG_TOKEN }}
+
+      - name: Install Firebase CLI
+        run: npm install -g firebase-tools
+
+      - name: Deploy preview channel
+        id: deploy
+        run: |
+          firebase hosting:channel:deploy "pr-${{ github.event.pull_request.number }}" \
+            --project "$FIREBASE_PROJECT_ID" \
+            --json > firebase-preview-output.json
+
+          cat firebase-preview-output.json
+
+          node <<'EOF'
+          const fs = require('fs');
+          const data = JSON.parse(fs.readFileSync('firebase-preview-output.json', 'utf8'));
+
+          const oauth = data?.result?.oauth || null;
+
+          const preview = oauth && oauth.url
+            ? {
+                url: oauth.url,
+                expireTime: oauth.expireTime || '',
+              }
+            : null;
+
+          fs.appendFileSync(
+            process.env.GITHUB_OUTPUT,
+            `preview_json<<__EOF__\n${JSON.stringify(preview)}\n__EOF__\n`
+          );
+          EOF
+        env:
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+          FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
+
+      - name: Create or update PR comment
+        uses: actions/github-script@v7
+        env:
+          PREVIEW_JSON: ${{ steps.deploy.outputs.preview_json }}
+          FUNCTIONS_CHANGED: ${{ needs.detect-functions-changes.outputs.functions_changed }}
+        with:
+          script: |
+            const prNumber = context.payload.pull_request.number;
+            const repo = context.repo.repo;
+            const owner = context.repo.owner;
+
+            const functionsChanged = process.env.FUNCTIONS_CHANGED === 'true';
+
+            let preview = null;
+            try {
+              preview = JSON.parse(process.env.PREVIEW_JSON || 'null');
+            } catch {}
+
+            const previewSection = preview?.url
+              ? `- ${preview.url}${preview.expireTime ? ` _(expires: ${preview.expireTime})_` : ''}`
+              : '_Unavailable_';
+
+            const body = [
+              '🚀 Preview deployed for this PR.',
+              '',
+              `**Channel:** \`pr-${prNumber}\``,
+              '',
+              '**Preview URL:**',
+              previewSection,
+              '',
+              `**Functions changed in this PR:** ${functionsChanged ? 'Yes' : 'No'}`,
+              '',
+              functionsChanged
+                ? '⚠️ This preview workflow does **not** deploy Functions. If this PR depends on backend changes, the preview may not fully reflect the final merged behavior.'
+                : '✅ No Functions changes were detected.',
+              '',
+              '**Reminder:**',
+              'Make sure the preview site is allowed to make requests using the API key in:',
+              'https://console.cloud.google.com/apis/credentials',
+              '',
+              'You may need to add the preview domain as an allowed HTTP referrer.'
+            ].join('\n');
+
+            await github.rest.issues.createComment({
+              owner,
+              repo,
+              issue_number: prNumber,
+              body,
+            });
