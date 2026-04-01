@@ -14,12 +14,18 @@
  * Boards without directMemberUids (created before this field was added) treat all
  * memberUids as direct for backward compatibility.
  */
-import { useState, useEffect, useRef } from 'react';
-import { createBoardInvite, subscribeToBoardInvites, deleteBoardInvite, removeBoardMember, leaveBoard } from '../firebase/boards';
-import { getUserProfilesByUids } from '../firebase/users';
-import { useAuth } from '../context/AuthContext';
-import { Input } from './ui/Input';
-import { Button } from './ui/Button';
+import {useEffect, useRef, useState} from 'react';
+import {
+  createBoardInvite,
+  deleteBoardInvite,
+  leaveBoard,
+  removeBoardMember,
+  subscribeToBoardInvites
+} from '../firebase/boards';
+import {getUserProfilesByUids} from '../firebase/users';
+import {useAuth} from '../context/AuthContext';
+import {Input} from './ui/Input';
+import {Button} from './ui/Button';
 
 export function CollaboratorManager({ board }) {
   const { user } = useAuth();
@@ -47,12 +53,11 @@ export function CollaboratorManager({ board }) {
   // Subscribe to board invites (owner only — rules enforce this server-side)
   useEffect(() => {
     if (!isOwner) return;
-    const unsub = subscribeToBoardInvites(
-      board.id,
-      (data) => setInvites(data),
-      (err) => console.error('subscribeToBoardInvites error:', err)
+    return subscribeToBoardInvites(
+        board.id,
+        (data) => setInvites(data),
+        (err) => console.error('subscribeToBoardInvites error:', err)
     );
-    return unsub;
   }, [board.id, isOwner]);
 
   // Load real profile data for all board members (direct + inherited)
@@ -89,7 +94,7 @@ export function CollaboratorManager({ board }) {
     try {
       // One invite to this board only — the Cloud Function cascades memberUids
       // to all descendant boards automatically when the invite is accepted.
-      await createBoardInvite(board.id, email, user, board.title);
+      await createBoardInvite(board.id, email, user);
       setEmail('');
       setSuccess(true);
       if (successTimerRef.current) clearTimeout(successTimerRef.current);

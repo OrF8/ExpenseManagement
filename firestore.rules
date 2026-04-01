@@ -36,6 +36,77 @@ service cloud.firestore {
         ).data.ownerUid == request.auth.uid;
     }
 
+    function allowedTransactionKeys() {
+      return [
+        'name',
+        'cardLast4',
+        'essence',
+        'comment',
+        'amount',
+        'installmentCurrent',
+        'installmentTotal',
+        'type',
+        'transactionDate',
+        'createdByUid',
+        'createdAt',
+      ];
+    }
+
+    function isValidTransactionType(type) {
+      return type in ['credit_card', 'cash', 'standing_order'];
+    }
+
+    function isValidTransactionDate(value) {
+      return value == null
+        || (
+          value is string
+          && value.size() == 10
+          && value.matches('^\\d{4}-\\d{2}-\\d{2}$')
+        );
+    }
+
+    function isValidInstallments(data) {
+      return data.type == 'credit_card'
+        ? (
+            data.cardLast4 is string
+            && data.cardLast4.size() == 4
+            && data.cardLast4.matches('^\\d{4}$')
+            && (
+              (data.installmentCurrent == null && data.installmentTotal == null)
+              || (
+                data.installmentCurrent is int
+                && data.installmentTotal is int
+                && data.installmentCurrent >= 1
+                && data.installmentTotal >= 1
+                && data.installmentCurrent <= data.installmentTotal
+              )
+            )
+          )
+        : (
+            data.cardLast4 == null
+            && data.installmentCurrent == null
+            && data.installmentTotal == null
+          );
+    }
+
+    function isValidTransactionData(data) {
+      return data.keys().hasOnly(allowedTransactionKeys())
+        && data.name is string
+        && data.name.size() > 0
+        && data.name.size() <= 80
+        && data.essence is string
+        && data.essence.size() > 0
+        && data.essence.size() <= 300
+        && (data.comment == null || (data.comment is string && data.comment.size() <= 1000))
+        && data.amount is number
+        && data.amount > 0
+        && data.amount < 100000000
+        && data.type is string
+        && isValidTransactionType(data.type)
+        && isValidTransactionDate(data.transactionDate)
+        && isValidInstallments(data);
+    }
+
     match /boards/{boardId} {
       allow create: if signedIn()
         && request.resource.data.ownerUid == request.auth.uid
@@ -48,7 +119,22 @@ service cloud.firestore {
     }
 
     match /boards/{boardId}/transactions/{transactionId} {
-      allow read, create, update, delete: if isBoardMember(boardId);
+      allow read: if isBoardMember(boardId);
+
+      allow create: if isBoardMember(boardId)
+        && request.resource.data.keys().hasAll(['createdByUid', 'createdAt'])
+        && isValidTransactionData(request.resource.data)
+        && request.resource.data.createdByUid is string
+        && request.resource.data.createdByUid == request.auth.uid
+        && request.resource.data.createdAt is timestamp
+        && request.resource.data.createdAt == request.time;
+
+      allow update: if isBoardMember(boardId)
+        && isValidTransactionData(request.resource.data)
+        && request.resource.data.createdByUid == resource.data.createdByUid
+        && request.resource.data.createdAt == resource.data.createdAt;
+
+      allow delete: if isBoardMember(boardId);
     }
 
     match /boards/{boardId}/invites/{inviteId} {
@@ -81,13 +167,15 @@ service cloud.firestore {
         && resource.data.invitedEmailLower == signedInEmail();
     }
 
-    // User profiles -- created on email/password sign-up; readable by any signed-in user
-    // (required for invite flows that look up users by email / UID).
+     // User profiles -- created on email/password sign-up.
+     // Read access is intentionally restricted to the authenticated owner only.
+     // Invite creation is handled server-side via callable functions to preserve
+     // least-privilege access and avoid exposing a client-side user directory.
     // Updates are restricted to the nickname field only -- email, emailLower, and
     // createdAt are immutable after account creation.
     match /users/{uid} {
       allow create: if request.auth != null && request.auth.uid == uid;
-      allow read: if request.auth != null;
+      allow read: if request.auth != null && request.auth.uid == uid;
       allow update: if request.auth != null
   			&& request.auth.uid == uid
   			&& request.resource.data.diff(resource.data).affectedKeys().hasOnly(['nickname'])

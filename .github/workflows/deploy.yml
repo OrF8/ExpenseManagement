@@ -12,13 +12,21 @@ jobs:
 
     permissions:
       contents: read
+      id-token: write
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@5ea4dc11472eebb0a541812f1063c7d318adf57e # v3.0.0
+        with:
+          workload_identity_provider: projects/586549638872/locations/global/workloadIdentityPools/github-actions-pool/providers/github-provider
+          service_account: github-actions-firebase-deploy@expensemanagement-90ec3.iam.gserviceaccount.com
+          project_id: ${{ secrets.VITE_FIREBASE_PROJECT_ID }}
 
       - name: Setup Node.js
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
           node-version: 20
           cache: npm
@@ -49,5 +57,4 @@ jobs:
       - name: Deploy Functions and Hosting
         run: firebase deploy --only functions,hosting --project "$FIREBASE_PROJECT_ID"
         env:
-          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
-          FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
+          FIREBASE_PROJECT_ID: ${{ secrets.VITE_FIREBASE_PROJECT_ID }}
