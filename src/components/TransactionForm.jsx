@@ -157,7 +157,7 @@ export function TransactionForm({ initial, defaultName, defaultPaymentMethod, on
         ? parseInt(form.installmentTotal, 10)
         : null,
       type: form.type,
-      ...(form.transactionDate ? { transactionDate: form.transactionDate } : {}),
+      transactionDate: form.transactionDate || null,
     };
     try {
       setSubmitError(null);
