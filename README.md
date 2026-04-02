@@ -1,13 +1,11 @@
-# 💰 ניהול הוצאות — Expense Management
+# Expense Management
 
-**Expense Management** is a collaborative Hebrew RTL web app for tracking shared expenses across families, roommates, and partners — all in one place, in real time.
+Expense Management is a real-time collaborative web app for managing shared expenses in Hebrew (RTL).
+It is designed for families, roommates, and partners who need one reliable place to track spending, collaborators,
+and board hierarchies without exposing broad user data.
 
-Instead of juggling spreadsheets or lengthy message threads, ask yourself:
-- How do you keep everyone aligned when managing shared household or group costs?
-- How do you track installment payments across multiple credit cards without losing count?
-- How do you see running totals per card, instantly, without doing the math yourself?
-
-This project was built by [**Or Forshmit**](https://github.com/OrF8).
+The project combines a React frontend with Firebase Authentication, Firestore, Hosting, and callable Cloud Functions.
+Invite, collaborator, and account management flows are implemented server-side to preserve a least-privilege security model.
 
 🌐 **[Try the live app →](https://of8-expense-management.web.app/)**
 
@@ -20,275 +18,156 @@ This project was built by [**Or Forshmit**](https://github.com/OrF8).
   <img src="https://img.shields.io/badge/Vite-8-646CFF?logo=vite&logoColor=white" alt="vite">
   <img src="https://img.shields.io/badge/Firebase-12-FFCA28?logo=firebase&logoColor=black" alt="firebase">
   <img src="https://img.shields.io/badge/Tailwind_CSS-4-06B6D4?logo=tailwindcss&logoColor=white" alt="tailwind">
-  <img src="https://img.shields.io/badge/React_Router-7-CA4245?logo=reactrouter&logoColor=white" alt="react-router">
 </p>
 
----
+## Table of Contents
 
-## 🔗 Table of Contents
+- [Overview](#overview)
+- [Key Features](#key-features)
+- [Tech Stack & Architecture](#tech-stack--architecture)
+- [Project Structure](#project-structure)
+- [Getting Started](#getting-started)
+  - [Prerequisites](#prerequisites)
+  - [Installation](#installation)
+  - [Environment Configuration](#environment-configuration)
+  - [Run Locally](#run-locally)
+- [Deployment](#deployment)
+- [Security Notes](#security-notes)
+- [License](#license)
 
-- [📍 Overview](#-overview)
-- [✨ Key Features](#-key-features)
-- [📁 Project Structure](#-project-structure)
-- [🚀 Getting Started](#-getting-started)
-  - [☑️ Prerequisites](#%EF%B8%8F-prerequisites)
-  - [⚙️ Installation](#%EF%B8%8F-installation)
-  - [🔧 Configuration](#-configuration)
-  - [▶️ Running Locally](#%EF%B8%8F-running-locally)
-- [🔥 Firebase Setup](#-firebase-setup)
-- [⚡ Cloud Functions](#-cloud-functions)
-- [🛡️ Security: Firebase App Check](#️-security-firebase-app-check)
-- [👤 Profile & Account Management](#-profile--account-management)
-- [🔒 Privacy & Terms](#-privacy--terms)
-- [🤝🏼 Contributing](#-contributing)
-- [📄 License](#-license)
+## Overview
 
----
+The app centers around collaborative boards. Each board contains transactions, collaborators, and optional sub-boards.
+Members see real-time updates, while ownership and membership operations are enforced by Firestore rules and Cloud Functions.
 
-## 📍 Overview
+## Key Features
 
-Managing shared expenses is harder than it sounds. Between split rent, grocery runs, shared subscriptions, and multi-installment purchases, keeping everyone aligned quickly turns into a full-time job.
+- Firebase Auth (email/password + Google)
+- Shared expense boards with real-time transaction updates
+- Board hierarchy (parent/sub-board relationships)
+- Installment-aware credit-card tracking
+- Email-based invite flow (create/accept/decline/revoke)
+- Owner/member management (remove member, leave board)
+- Account deletion with server-side data cleanup
+- Hebrew RTL interface with light/dark theme
 
-**Expense Management** solves this with a real-time collaborative board system — each board is a shared ledger where members can log, track, and review transactions together. Invite collaborators by email, track credit card installments, and see running totals per card — all in a clean, native Hebrew RTL interface.
+## Tech Stack & Architecture
 
----
+- **Frontend:** React 19, Vite 8, React Router 7, Tailwind CSS 4
+- **Backend:** Firebase Cloud Functions (Node.js 20)
+- **Data/Auth:** Firestore + Firebase Authentication
+- **Hosting:** Firebase Hosting
+- **Security:** Firestore rules + App Check enforcement on callable functions
 
-## ✨ Key Features
+## Project Structure
 
-- 🔐 **Authentication** — email/password and Google Sign-In via Firebase Auth
-- 📋 **Collaborative boards** — create shared expense boards and manage multiple ledgers
-- 👥 **Invitation system** — invite collaborators by email; accept or decline via secure Cloud Functions
-- 💳 **Transaction tracking** — log expenses with card last-4, name, description, and amount
-- 📊 **Installment support** — track payments as installment X of Y (תשלום X מתוך Y)
-- 💰 **Auto-calculated totals** — per-card subtotals and a grand total, always up to date
-- 🔄 **Real-time updates** — Firestore listeners push changes to all board members instantly
-- 👤 **Profile & account management** — change nickname, sign out, or permanently delete your account (with full cascade cleanup) from a dedicated account panel
-- 🌐 **Full Hebrew RTL UI** — built natively for right-to-left layout
-- 🌙 **Dark / light mode** — theme preference persisted locally
-
----
-
-## 📁 Project Structure
-
-```
+```text
 ExpenseManagement/
 ├── src/
-│   ├── pages/           # Route-level views (Auth, Boards, BoardPage, Landing, Privacy, Terms)
-│   ├── components/      # Reusable UI components (TransactionCard, TransactionForm, CollaboratorManager, …)
-│   │   └── ui/          # Primitive components (Button, Input, Modal, Spinner, ThemeToggle)
-│   ├── firebase/        # Firestore & Auth wrappers (auth, boards, invites, transactions, users)
-│   ├── hooks/           # Custom React hooks (useBoards, useTransactions, useIncomingInvites)
-│   ├── context/         # React context providers (AuthContext, ThemeContext)
-│   ├── constants/       # Shared constants (transactionTypes)
-│   └── assets/          # Logos and images
-├── functions/           # Firebase Cloud Functions (acceptBoardInvite, declineBoardInvite, removeBoardMember, leaveBoard)
-├── public/              # Static assets (favicon, PWA icons, og-image)
-├── firestore.rules      # Firestore security rules
-├── firebase.json        # Firebase project configuration
-└── vite.config.js       # Vite / PWA build configuration
+│   ├── components/      # UI and board/collaborator components
+│   ├── context/         # Auth and theme providers
+│   ├── firebase/        # Firebase client modules (auth, boards, invites, users, config)
+│   ├── hooks/           # Data hooks (boards, transactions, incoming invites)
+│   └── pages/           # Route pages (auth, boards, board view, legal pages)
+├── functions/           # Callable Cloud Functions for invite/member/account flows
+├── firestore.rules      # Firestore authorization and validation rules
+├── firebase.json        # Hosting targets, headers, and Firebase service config
+└── .github/workflows/   # Deploy + CodeQL workflows
 ```
 
----
+## Getting Started
 
-## 🚀 Getting Started
+### Prerequisites
 
-### ☑️ Prerequisites
+- Node.js 20+
+- npm
+- Firebase project with Authentication, Firestore, Hosting, and Functions enabled
 
-- **Node.js** 18+
-- A **Firebase project** with Authentication and Firestore enabled
-
-### ⚙️ Installation
+### Installation
 
 ```bash
 git clone https://github.com/OrF8/ExpenseManagement.git
 cd ExpenseManagement
-npm install
+npm ci
+npm --prefix functions ci
 ```
 
-### 🔧 Configuration
+### Environment Configuration
 
-Copy `.env.example` to `.env` and fill in your Firebase project values:
+Create `.env` from `.env.example` and fill your Firebase values.
 
 ```bash
 cp .env.example .env
 ```
 
-| Variable | Description |
-|---|---|
-| `VITE_FIREBASE_API_KEY` | Firebase API key |
-| `VITE_FIREBASE_AUTH_DOMAIN` | Firebase Auth domain |
-| `VITE_FIREBASE_PROJECT_ID` | Firebase project ID |
-| `VITE_FIREBASE_STORAGE_BUCKET` | Firebase Storage bucket |
-| `VITE_FIREBASE_MESSAGING_SENDER_ID` | Firebase messaging sender ID |
-| `VITE_FIREBASE_APP_ID` | Firebase app ID |
+Required frontend variables:
 
-### ▶️ Running Locally
+- `VITE_FIREBASE_API_KEY`
+- `VITE_FIREBASE_AUTH_DOMAIN`
+- `VITE_FIREBASE_PROJECT_ID`
+- `VITE_FIREBASE_STORAGE_BUCKET`
+- `VITE_FIREBASE_MESSAGING_SENDER_ID`
+- `VITE_FIREBASE_APP_ID`
+- `VITE_RECAPTCHA_V3_SITE_KEY`
+
+#### Optional: Preview deployment configuration (`.env.preview`)
+For preview deployments using the PowerShell script (`npm run deploy:preview -- -PrNumber pr_num`),
+create a `.env.preview` file with the same Firebase variables as `.env`,
+with two optional variables (if you want to enable App Check debug mode for the preview channel):
+- `VITE_APPCHECK_DEBUG=true`
+- `VITE_APPCHECK_DEBUG_TOKEN=your_app_check_debug_token_here`
+
+Another variable is `FIREBASE_PROJECT_ID`. This should be set to the same
+project as `.env` if you want to deploy to a preview channel in the same project,
+or it can be set to a different project ID if you want to deploy the preview channel to a separate Firebase project.
+
+This allows you to deploy a Firebase Hosting preview channel separately from your main environment.
+
+```bash
+cp .env.preview.example .env.preview
+```
+
+This is useful for testing changes without affecting the live app.
+
+### Run Locally
 
 ```bash
 npm run dev
 ```
 
-The app will be available at `http://localhost:5173`.
+App URL: `http://localhost:5173`
 
-To build and preview a production bundle:
+Production build preview:
 
 ```bash
 npm run build
 npm run preview
 ```
 
----
+App URL: `http://localhost:4173`
 
-## 🔥 Firebase Setup
+## Deployment
 
-1. Create a Firebase project at [console.firebase.google.com](https://console.firebase.google.com)
-2. Enable **Authentication** → sign-in methods: Email/Password and Google
-3. Enable **Firestore Database** in production mode
-4. Enable **Cloud Functions** (requires the Blaze pay-as-you-go plan)
-5. Deploy the security rules from [`firestore.rules`](./firestore.rules):
+Main deployment is automated through GitHub Actions (`.github/workflows/deploy.yml`) using
+**Google Workload Identity Federation** (OIDC) with a deploy service account.
 
-```bash
-firebase deploy --only firestore:rules
-```
-
-> The rules restrict board access to members, invite access to the board owner and invited user, and user-profile writes to the profile owner. See [`firestore.rules`](./firestore.rules) for the full definition.
-
----
-
-## ⚡ Cloud Functions
-
-The `functions/` directory contains six callable Cloud Functions:
-
-| Function | Description |
-|---|---|
-| `acceptBoardInvite` | Atomically adds the caller to `board.memberUids` and marks the invite accepted |
-| `declineBoardInvite` | Marks the invite as declined |
-| `removeBoardMember` | Allows the board owner to remove a non-owner member |
-| `leaveBoard` | Allows a non-owner member to remove themselves from a board |
-| `deleteBoard` | Allows the board owner to fully delete a board and all its subcollections |
-| `deleteMyAccount` | Permanently deletes the caller's account, all owned boards, and all related data |
-
-**Requirements:** Firebase CLI (`npm install -g firebase-tools`) and the Blaze (pay-as-you-go) plan.
-
-**Deploy:**
+Typical manual deploy commands (**after** building with `npm run build`):
 
 ```bash
-firebase login
-firebase use --add          # link your project and give it an alias (e.g. "default")
-cd functions && npm install && cd ..
-firebase deploy --only functions
+firebase deploy --only firestore:rules --project <project-id>
+firebase deploy --only functions,hosting --project <project-id>
 ```
 
-**Local emulation (optional):**
+The repo also includes a PowerShell preview script (`npm run deploy:preview -- -PrNumber pr_num`) that deploys functions and a hosting preview channel using `.env.preview`.
 
-```bash
-firebase emulators:start --only functions,firestore
-```
+## Security Notes
 
-To connect the app to the local emulator, add to `src/firebase/config.js`:
+- Firestore access is scoped to board membership and document ownership; `/users/{uid}` is owner-readable and owner-writable only.
+- Invite creation, acceptance, declination, revocation, member removal, and account deletion are all implemented as callable Cloud Functions to ensure server-side validation and least-privilege access.
+- Callable functions enforce App Check (`enforceAppCheck: true`), and Hosting serves strict security headers (including CSP, X-Frame-Options, and Referrer-Policy).
+- App Check is also enforced on Firestore and authentication operations to prevent abuse from unauthorized clients.
+- Invite queries use collection-group access constrained by authenticated email match in Firestore rules.
 
-```js
-import { connectFunctionsEmulator } from 'firebase/functions';
-if (location.hostname === 'localhost') {
-  connectFunctionsEmulator(functions, 'localhost', 5001);
-}
-```
+## License
 
----
-
-## 🛡️ Security: Firebase App Check
-
-[Firebase App Check](https://firebase.google.com/docs/app-check) protects backend resources from abuse by ensuring that only requests originating from the legitimate app are processed. It complements Firebase Authentication — Authentication identifies *who* is making a request, while App Check verifies *what* is making the request.
-
-### What Is Protected
-
-| Resource | Protection |
-|---|---|
-| **Cloud Firestore** | App Check tokens are verified on read/write operations |
-| **Callable Cloud Functions** | All six callable functions enforce App Check (`enforceAppCheck: true`) |
-
-### How It Works
-
-1. **Frontend initialization** — On startup, the app initializes App Check using `ReCaptchaV3Provider` from the Firebase SDK.
-2. **Automatic token attachment** — The Firebase SDK automatically attaches a valid App Check token to every Firestore and Functions request.
-3. **Backend verification** — Firebase services verify the token server-side before processing the request.
-4. **Callable function enforcement** — All callable Cloud Functions are declared with `enforceAppCheck: true`, so requests without a valid App Check token are rejected.
-
-### Environment Setup
-
-Two additional environment variables are required beyond the standard Firebase config:
-
-| Variable | Description |
-|---|---|
-| `VITE_RECAPTCHA_V3_SITE_KEY` | reCAPTCHA site key from Google Cloud Console |
-| `VITE_APPCHECK_DEBUG` | Set to `true` to force debug mode (e.g. in preview/CI environments) |
-| `VITE_APPCHECK_DEBUG_TOKEN` | Pre-created debug token registered in Firebase Console |
-
-#### Local Development
-
-App Check runs in debug mode automatically during `npm run dev`. A debug token is printed in the browser console:
-
-```
-App Check debug token: <token>
-```
-
-Register this token in **Firebase Console → App Check → Apps → your app → Debug tokens**.
-
-#### Preview Deployments (PRs)
-
-Use debug mode with a pre-created token to avoid relying on the browser console. Set the following in your CI/CD environment variables:
-
-```
-VITE_APPCHECK_DEBUG=true
-VITE_APPCHECK_DEBUG_TOKEN=<your-debug-token>
-```
-
-Register the same token in Firebase Console → App Check → Debug tokens.
-
-#### Production
-
-No additional configuration needed. The app uses reCAPTCHA to obtain real App Check tokens automatically. Ensure `VITE_RECAPTCHA_V3_SITE_KEY` is set to your production reCAPTCHA site key.
-
----
-
-## 👤 Profile & Account Management
-
-The app includes a dedicated **Account Settings** panel, accessible from the profile button in the top-right corner of the boards screen.
-
-### What's in the panel
-
-| Action | Description |
-|---|---|
-| **שנה כינוי** (Change nickname) | Update the display name shown throughout the app |
-| **יציאה** (Sign out) | Sign out of the current session |
-| **מחק חשבון** (Delete account) | Permanently delete your account and all associated data |
-
-### Account deletion
-
-Deleting your account is a **destructive, irreversible action** that removes all data you own:
-
-- **Your Auth account** is permanently deleted.
-- **All boards you created** are deleted — including boards that have collaborators. Ownership is absolute: shared boards created by you are removed regardless of other members.
-- **All descendant boards** under your owned boards are also deleted (board hierarchies are fully removed).
-- **All data under those boards** is deleted: transactions, invites, and any other subcollection data.
-- **Your membership** is cleaned up from boards you participate in but do not own, so other users' boards remain intact.
-- **Your user profile** (`users/{uid}`) is deleted from Firestore.
-
-The deletion is performed entirely server-side via the `deleteMyAccount` Cloud Function. Your UID is derived from the authenticated session token — you cannot delete anyone else's account. The UI shows a confirmation dialog with a clear warning before proceeding.
-
----
-
-## 🔒 Privacy & Terms
-
-This app includes a [Privacy Policy](https://of8-expense-management.web.app/privacy) (`/privacy`) and [Terms of Service](https://of8-expense-management.web.app/terms) (`/terms`) for compliance with Firebase and Google Sign-In requirements.
-
----
-
-## 🤝🏼 Contributing
-See [CONTRIBUTING.md](./CONTRIBUTING.md)
-
----
-
-## 📄 License
-
-This project is licensed under the MIT License. See the [LICENSE](./LICENSE) file for details.
+This project is licensed under the MIT license. For more information, see the [LICENSE](./LICENSE) file.

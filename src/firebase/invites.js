@@ -11,7 +11,7 @@ import { functions } from './config';
 /**
  * Accept a pending board invite.
  * The backend verifies authentication, invite ownership, and atomically adds
- * the caller to board memberUids while marking the invite as accepted.
+ * the caller to board memberUids/directMemberUids and deletes the invite atomically.
  *
  * @param {string} boardId  - ID of the board that issued the invite
  * @param {string} inviteId - ID of the invite document
@@ -25,8 +25,7 @@ export async function acceptBoardInvite(boardId, inviteId) {
 
 /**
  * Decline a pending board invite.
- * The backend verifies authentication and invite ownership before marking the
- * invite as declined.
+ * The backend verifies authentication and invite ownership before deleting the invite.
  *
  * @param {string} boardId  - ID of the board that issued the invite
  * @param {string} inviteId - ID of the invite document
