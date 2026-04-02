@@ -2,8 +2,10 @@
  * Firebase Cloud Functions for Expense Management.
  *
  * Callable functions:
- * - createBoardInvite    : allows the board owner to create an email-based invite without client-side reads
- *                          from /users; prevents duplicate active invites
+ *   - createBoardInvite    : allows the board owner to create an email-based invite without client-side reads
+ *                            from /users; prevents duplicate active invites
+ *   - getBoardCollaboratorProfiles : allows board members to fetch minimal display-safe profiles (uid + nickname)
+ *                                    for other members of the board without broad client reads from /users
  *   - acceptBoardInvite  : atomically adds the caller to board memberUids/directMemberUids and marks invite accepted;
  *                          also cascades memberUids addition to all descendant boards (inherited access)
  *   - declineBoardInvite : marks the invite as declined
@@ -173,6 +175,74 @@ exports.createBoardInvite = onCall(
         });
 
         return {success: true, ...result};
+    },
+);
+
+/**
+ * getBoardCollaboratorProfiles
+ *
+ * Callable function that returns minimal display-safe collaborator profiles
+ * (uid + nickname) for a board's members. The client never reads other users'
+ * /users docs directly.
+ *
+ * Authorization:
+ *   - caller must be authenticated
+ *   - caller must already be a member of the target board
+ *
+ * Data minimization:
+ *   - returns only: { uid, nickname, email }
+ *
+ * @param {object} request.data
+ * @param {string} request.data.boardId
+ * @param {string[]=} request.data.uids
+ */
+exports.getBoardCollaboratorProfiles = onCall(
+    {enforceAppCheck: true},
+    async (request) => {
+      if (!request.auth) {
+        throw new HttpsError('unauthenticated', 'עליך להיות מחובר');
+      }
+
+      const {boardId, uids} = request.data || {};
+      if (!boardId) {
+        throw new HttpsError('invalid-argument', 'boardId נדרש');
+      }
+
+      const callerUid = request.auth.uid;
+      const boardSnap = await db.collection('boards').doc(boardId).get();
+      if (!boardSnap.exists) {
+        throw new HttpsError('not-found', 'הלוח לא נמצא');
+      }
+
+      const board = boardSnap.data() || {};
+      const boardMemberUids = Array.isArray(board.memberUids) ? board.memberUids : [];
+      if (!boardMemberUids.includes(callerUid)) {
+        throw new HttpsError('permission-denied', 'אין לך הרשאה לצפות בחברי הלוח');
+      }
+
+      const requestedUids = Array.isArray(uids) ? uids.filter((uid) => typeof uid === 'string') : boardMemberUids;
+      const targetUids = [...new Set(requestedUids.filter((uid) => boardMemberUids.includes(uid)))];
+
+      if (targetUids.length === 0) {
+        return {profiles: []};
+      }
+
+      const userRefs = targetUids.map((uid) => db.collection('users').doc(uid));
+      const userSnaps = await db.getAll(...userRefs);
+
+      const profiles = userSnaps.map((snap, i) => {
+        if (!snap.exists) {
+          return {uid: targetUids[i], nickname: 'משתמש', email: ''};
+        }
+        const data = snap.data() || {};
+        const nickname = typeof data.nickname === 'string' && data.nickname.trim()
+          ? data.nickname.trim()
+          : 'משתמש';
+        const email = typeof data.email === 'string' ? data.email : '';
+        return {uid: snap.id, nickname, email};
+      });
+
+      return {profiles};
     },
 );
 
