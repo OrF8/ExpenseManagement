@@ -54,7 +54,7 @@ Members see real-time updates, while ownership and membership operations are enf
 ## Tech Stack & Architecture
 
 - **Frontend:** React 19, Vite 8, React Router 7, Tailwind CSS 4
-- **Backend:** Firebase Cloud Functions (Node.js 20)
+- **Backend:** Firebase Cloud Functions (Node.js 22)
 - **Data/Auth:** Firestore + Firebase Authentication
 - **Hosting:** Firebase Hosting
 - **Security:** Firestore rules + App Check enforcement on callable functions
@@ -79,7 +79,7 @@ ExpenseManagement/
 
 ### Prerequisites
 
-- Node.js 20+
+- Node.js 22+
 - npm
 - Firebase project with Authentication, Firestore, Hosting, and Functions enabled
 
