@@ -116,6 +116,11 @@ create a `.env.preview` file with the same Firebase variables as `.env`,
 with two optional variables (if you want to enable App Check debug mode for the preview channel):
 - `VITE_APPCHECK_DEBUG=true`
 - `VITE_APPCHECK_DEBUG_TOKEN=your_app_check_debug_token_here`
+
+Another variable is `FIREBASE_PROJECT_ID`. This should be set to the same
+project as `.env` if you want to deploy to a preview channel in the same project,
+or it can be set to a different project ID if you want to deploy the preview channel to a separate Firebase project.
+
 This allows you to deploy a Firebase Hosting preview channel separately from your main environment.
 
 ```bash
