@@ -167,10 +167,10 @@ service cloud.firestore {
         && resource.data.invitedEmailLower == signedInEmail();
     }
 
-     // User profiles -- created on email/password sign-up.
-     // Read access is intentionally restricted to the authenticated owner only.
-     // Invite creation is handled server-side via callable functions to preserve
-     // least-privilege access and avoid exposing a client-side user directory.
+    // User profiles -- created at signup (email/password or Google).
+    // Read access is intentionally restricted to the authenticated owner only.
+    // Invite creation is handled server-side via callable functions to preserve
+    // least-privilege access and avoid exposing a client-side user directory.
     // Updates are restricted to the nickname field only -- email, emailLower, and
     // createdAt are immutable after account creation.
     match /users/{uid} {

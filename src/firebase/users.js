@@ -5,14 +5,10 @@
  *   { email, emailLower, nickname, createdAt }
  */
 import {
-  collection,
   doc,
   getDoc,
-  getDocs,
-  query,
   setDoc,
   updateDoc,
-  where,
   serverTimestamp,
 } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
@@ -73,22 +69,4 @@ export async function updateNickname(uid, nickname) {
   if (!trimmed) throw new Error('הכינוי לא יכול להיות ריק.');
   const ref = doc(db, 'users', uid);
   return updateDoc(ref, { nickname: trimmed });
-}
-
-/**
- * Fetch a user profile by email address.
- * Email is normalized to lowercase/trimmed before querying.
- * @param {string} email
- * @returns {Promise<{uid: string, ...}|null>}
- */
-export async function getUserProfileByEmail(email) {
-  const emailLower = email.trim().toLowerCase();
-  const q = query(
-    collection(db, 'users'),
-    where('emailLower', '==', emailLower)
-  );
-  const snap = await getDocs(q);
-  if (snap.empty) return null;
-  const d = snap.docs[0];
-  return { uid: d.id, ...d.data() };
 }
