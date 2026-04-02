@@ -119,7 +119,7 @@ with two optional variables (if you want to enable App Check debug mode for the 
 This allows you to deploy a Firebase Hosting preview channel separately from your main environment.
 
 ```bash
-cp .env.preview.example .env.preview.
+cp .env.preview.example .env.preview
 ```
 
 This is useful for testing changes without affecting the live app.
