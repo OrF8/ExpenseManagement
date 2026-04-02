@@ -112,7 +112,7 @@ Required frontend variables:
 
 #### Optional: Preview deployment configuration (`.env.preview`)
 For preview deployments using the PowerShell script (`npm run deploy:preview -- -PrNumber pr_num`),
-create a `.env.preview` fle with the same Firebase variables as `.env`,
+create a `.env.preview` file with the same Firebase variables as `.env`,
 with two optional variables (if you want to enable App Check debug mode for the preview channel):
 - `VITE_APPCHECK_DEBUG=true`
 - `VITE_APPCHECK_DEBUG_TOKEN=your_app_check_debug_token_here`
