@@ -2,8 +2,10 @@
  * Firebase Cloud Functions for Expense Management.
  *
  * Callable functions:
- * - createBoardInvite    : allows the board owner to create an email-based invite without client-side reads
- *                          from /users; prevents duplicate active invites
+ *   - createBoardInvite    : allows the board owner to create an email-based invite without client-side reads
+ *                            from /users; prevents duplicate active invites
+ *   - getBoardCollaboratorProfiles : allows board members to fetch minimal display-safe profiles (uid + nickname)
+ *                                    for other members of the board without broad client reads from /users
  *   - acceptBoardInvite  : atomically adds the caller to board memberUids/directMemberUids and marks invite accepted;
  *                          also cascades memberUids addition to all descendant boards (inherited access)
  *   - declineBoardInvite : marks the invite as declined
