@@ -60,16 +60,20 @@ export function CollaboratorManager({ board }) {
     );
   }, [board.id, isOwner]);
 
-  // Load real profile data for all board members (direct + inherited)
+  // Load minimal display profiles for all board members (direct + inherited)
+  // via a secure callable (avoids direct cross-user /users reads in the client).
   useEffect(() => {
     const allUids = [...new Set([...directMemberUids, ...inheritedMemberUids])];
-    if (!allUids.length) return;
+    if (!allUids.length) {
+      setMemberProfiles([]);
+      return;
+    }
     let stale = false;
-    getUserProfilesByUids(allUids)
+    getUserProfilesByUids(board.id, allUids)
       .then((profiles) => { if (!stale) setMemberProfiles(profiles); })
       .catch((err) => console.error('getUserProfilesByUids error:', err));
     return () => { stale = true; };
-  }, [board.memberUids, board.directMemberUids]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [board.id, board.memberUids, board.directMemberUids]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Clear the success timer when the component unmounts
   useEffect(() => {

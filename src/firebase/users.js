@@ -15,7 +15,8 @@ import {
   where,
   serverTimestamp,
 } from 'firebase/firestore';
-import { db } from './config';
+import { httpsCallable } from 'firebase/functions';
+import { db, functions } from './config';
 
 /**
  * Create a user profile document in Firestore.
@@ -47,16 +48,18 @@ export async function getUserProfile(uid) {
 }
 
 /**
- * Fetch multiple user profiles by an array of UIDs.
+ * Fetch multiple user display profiles for a specific board by an array of UIDs.
+ * Uses a callable Cloud Function so the client does not read other users' /users docs directly.
  * Missing profiles are returned as a safe fallback object.
+ * @param {string} boardId
  * @param {string[]} uids
  * @returns {Promise<Array<{uid: string, nickname: string, email: string}>>}
  */
-export async function getUserProfilesByUids(uids) {
-  const profiles = await Promise.all(uids.map(getUserProfile));
-  return profiles.map((profile, i) =>
-    profile ?? { uid: uids[i], nickname: 'משתמש', email: '' }
-  );
+export async function getUserProfilesByUids(boardId, uids) {
+  const fn = httpsCallable(functions, 'getBoardCollaboratorProfiles');
+  const result = await fn({ boardId, uids });
+  const profiles = result?.data?.profiles ?? [];
+  return Array.isArray(profiles) ? profiles : [];
 }
 
 /**
