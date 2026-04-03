@@ -391,7 +391,7 @@ export function BoardPage() {
       <div className="min-h-screen flex flex-col items-center justify-center gap-3 dark:bg-gray-950">
         <Spinner size="lg" />
         {boardRetryingSecureConnection && (
-          <p className="text-sm text-gray-500 dark:text-gray-400">Retrying secure connection…</p>
+          <p className="text-sm text-gray-500 dark:text-gray-400">מנסה מחדש ליצור חיבור מאובטח…</p>
         )}
       </div>
     );
