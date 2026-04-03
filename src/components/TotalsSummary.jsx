@@ -1,5 +1,5 @@
 /**
- * Displays per-type and grand total expense summaries.
+ * Displays per-type and grand total transaction summaries.
  * Keys in totals.perGroup use the format "card:XXXX" (credit-card) or
  * "type:<typeName>" (cash / standing_order / unknown) so the display
  * can render them correctly without guessing from null values.
@@ -25,7 +25,7 @@ export function TotalsSummary({ totals, activeFilterKey, onFilterChange }) {
   return (
     <div className="rounded-2xl bg-gradient-to-br from-indigo-50 to-white border border-indigo-100 p-5 dark:from-indigo-950/50 dark:to-gray-900 dark:border-indigo-900">
       <h3 className="text-sm font-semibold text-indigo-700 dark:text-indigo-400 mb-3 uppercase tracking-wide">
-        סיכום הוצאות
+        סיכום עסקאות
       </h3>
       <div className="space-y-1 mb-4">
         {groups.map(([key, total]) => {

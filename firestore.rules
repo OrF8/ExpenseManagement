@@ -99,7 +99,8 @@ service cloud.firestore {
         && data.essence.size() <= 300
         && (data.comment == null || (data.comment is string && data.comment.size() <= 1000))
         && data.amount is number
-        && data.amount > 0
+        && data.amount != 0
+        && data.amount > -100000000
         && data.amount < 100000000
         && data.type is string
         && isValidTransactionType(data.type)
