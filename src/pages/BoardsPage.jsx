@@ -482,7 +482,7 @@ export function BoardsPage() {
           <div className="flex flex-col items-center justify-center gap-3 py-20">
             <Spinner size="lg" />
             {retryingSecureConnection && (
-              <p className="text-sm text-gray-500 dark:text-gray-400">Retrying secure connection…</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">מנסה שוב ליצור חיבור מאובטח…</p>
             )}
           </div>
         ) : topLevelBoards.length === 0 ? (
