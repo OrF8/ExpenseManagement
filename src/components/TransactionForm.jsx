@@ -25,8 +25,8 @@ function validate(form) {
   if (!form.type) errors.type = 'יש לבחור סוג עסקה';
   if (!form.essence.trim()) errors.essence = 'שדה חובה';
   const amt = parseFloat(form.amount);
-  if (!form.amount || isNaN(amt) || amt <= 0)
-    errors.amount = 'סכום חייב להיות מספר חיובי';
+  if (!form.amount || !Number.isFinite(amt) || amt === 0)
+    errors.amount = 'סכום חייב להיות מספר תקין ושונה מאפס';
 
   if (form.transactionDate) {
     const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
@@ -239,7 +239,6 @@ export function TransactionForm({ initial, defaultName, defaultPaymentMethod, on
         label="סכום (₪)"
         name="amount"
         type="number"
-        min="0.01"
         step="0.01"
         value={form.amount}
         onChange={handleChange}
