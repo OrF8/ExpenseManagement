@@ -33,7 +33,7 @@ function formatAmount(amount) {
 export function BoardsPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const { boards, loading, error } = useBoards();
+  const { boards, loading, error, retryingSecureConnection } = useBoards();
   const { invites: incomingInvites } = useIncomingInvites();
   const [showCreate, setShowCreate] = useState(false);
   const [newTitle, setNewTitle] = useState('');
@@ -479,8 +479,11 @@ export function BoardsPage() {
         )}
 
         {loading ? (
-          <div className="flex justify-center py-20">
+          <div className="flex flex-col items-center justify-center gap-3 py-20">
             <Spinner size="lg" />
+            {retryingSecureConnection && (
+              <p className="text-sm text-gray-500 dark:text-gray-400">Retrying secure connection…</p>
+            )}
           </div>
         ) : topLevelBoards.length === 0 ? (
           <EmptyState

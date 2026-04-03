@@ -28,6 +28,7 @@ import { TotalsSummary } from '../components/TotalsSummary';
 import { CollaboratorManager } from '../components/CollaboratorManager';
 import { BoardHierarchyActionsMenu } from '../components/ui/BoardHierarchyActionsMenu';
 import { TRANSACTION_TYPE_LABELS } from '../constants/transactionTypes';
+import { subscribeWithAppCheckRetry } from '../utils/appCheckRetry';
 
 function formatAmount(amount) {
   return new Intl.NumberFormat('he-IL', { style: 'currency', currency: 'ILS' }).format(amount);
@@ -42,6 +43,7 @@ export function BoardPage() {
   const [board, setBoard] = useState(null);
   const [boardLoading, setBoardLoading] = useState(true);
   const [boardError, setBoardError] = useState(null);
+  const [boardRetryingSecureConnection, setBoardRetryingSecureConnection] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
   const [editTx, setEditTx] = useState(null);
   const [showCollabs, setShowCollabs] = useState(false);
@@ -70,21 +72,34 @@ export function BoardPage() {
   // Subscribe to real-time board metadata updates
   useEffect(() => {
     setBoardLoading(true);
-    const unsub = subscribeToBoard(
-      boardId,
+    setBoardError(null);
+    setBoardRetryingSecureConnection(false);
+
+    const unsub = subscribeWithAppCheckRetry(
+      (onData, onError) => subscribeToBoard(boardId, onData, onError),
       (b) => {
         if (!b || !b.memberUids.includes(user?.uid)) {
+          setBoardRetryingSecureConnection(false);
           setBoardLoading(false);
           navigate('/boards');
           return;
         }
         setBoard(b);
+        setBoardRetryingSecureConnection(false);
         setBoardLoading(false);
       },
       (err) => {
         setBoardError(err.message);
+        setBoardRetryingSecureConnection(false);
         setBoardLoading(false);
-      }
+      },
+      {
+        onRetryAttempt: () => {
+          setBoardRetryingSecureConnection(true);
+          setBoardLoading(true);
+          setBoardError(null);
+        },
+      },
     );
     return unsub;
   }, [boardId, user, navigate]);
@@ -373,8 +388,11 @@ export function BoardPage() {
   // ---------------------------------------------------------------------------
   if (boardLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center dark:bg-gray-950">
+      <div className="min-h-screen flex flex-col items-center justify-center gap-3 dark:bg-gray-950">
         <Spinner size="lg" />
+        {boardRetryingSecureConnection && (
+          <p className="text-sm text-gray-500 dark:text-gray-400">Retrying secure connection…</p>
+        )}
       </div>
     );
   }
