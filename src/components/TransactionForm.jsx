@@ -25,8 +25,9 @@ function validate(form) {
   if (!form.type) errors.type = 'יש לבחור סוג עסקה';
   if (!form.essence.trim()) errors.essence = 'שדה חובה';
   const amt = parseFloat(form.amount);
-  if (!form.amount || !Number.isFinite(amt) || amt === 0)
-    errors.amount = 'סכום חייב להיות מספר תקין ושונה מאפס';
+  const AMOUNT_LIMIT = 100000000;
+  if (!form.amount || !Number.isFinite(amt) || amt === 0 || amt <= -AMOUNT_LIMIT || amt >= AMOUNT_LIMIT)
+    errors.amount = 'סכום חייב להיות מספר תקין, שונה מאפס, גדול מ-100,000,000- וקטן מ-100,000,000';
 
   if (form.transactionDate) {
     const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
