@@ -107,9 +107,7 @@ async function getDescendantBoardsData(boardId) {
       result[id] = data;
     }
     const subIds = data.subBoardIds || [];
-    for (const subId of subIds) {
-      await traverse(subId);
-    }
+    await Promise.all(subIds.map((subId) => traverse(subId)));
   }
 
   await traverse(boardId);
