@@ -8,7 +8,8 @@
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "deploy:preview": "powershell -ExecutionPolicy Bypass -File ./scripts/deploy-preview.ps1"
+    "deploy:preview": "powershell -ExecutionPolicy Bypass -File ./scripts/deploy-preview.ps1",
+    "test": "node --test src/firebase/__tests__/*.test.js"
   },
   "dependencies": {
     "firebase": "^12.11.0",

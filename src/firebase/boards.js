@@ -26,9 +26,11 @@ import {
   addDoc,
   deleteDoc,
   getDoc,
+  getDocs,
   query,
   where,
   onSnapshot,
+  documentId,
   serverTimestamp,
   updateDoc,
   arrayUnion,
@@ -36,6 +38,7 @@ import {
 } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { db, functions } from './config';
+import { getVisibleIncomingInvites } from './incomingInvitesFilter';
 
 const boardsRef = () => collection(db, 'boards');
 
@@ -202,7 +205,7 @@ export function subscribeToBoardInvites(boardId, onData, onError) {
  * @param {function} onError - Error callback
  * @returns {function} Unsubscribe function
  */
-export function subscribeToIncomingInvites(email, onData, onError) {
+export function subscribeToIncomingInvites(email, onData, onError, currentUid) {
   const emailLower = email.trim().toLowerCase();
   const q = query(
     collectionGroup(db, 'invites'),
@@ -210,22 +213,25 @@ export function subscribeToIncomingInvites(email, onData, onError) {
   );
   return onSnapshot(
     q,
-    (snap) => {
-      const now = Date.now();
+    async (snap) => {
       const allDocs = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-      const invites = allDocs
-        .filter((inv) => {
-          // A document's existence means it is pending.
-          // Exclude documents that have already expired (expiresAt <= now).
-          // Legacy documents without expiresAt are treated as active.
-          if (!inv.expiresAt) return true;
-          return inv.expiresAt.toMillis() > now;
-        })
-        .sort((a, b) => {
-          const aMs = a.createdAt?.toMillis?.() ?? 0;
-          const bMs = b.createdAt?.toMillis?.() ?? 0;
-          return bMs - aMs;
+      const boardIds = [...new Set(allDocs.map((inv) => inv.boardId).filter(Boolean))];
+
+      const boardsById = {};
+      for (let i = 0; i < boardIds.length; i += 30) {
+        const chunk = boardIds.slice(i, i + 30);
+        const boardsQuery = query(boardsRef(), where(documentId(), 'in', chunk));
+        const boardsSnap = await getDocs(boardsQuery);
+        boardsSnap.forEach((docSnap) => {
+          boardsById[docSnap.id] = docSnap.data();
         });
+      }
+
+      const invites = getVisibleIncomingInvites({
+        invites: allDocs,
+        boardsById,
+        currentUid,
+      });
       onData(invites);
     },
     onError

@@ -30,11 +30,12 @@ export function useIncomingInvites() {
         setInvites([]);
         setError(err?.message || 'שגיאה בטעינת ההזמנות');
         setLoading(false);
-      }
+      },
+      user.uid
     );
 
     return () => unsubscribe();
-  }, [user?.email]);
+  }, [user?.email, user?.uid]);
 
   return { invites, loading, error };
 }
