@@ -41,8 +41,9 @@
 const { onCall, HttpsError } = require('firebase-functions/v2/https');
 const admin = require('firebase-admin');
 const {
-  isAlreadyDirectMember,
-  hasActiveInvite,
+    isAlreadyDirectMember,
+    hasActiveInvite,
+    promoteToDirectMember,
 } = require('./inviteMembership');
 
 admin.initializeApp();
@@ -315,12 +316,19 @@ exports.acceptBoardInvite = onCall(
 
         // 6. Atomically delete the invite document and add UID to board (no duplication)
         tx.delete(inviteRef);
-        // Add to both memberUids (effective access) and directMemberUids (direct membership).
-        // arrayUnion is idempotent, so inherited members are safely promoted to direct.
-        tx.update(boardRef, {
-          memberUids: admin.firestore.FieldValue.arrayUnion(uid),
-          directMemberUids: admin.firestore.FieldValue.arrayUnion(uid),
-        });
+
+        if (Array.isArray(board.directMemberUids)) {
+            // Modern schema: idempotently promote/keep direct membership.
+            tx.update(boardRef, {
+                memberUids: admin.firestore.FieldValue.arrayUnion(uid),
+                directMemberUids: admin.firestore.FieldValue.arrayUnion(uid),
+            });
+        } else {
+            // Legacy schema: directMemberUids missing means all memberUids are direct.
+            // Initialize directMemberUids from current members to preserve legacy semantics.
+            const promoted = promoteToDirectMember(board, uid);
+            tx.update(boardRef, promoted);
+        }
       });
 
       // 7. Cascade inherited access to all descendant boards (outside the transaction
