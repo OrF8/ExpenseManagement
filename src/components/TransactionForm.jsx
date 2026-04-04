@@ -216,22 +216,22 @@ export function TransactionForm({ initial, defaultName, defaultPaymentMethod, on
         )}
       </div>
       <Input
-        label="מהות העסקה"
+        label="שם העסק"
         name="essence"
         value={form.essence}
         onChange={handleChange}
-        placeholder="תאר את העסקה..."
+        placeholder="הזן שם העסק"
         error={errors.essence}
       />
       <div className="flex flex-col gap-1">
         <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-          הערה (אופציונלי)
+          פירוט/הערות (אופציונלי)
         </label>
         <textarea
           name="comment"
           value={form.comment}
           onChange={handleChange}
-          placeholder="הוסף הערה לעסקה..."
+          placeholder="הוסף פירוט או הערות..."
           rows={2}
           className="block w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-200 disabled:bg-gray-50 disabled:text-gray-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:placeholder:text-gray-500 dark:focus:border-indigo-500 dark:focus:ring-indigo-900 resize-none"
         />
