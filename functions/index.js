@@ -40,6 +40,11 @@
 
 const { onCall, HttpsError } = require('firebase-functions/v2/https');
 const admin = require('firebase-admin');
+const {
+    isAlreadyDirectMember,
+    hasActiveInvite,
+    promoteToDirectMember,
+} = require('./inviteMembership');
 
 admin.initializeApp();
 
@@ -138,8 +143,9 @@ exports.createBoardInvite = onCall(
                 throw new HttpsError('permission-denied', 'רק בעל הלוח יכול להזמין משתתפים');
             }
 
-            // Prevent re-inviting users who already have access to this board
-            if ((board.memberUids || []).includes(targetUid)) {
+            // Block only users who are already direct members of this board.
+            // Users with inherited-only access can still be invited/promoted.
+            if (isAlreadyDirectMember(board, targetUid)) {
                 throw new HttpsError('failed-precondition', 'המשתמש כבר חבר בלוח');
             }
 
@@ -147,13 +153,12 @@ exports.createBoardInvite = onCall(
                 invitesRef.where('invitedEmailLower', '==', normalizedEmail).limit(20),
             );
             const now = Date.now();
-            const hasActiveInvite = existingSnap.docs.some((docSnap) => {
-                const existing = docSnap.data();
-                if (!existing.expiresAt) return true; // legacy invite without expiry
-                return existing.expiresAt.toMillis() > now;
-            });
+            const hasActiveInviteForUser = hasActiveInvite(
+                existingSnap.docs.map((docSnap) => docSnap.data()),
+                now,
+            );
 
-            if (hasActiveInvite) {
+            if (hasActiveInviteForUser) {
                 throw new HttpsError('already-exists', 'כבר קיימת הזמנה פתוחה למשתמש זה');
             }
 
@@ -308,17 +313,21 @@ exports.acceptBoardInvite = onCall(
         }
 
         const board = boardSnap.data();
-        const memberUids = board.memberUids || [];
 
         // 6. Atomically delete the invite document and add UID to board (no duplication)
         tx.delete(inviteRef);
 
-        if (!memberUids.includes(uid)) {
-          // Add to both memberUids (effective access) and directMemberUids (direct membership)
-          tx.update(boardRef, {
-            memberUids: admin.firestore.FieldValue.arrayUnion(uid),
-            directMemberUids: admin.firestore.FieldValue.arrayUnion(uid),
-          });
+        if (Array.isArray(board.directMemberUids)) {
+            // Modern schema: idempotently promote/keep direct membership.
+            tx.update(boardRef, {
+                memberUids: admin.firestore.FieldValue.arrayUnion(uid),
+                directMemberUids: admin.firestore.FieldValue.arrayUnion(uid),
+            });
+        } else {
+            // Legacy schema: directMemberUids missing means all memberUids are direct.
+            // Initialize directMemberUids from current members to preserve legacy semantics.
+            const promoted = promoteToDirectMember(board, uid);
+            tx.update(boardRef, promoted);
         }
       });
 

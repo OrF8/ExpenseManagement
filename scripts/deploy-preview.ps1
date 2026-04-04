@@ -44,6 +44,13 @@ function Load-DotEnv {
 $root = Resolve-Path (Join-Path $PSScriptRoot "..")
 Set-Location $root
 
+$firebaseDir = Join-Path $root ".firebase"
+
+if (-not (Test-Path -LiteralPath $firebaseDir)) {
+    Write-Host "Creating .firebase directory at: $firebaseDir"
+    New-Item -ItemType Directory -Path $firebaseDir -Force | Out-Null
+}
+
 Write-Host "Loading .env.preview..."
 Load-DotEnv -Path ".env.preview"
 
@@ -63,7 +70,7 @@ npm ci
 Pop-Location
 
 Write-Host "Deploying Firebase functions..."
-$jsonFunctionsOutputPath = Join-Path $root ".firebase\firebase-functions-output.json"
+$jsonFunctionsOutputPath = Join-Path $firebaseDir "firebase-functions-output.json"
 firebase deploy --only functions `
     --project $env:FIREBASE_PROJECT_ID `
     --json | Out-File -FilePath $jsonFunctionsOutputPath -Encoding utf8
@@ -75,7 +82,7 @@ Write-Host "Building preview..."
 npx vite build --mode preview
 
 Write-Host "Deploying Firebase preview channel: $channelId"
-$jsonPreviewOutputPath = Join-Path $root ".firebase\firebase-preview-output.json"
+$jsonPreviewOutputPath = Join-Path $firebaseDir "firebase-preview-output.json"
 
 firebase hosting:channel:deploy $channelId `
     --project $env:FIREBASE_PROJECT_ID `
