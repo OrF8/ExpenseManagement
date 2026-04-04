@@ -27,8 +27,12 @@ function getDirectMemberUids(board) {
  */
 function buildEffectiveMembershipPlan({nodesById, rootBoardId, uid, rootInheritedAccess}) {
   const plan = [];
+  const visited = new Set();
 
   function visit(boardId, inheritedFromParent) {
+    if (visited.has(boardId)) return;
+    visited.add(boardId);
+
     const board = nodesById[boardId];
     if (!board) return;
 
