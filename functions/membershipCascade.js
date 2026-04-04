@@ -2,17 +2,7 @@
  * Membership cascade helpers for nested boards.
  */
 
-/**
- * Backward-compatible direct members lookup.
- *
- * @param {object} board
- * @returns {string[]}
- */
-function getDirectMemberUids(board) {
-  if (Array.isArray(board?.directMemberUids)) return board.directMemberUids;
-  if (Array.isArray(board?.memberUids)) return board.memberUids;
-  return [];
-}
+const {getDirectMemberUids} = require('./inviteMembership');
 
 /**
  * Computes effective-membership expectations for a subtree after removing a
@@ -60,6 +50,5 @@ function buildEffectiveMembershipPlan({nodesById, rootBoardId, uid, rootInherite
 }
 
 module.exports = {
-  getDirectMemberUids,
   buildEffectiveMembershipPlan,
 };

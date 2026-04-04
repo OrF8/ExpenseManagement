@@ -57,6 +57,7 @@ function hasActiveInvite(invites, now = Date.now()) {
 }
 
 module.exports = {
+  getDirectMemberUids,
   isAlreadyDirectMember,
   promoteToDirectMember,
   hasActiveInvite,

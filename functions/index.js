@@ -86,6 +86,37 @@ async function getDescendantBoardIds(boardId) {
 }
 
 /**
+ * Traverse the subtree rooted at boardId and return a map of boardId → board
+ * data for every descendant (excluding the root itself).  Each board document
+ * is fetched exactly once.  Cycle-safe via a visited Set.
+ *
+ * @param {string} boardId
+ * @returns {Promise<Record<string, object>>}
+ */
+async function getDescendantBoardsData(boardId) {
+  const visited = new Set();
+  const result = {};
+
+  async function traverse(id) {
+    if (visited.has(id)) return;
+    visited.add(id);
+    const snap = await db.collection('boards').doc(id).get();
+    if (!snap.exists) return;
+    const data = snap.data();
+    if (id !== boardId) {
+      result[id] = data;
+    }
+    const subIds = data.subBoardIds || [];
+    for (const subId of subIds) {
+      await traverse(subId);
+    }
+  }
+
+  await traverse(boardId);
+  return result;
+}
+
+/**
  * Returns true when the user still has effective membership on any ancestor of
  * the provided board. Effective membership is read from ancestor memberUids.
  *
@@ -118,17 +149,8 @@ async function hasAncestorEffectiveAccess(parentBoardId, uid) {
  * @returns {Promise<void>}
  */
 async function recalculateEffectiveMembershipAfterDirectRemoval(rootBoardId, uid, rootBoard) {
-  const descendantIds = await getDescendantBoardIds(rootBoardId);
-  const nodesById = {[rootBoardId]: rootBoard};
-
-  const snapshots = await Promise.all(
-      descendantIds.map((id) => db.collection('boards').doc(id).get()),
-  );
-  snapshots.forEach((snap, idx) => {
-    if (snap.exists) {
-      nodesById[descendantIds[idx]] = snap.data();
-    }
-  });
+  const descendantData = await getDescendantBoardsData(rootBoardId);
+  const nodesById = {[rootBoardId]: rootBoard, ...descendantData};
 
   const rootInheritedAccess = await hasAncestorEffectiveAccess(rootBoard.parentBoardId, uid);
   const plan = buildEffectiveMembershipPlan({
