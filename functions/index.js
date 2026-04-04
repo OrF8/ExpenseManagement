@@ -45,6 +45,9 @@ const {
     hasActiveInvite,
     promoteToDirectMember,
 } = require('./inviteMembership');
+const {
+  buildEffectiveMembershipPlan,
+} = require('./membershipCascade');
 
 admin.initializeApp();
 
@@ -80,6 +83,100 @@ async function getDescendantBoardIds(boardId) {
 
   await traverse(boardId);
   return result;
+}
+
+/**
+ * Traverse the subtree rooted at boardId and return a map of boardId → board
+ * data for every descendant (excluding the root itself).  Each board document
+ * is fetched exactly once.  Cycle-safe via a visited Set.
+ *
+ * @param {string} boardId
+ * @returns {Promise<Record<string, object>>}
+ */
+async function getDescendantBoardsData(boardId) {
+  const visited = new Set();
+  const result = {};
+
+  async function traverse(id) {
+    if (visited.has(id)) return;
+    visited.add(id);
+    const snap = await db.collection('boards').doc(id).get();
+    if (!snap.exists) return;
+    const data = snap.data();
+    if (id !== boardId) {
+      result[id] = data;
+    }
+    const subIds = data.subBoardIds || [];
+    await Promise.all(subIds.map((subId) => traverse(subId)));
+  }
+
+  await traverse(boardId);
+  return result;
+}
+
+/**
+ * Returns true when the user still has effective membership on any ancestor of
+ * the provided board. Effective membership is read from ancestor memberUids.
+ *
+ * @param {string|null|undefined} parentBoardId
+ * @param {string} uid
+ * @returns {Promise<boolean>}
+ */
+async function hasAncestorEffectiveAccess(parentBoardId, uid) {
+  let currentParentId = parentBoardId || null;
+  while (currentParentId) {
+    const parentSnap = await db.collection('boards').doc(currentParentId).get();
+    if (!parentSnap.exists) break;
+    const parentData = parentSnap.data();
+    const parentMembers = parentData.memberUids || [];
+    if (parentMembers.includes(uid)) {
+      return true;
+    }
+    currentParentId = parentData.parentBoardId || null;
+  }
+  return false;
+}
+
+/**
+ * Recomputes effective memberUids for a board subtree after direct removal on
+ * the root board, preserving inherited access from remaining ancestor paths.
+ *
+ * @param {string} rootBoardId
+ * @param {string} uid
+ * @param {object} rootBoard
+ * @returns {Promise<void>}
+ */
+async function recalculateEffectiveMembershipAfterDirectRemoval(rootBoardId, uid, rootBoard) {
+  const descendantData = await getDescendantBoardsData(rootBoardId);
+  const nodesById = {[rootBoardId]: rootBoard, ...descendantData};
+
+  const rootInheritedAccess = await hasAncestorEffectiveAccess(rootBoard.parentBoardId, uid);
+  const plan = buildEffectiveMembershipPlan({
+    nodesById,
+    rootBoardId,
+    uid,
+    rootInheritedAccess,
+  });
+
+  const updates = plan
+      .filter((item) => item.shouldHaveEffective !== item.currentlyHasEffective)
+      .map((item) => db.collection('boards').doc(item.id).update({
+        memberUids: item.shouldHaveEffective ?
+          admin.firestore.FieldValue.arrayUnion(uid) :
+          admin.firestore.FieldValue.arrayRemove(uid),
+      }));
+
+  if (updates.length > 0) {
+    const results = await Promise.allSettled(updates);
+    results.forEach((r, i) => {
+      if (r.status === 'rejected') {
+        console.error(
+            `recalculateEffectiveMembershipAfterDirectRemoval: failed update ${i} for ${rootBoardId}:`,
+            r.reason,
+        );
+      }
+    });
+  }
 }
 
 /**
@@ -464,37 +561,12 @@ exports.removeBoardMember = onCall(
         throw new HttpsError('not-found', 'המשתמש אינו חבר בלוח');
       }
 
-      // 6. Remove the member from both memberUids and directMemberUids of this board
+      // 6. Always remove direct membership from this board.
       await boardRef.update({
-        memberUids: admin.firestore.FieldValue.arrayRemove(memberUid),
         directMemberUids: admin.firestore.FieldValue.arrayRemove(memberUid),
       });
-
-      // 7. Cascade: remove inherited access from all descendants,
-      //    but only when the member does NOT have direct access on that descendant.
-      //    Backward compat: if directMemberUids is absent, treat all memberUids as direct.
-      const descendantIds = await getDescendantBoardIds(boardId);
-      if (descendantIds.length > 0) {
-        const results = await Promise.allSettled(
-            descendantIds.map(async (descId) => {
-              const descSnap = await db.collection('boards').doc(descId).get();
-              if (!descSnap.exists) return;
-              const descData = descSnap.data();
-              // Fall back to memberUids when directMemberUids is not yet set (backward compat)
-              const directMembers = descData.directMemberUids ?? descData.memberUids ?? [];
-              if (!directMembers.includes(memberUid)) {
-                await db.collection('boards').doc(descId).update({
-                  memberUids: admin.firestore.FieldValue.arrayRemove(memberUid),
-                });
-              }
-            })
-        );
-        results.forEach((r, i) => {
-          if (r.status === 'rejected') {
-            console.error(`removeBoardMember: failed to cascade removal to descendant ${descendantIds[i]}:`, r.reason);
-          }
-        });
-      }
+      // 7. Recompute effective membership on this board and descendants.
+      await recalculateEffectiveMembershipAfterDirectRemoval(boardId, memberUid, board);
 
       return {success: true};
     }
@@ -550,37 +622,12 @@ exports.leaveBoard = onCall(
         throw new HttpsError('not-found', 'אינך חבר בלוח זה');
       }
 
-      // 5. Remove the caller from both memberUids and directMemberUids of this board
+      // 5. Always remove direct membership from this board.
       await boardRef.update({
-        memberUids: admin.firestore.FieldValue.arrayRemove(callerUid),
         directMemberUids: admin.firestore.FieldValue.arrayRemove(callerUid),
       });
-
-      // 6. Cascade: remove inherited access from all descendants,
-      //    but only when the caller does NOT have direct access on that descendant.
-      //    Backward compat: if directMemberUids is absent, treat all memberUids as direct.
-      const descendantIds = await getDescendantBoardIds(boardId);
-      if (descendantIds.length > 0) {
-        const results = await Promise.allSettled(
-            descendantIds.map(async (descId) => {
-              const descSnap = await db.collection('boards').doc(descId).get();
-              if (!descSnap.exists) return;
-              const descData = descSnap.data();
-              // Fall back to memberUids when directMemberUids is not yet set (backward compat)
-              const directMembers = descData.directMemberUids ?? descData.memberUids ?? [];
-              if (!directMembers.includes(callerUid)) {
-                await db.collection('boards').doc(descId).update({
-                  memberUids: admin.firestore.FieldValue.arrayRemove(callerUid),
-                });
-              }
-            })
-        );
-        results.forEach((r, i) => {
-          if (r.status === 'rejected') {
-            console.error(`leaveBoard: failed to cascade removal to descendant ${descendantIds[i]}:`, r.reason);
-          }
-        });
-      }
+      // 6. Recompute effective membership on this board and descendants.
+      await recalculateEffectiveMembershipAfterDirectRemoval(boardId, callerUid, board);
 
       return {success: true};
     }
