@@ -2,7 +2,7 @@
  * Form for creating or editing a transaction.
  * Validates all fields per requirements.
  */
-import { useState, useMemo } from 'react';
+import { useState } from 'react';
 import { Input } from './ui/Input';
 import { Button } from './ui/Button';
 import { TRANSACTION_TYPE_LABELS } from '../constants/transactionTypes';
@@ -42,10 +42,6 @@ function validate(form) {
         parsed.getDate() !== d
       ) {
         errors.transactionDate = 'תאריך לא תקין';
-      } else {
-        const today = new Date();
-        const todayNorm = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-        if (parsed > todayNorm) errors.transactionDate = 'לא ניתן להזין תאריך עתידי';
       }
     }
   }
@@ -80,6 +76,9 @@ function validate(form) {
  * @param {{type: string, cardLast4?: string}} [defaultPaymentMethod]
  *   Pre-fills just the payment-method fields (type + cardLast4) in create mode,
  *   without triggering edit-mode behaviour (submit button stays "הוסף עסקה").
+ * @param onSubmit - Async function called with validated form data on submit.
+ * @param onCancel - Function called when user cancels the form.
+ * @param submitting - Boolean indicating if the form is currently submitting, to disable inputs and show loading state.
  */
 export function TransactionForm({ initial, defaultName, defaultPaymentMethod, onSubmit, onCancel, submitting }) {
   const [form, setForm] = useState(
@@ -111,13 +110,7 @@ export function TransactionForm({ initial, defaultName, defaultPaymentMethod, on
   const [errors, setErrors] = useState({});
   const [submitError, setSubmitError] = useState(null);
 
-  const todayStr = useMemo(() => {
-    const now = new Date();
-    const y = now.getFullYear();
-    const m = String(now.getMonth() + 1).padStart(2, '0');
-    const d = String(now.getDate()).padStart(2, '0');
-    return `${y}-${m}-${d}`;
-  }, []);
+  const maxDateStr = '9999-12-31';
 
   function handleChange(e) {
     const { name, value } = e.target;
@@ -250,7 +243,7 @@ export function TransactionForm({ initial, defaultName, defaultPaymentMethod, on
         label="תאריך עסקה (אופציונלי)"
         name="transactionDate"
         type="date"
-        max={todayStr}
+        max={maxDateStr}
         value={form.transactionDate}
         onChange={handleChange}
         error={errors.transactionDate}
