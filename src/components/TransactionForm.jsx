@@ -130,6 +130,25 @@ export function TransactionForm({ initial, defaultName, defaultPaymentMethod, on
     }
   }
 
+  function toggleAmountSign() {
+    const rawAmount = form.amount.trim();
+    if (!rawAmount) return;
+
+    const parsedAmount = Number(rawAmount);
+    if (!Number.isFinite(parsedAmount) || parsedAmount === 0) return;
+
+    const nextAmount = rawAmount.startsWith('-')
+      ? rawAmount.slice(1)
+      : `-${rawAmount}`;
+
+    setForm((current) => ({ ...current, amount: nextAmount }));
+    if (errors.amount) {
+      setErrors((current) => ({ ...current, amount: undefined }));
+    }
+  }
+
+  const amountToggleLabel = form.amount.trim().startsWith('-') ? '−' : '+';
+
   async function handleSubmit(e) {
     e.preventDefault();
     const errs = validate(form);
@@ -229,16 +248,47 @@ export function TransactionForm({ initial, defaultName, defaultPaymentMethod, on
           className="block w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-200 disabled:bg-gray-50 disabled:text-gray-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:placeholder:text-gray-500 dark:focus:border-indigo-500 dark:focus:ring-indigo-900 resize-none"
         />
       </div>
-      <Input
-        label="סכום (₪)"
-        name="amount"
-        type="number"
-        step="0.01"
-        value={form.amount}
-        onChange={handleChange}
-        placeholder="0.00"
-        error={errors.amount}
-      />
+      <div className="flex flex-col gap-1">
+        <label htmlFor="transaction-amount" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+          סכום (₪)
+        </label>
+        <div dir="ltr" className="flex items-stretch gap-2">
+          <button
+            type="button"
+            aria-label="החלף סימן סכום"
+            onClick={toggleAmountSign}
+            className="inline-flex min-h-10 min-w-10 items-center justify-center rounded-lg border border-gray-200 bg-white px-3 text-base font-medium text-gray-700 transition-colors hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-200 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:hover:bg-gray-700 dark:focus:ring-indigo-900"
+          >
+            {amountToggleLabel}
+          </button>
+          <input
+            id="transaction-amount"
+            name="amount"
+            type="number"
+            step="0.01"
+            value={form.amount}
+            onChange={handleChange}
+            placeholder="0.00"
+            aria-invalid={errors.amount ? 'true' : undefined}
+            aria-describedby={errors.amount ? 'transaction-amount-error' : undefined}
+            className={`
+              block w-full rounded-lg border border-gray-200 bg-white
+              px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400
+              focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-200
+              disabled:bg-gray-50 disabled:text-gray-500
+              dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:placeholder:text-gray-500
+              dark:focus:border-indigo-500 dark:focus:ring-indigo-900
+              dark:disabled:bg-gray-900 dark:disabled:text-gray-600
+              ${errors.amount ? 'border-red-400 focus:border-red-400 focus:ring-red-200 dark:border-red-600 dark:focus:border-red-500 dark:focus:ring-red-900' : ''}
+            `}
+          />
+        </div>
+        {errors.amount && (
+          <p id="transaction-amount-error" className="text-xs text-red-500 dark:text-red-400" role="alert">
+            {errors.amount}
+          </p>
+        )}
+      </div>
       <Input
         label="תאריך עסקה (אופציונלי)"
         name="transactionDate"
