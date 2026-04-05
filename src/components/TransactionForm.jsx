@@ -147,7 +147,7 @@ export function TransactionForm({ initial, defaultName, defaultPaymentMethod, on
     }
   }
 
-  const amountToggleLabel = Number(form.amount) < 0 ? '−' : '+';
+  const amountToggleLabel = form.amount.trim().startsWith('-') ? '−' : '+';
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -252,7 +252,7 @@ export function TransactionForm({ initial, defaultName, defaultPaymentMethod, on
         <label htmlFor="transaction-amount" className="text-sm font-medium text-gray-700 dark:text-gray-300">
           סכום (₪)
         </label>
-        <div className="flex items-stretch gap-2">
+        <div dir="ltr" className="flex items-stretch gap-2">
           <button
             type="button"
             aria-label="Toggle sign"
