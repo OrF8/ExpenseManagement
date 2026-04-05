@@ -255,7 +255,7 @@ export function TransactionForm({ initial, defaultName, defaultPaymentMethod, on
         <div dir="ltr" className="flex items-stretch gap-2">
           <button
             type="button"
-            aria-label="Toggle sign"
+            aria-label="החלף סימן סכום"
             onClick={toggleAmountSign}
             className="inline-flex min-h-10 min-w-10 items-center justify-center rounded-lg border border-gray-200 bg-white px-3 text-base font-medium text-gray-700 transition-colors hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-200 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:hover:bg-gray-700 dark:focus:ring-indigo-900"
           >
