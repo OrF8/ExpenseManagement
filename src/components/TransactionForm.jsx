@@ -78,7 +78,7 @@ function validate(form) {
  *   without triggering edit-mode behaviour (submit button stays "הוסף עסקה").
  * @param onSubmit - Async function called with validated form data on submit.
  * @param onCancel - Function called when user cancels the form.
- * @param submitting - Boolean indicating if the form is currently submitting, to disable inputs and show loading state.
+ * @param submitting - Boolean indicating if the form is currently submitting, used to show loading state on the submit action.
  */
 export function TransactionForm({ initial, defaultName, defaultPaymentMethod, onSubmit, onCancel, submitting }) {
   const [form, setForm] = useState(
