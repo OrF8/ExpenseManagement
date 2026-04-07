@@ -126,8 +126,10 @@ export function exportBoardToExcel({ boardName, worksheets }) {
     let sheetName = baseSheetName;
     let suffix = 1;
     while (usedSheetNames.has(sheetName)) {
-      const candidate = `${baseSheetName.slice(0, 28)}_${suffix}`;
-      sheetName = sanitizeWorksheetName(candidate, `Sheet_${suffix}`);
+      const suffixText = `_${suffix}`;
+      const maxBaseLength = Math.max(0, 31 - suffixText.length);
+      const candidate = `${baseSheetName.slice(0, maxBaseLength)}${suffixText}`;
+      sheetName = sanitizeWorksheetName(candidate, `Sheet${suffixText}`);
       suffix += 1;
     }
     usedSheetNames.add(sheetName);
