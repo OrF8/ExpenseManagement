@@ -1,17 +1,14 @@
 # Expense Management
 
-Expense Management is a real-time collaborative web app for managing shared expenses in Hebrew (RTL).
-It is designed for families, roommates, and partners who need one reliable place to track spending, collaborators,
-and board hierarchies without exposing broad user data.
+Expense Management is a Firebase + React web app for collaborative expense tracking, with a Hebrew RTL UI.
+It supports shared boards, one-level board hierarchies ("super boards" with sub-boards), invites, and Excel export.
 
-The project combines a React frontend with Firebase Authentication, Firestore, Hosting, and callable Cloud Functions.
-Invite, collaborator, and account management flows are implemented server-side to preserve a least-privilege security model.
-
-🌐 **[Try the live app →](https://of8-expense-management.web.app/)**
+🌐 **Live app:** https://of8-expense-management.web.app/
 
 <p align="center">
   <img src="https://img.shields.io/badge/License-MIT-yellow.svg?logo=opensourceinitiative" alt="License: MIT">
   <img src="https://img.shields.io/github/languages/top/OrF8/ExpenseManagement?style=default&logo=javascript&color=F7DF1E" alt="top-language">
+  <img src="https://img.shields.io/badge/Release-v1.1.0-4c1?style=flat" alt="Release v1.1.0">
 </p>
 <p align="center">
   <img src="https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=white" alt="react">
@@ -23,41 +20,84 @@ Invite, collaborator, and account management flows are implemented server-side t
 ## Table of Contents
 
 - [Overview](#overview)
-- [Key Features](#key-features)
-- [Tech Stack & Architecture](#tech-stack--architecture)
+- [Features](#Features)
+- [Boards vs. Super Boards](#boards-vs-super-boards)
+- [Access Model (Direct vs. Inherited)](#access-model-direct-vs-inherited)
+- [Invitation Flow](#invitation-flow)
+- [Architecture](#architecture)
 - [Project Structure](#project-structure)
-- [Getting Started](#getting-started)
-  - [Prerequisites](#prerequisites)
-  - [Installation](#installation)
-  - [Environment Configuration](#environment-configuration)
-  - [Run Locally](#run-locally)
+- [Setup](#setup)
+- [Development](#development)
 - [Deployment](#deployment)
-- [Security Notes](#security-notes)
+- [Security & Privacy Notes](#security--privacy-notes)
+- [Release Status](#release-status)
 - [License](#license)
 
 ## Overview
 
-The app centers around collaborative boards. Each board contains transactions, collaborators, and optional sub-boards.
-Members see real-time updates, while ownership and membership operations are enforced by Firestore rules and Cloud Functions.
+The app is designed for small groups (families, roommates, partners) who manage shared spending.
+Each board has members, transactions, and optional hierarchy relationships.
+Data is stored in Firestore and updates in real time.
 
-## Key Features
+## Features
 
-- Firebase Auth (email/password + Google)
-- Shared expense boards with real-time transaction updates
-- Board hierarchy (parent/sub-board relationships)
-- Installment-aware credit-card tracking
-- Email-based invite flow (create/accept/decline/revoke)
-- Owner/member management (remove member, leave board)
-- Account deletion with server-side data cleanup
-- Hebrew RTL interface with light/dark theme
+- **Authentication:** Email/password and Google sign-in.
+- **Boards:** Create, rename, delete, and view shared boards.
+- **Super boards:** Group regular boards under one parent board (one-level hierarchy).
+- **Invitations:** Board owners can invite by email; invitees can accept or decline.
+- **Membership model:**
+  - `directMemberUids`: explicitly invited to a board.
+  - `memberUids`: effective access (direct + inherited from parent board).
+- **Inherited access:** Membership flows **down** from a super board to its sub-boards.
+- **Transactions:** Create, edit, and delete transactions on regular boards.
+- **Amounts:** Positive and negative amounts are supported (useful for refunds/credits).
+- **Future dates:** Optional `transactionDate` accepts valid `YYYY-MM-DD` dates, including future dates.
+- **Excel export:**
+  - Regular board: single worksheet export.
+  - Super board: multi-sheet export (one sheet per sub-board) + optional summary sheet.
+- **Account management:** Update nickname, sign out, and delete account (with server-side cleanup).
 
-## Tech Stack & Architecture
+## Boards vs. Super Boards
 
-- **Frontend:** React 19, Vite 8, React Router 7, Tailwind CSS 4
-- **Backend:** Firebase Cloud Functions (Node.js 22)
-- **Data/Auth:** Firestore + Firebase Authentication
-- **Hosting:** Firebase Hosting
-- **Security:** Firestore rules + App Check enforcement on callable functions
+- **Regular board:** A board without `subBoardIds`; it contains transactions directly.
+- **Super board:** A board with one or more `subBoardIds`; it aggregates totals from sub-boards and does not show a transaction-entry view.
+- **Sub-board:** A board with `parentBoardId` set.
+
+Hierarchy is intentionally **one level**:
+- A board can be top-level, or a child of one parent board.
+- A sub-board cannot itself have sub-boards.
+
+## Access Model (Direct vs. Inherited)
+
+This project uses two membership fields:
+
+- `directMemberUids` = users directly added to that board.
+- `memberUids` = users with effective access to that board.
+
+Behavior:
+- Direct membership on a super board grants inherited access to descendant sub-boards.
+- Direct membership on a sub-board does **not** grant access to its parent.
+- Removing a direct member cascades membership recalculation through descendants.
+
+## Invitation Flow
+
+1. Board owner sends an invite by email.
+2. Invite document is created under `boards/{boardId}/invites`.
+3. Invitee sees incoming invites and can accept/decline.
+4. Accepting adds membership and deletes the invite.
+5. Declining deletes the invite.
+
+Notes:
+- Invites include `expiresAt` and are treated as pending while the document exists.
+- Functions enforce ownership/auth checks before invite and membership mutations.
+
+## Architecture
+
+- **Frontend:** React 19 + Vite 8 + React Router 7 + Tailwind CSS 4.
+- **Backend:** Firebase Cloud Functions (Node.js 22 runtime).
+- **Data/Auth:** Firestore + Firebase Authentication.
+- **Hosting:** Firebase Hosting.
+- **Security controls:** Firestore Security Rules, App Check integration in the client, and callable functions with `enforceAppCheck: true`.
 
 ## Project Structure
 
@@ -75,15 +115,20 @@ ExpenseManagement/
 └── .github/workflows/   # Deploy + CodeQL workflows
 ```
 
-## Getting Started
+## Setup
 
 ### Prerequisites
 
-- Node.js 22+
+- Node.js 22+ (recommended for local dev, including functions)
 - npm
-- Firebase project with Authentication, Firestore, Hosting, and Functions enabled
+- Firebase project with:
+  - Authentication
+  - Cloud Firestore
+  - Cloud Functions
+  - Hosting
+  - App Check (recommended/enabled for production)
 
-### Installation
+### Install
 
 ```bash
 git clone https://github.com/OrF8/ExpenseManagement.git
@@ -92,15 +137,15 @@ npm ci
 npm --prefix functions ci
 ```
 
-### Environment Configuration
+### Environment Variables
 
-Create `.env` from `.env.example` and fill your Firebase values.
+Copy `.env.example` to `.env`:
 
 ```bash
 cp .env.example .env
 ```
 
-Required frontend variables:
+Required variables:
 
 - `VITE_FIREBASE_API_KEY`
 - `VITE_FIREBASE_AUTH_DOMAIN`
@@ -110,63 +155,103 @@ Required frontend variables:
 - `VITE_FIREBASE_APP_ID`
 - `VITE_RECAPTCHA_V3_SITE_KEY`
 
-#### Optional: Preview deployment configuration (`.env.preview`)
-For preview deployments using the PowerShell script (`npm run deploy:preview -- -PrNumber pr_num`),
-create a `.env.preview` file with the same Firebase variables as `.env`,
-with two optional variables (if you want to enable App Check debug mode for the preview channel):
-- `VITE_APPCHECK_DEBUG=true`
-- `VITE_APPCHECK_DEBUG_TOKEN=your_app_check_debug_token_here`
-
-Another variable is `FIREBASE_PROJECT_ID`. This should be set to the same
-project as `.env` if you want to deploy to a preview channel in the same project,
-or it can be set to a different project ID if you want to deploy the preview channel to a separate Firebase project.
-
-This allows you to deploy a Firebase Hosting preview channel separately from your main environment.
+Optional preview deployment file:
 
 ```bash
 cp .env.preview.example .env.preview
 ```
 
-This is useful for testing changes without affecting the live app.
+Additional preview variables:
 
-### Run Locally
+- `VITE_APPCHECK_DEBUG` (optional)
+- `VITE_APPCHECK_DEBUG_TOKEN` (optional)
+- `FIREBASE_PROJECT_ID` (required for preview deploy script)
+
+## Development
+
+### Run locally
 
 ```bash
 npm run dev
 ```
 
-App URL: `http://localhost:5173`
+Vite dev server: `http://localhost:5173`
 
-Production build preview:
+### Production build preview
 
 ```bash
 npm run build
 npm run preview
 ```
 
-App URL: `http://localhost:4173`
+Preview server: `http://localhost:4173`
+
+### Linting
+
+- Frontend linting is configured via ESLint:
+
+```bash
+npm run lint
+```
+
+- Functions package currently has a placeholder lint script (`Skipping lint`).
 
 ## Deployment
 
-Main deployment is automated through GitHub Actions (`.github/workflows/deploy.yml`) using
-**Google Workload Identity Federation** (OIDC) with a deploy service account.
+### CI/CD (main branch)
 
-Typical manual deploy commands (**after** building with `npm run build`):
+GitHub Actions workflow `.github/workflows/deploy.yml`:
+- builds the frontend,
+- deploys **Functions + Hosting** to Firebase,
+- authenticates with Google via Workload Identity Federation (OIDC).
+
+### Manual deploy
 
 ```bash
-firebase deploy --only firestore:rules --project <project-id>
+npm run build
 firebase deploy --only functions,hosting --project <project-id>
 ```
 
-The repo also includes a PowerShell preview script (`npm run deploy:preview -- -PrNumber pr_num`) that deploys functions and a hosting preview channel using `.env.preview`.
+To deploy Firestore rules explicitly:
 
-## Security Notes
+```bash
+firebase deploy --only firestore:rules --project <project-id>
+```
 
-- Firestore access is scoped to board membership and document ownership; `/users/{uid}` is owner-readable and owner-writable only.
-- Invite creation, acceptance, declination, revocation, member removal, and account deletion are all implemented as callable Cloud Functions to ensure server-side validation and least-privilege access.
-- Callable functions enforce App Check (`enforceAppCheck: true`), and Hosting serves strict security headers (including CSP, X-Frame-Options, and Referrer-Policy).
-- App Check is also enforced on Firestore and authentication operations to prevent abuse from unauthorized clients.
-- Invite queries use collection-group access constrained by authenticated email match in Firestore rules.
+### Preview deployment script
+
+A PowerShell script is provided for preview channels:
+
+```bash
+npm run deploy:preview -- -PrNumber <pr-number>
+```
+
+This script:
+- loads `.env.preview`,
+- deploys functions,
+- builds with `--mode preview`,
+- deploys a Firebase Hosting preview channel.
+
+## Security & Privacy Notes
+
+- Firestore rules restrict board reads/writes to authorized users and owners by role.
+- Invite and membership mutations are handled through callable functions instead of broad client-side user reads.
+- Callable functions are configured with App Check enforcement.
+- Account deletion is handled server-side to remove owned data and membership links.
+- This is a collaborative app: data shared to a board is visible to that board’s members.
+
+For vulnerability reporting, see [SECURITY.md](./SECURITY.md).
+
+## Release Status
+
+Current release target: **v1.1.0**.
+
+Notable release focus:
+- hierarchy-aware collaboration,
+- Excel export improvements (including super-board multi-sheet export),
+- documentation refresh and version alignment.
+
+See [CHANGELOG.md](./CHANGELOG.md) for release notes.
 
 ## License
 

@@ -2,53 +2,54 @@
 
 ## Supported Versions
 
-This project is currently in early development. Only the latest version is supported with security updates.
+Security fixes are provided for the latest minor line only.
 
-| Version  | Supported          |
-| -------- | ------------------ |
-| 1.0.x    | :white_check_mark: |
-| < 1.0.0  | :x:                |
+| Version | Supported |
+| --- | --- |
+| 1.1.x | ✅ |
+| 1.0.x | ❌ |
+| < 1.0.0 | ❌ |
 
-We strongly recommend always using the latest version of the application.
-
----
+If you run a self-hosted deployment, upgrade to the latest `1.1.x` patch release as soon as practical.
 
 ## Reporting a Vulnerability
 
-If you discover a security vulnerability, please report it responsibly.
+Please report vulnerabilities **privately**.
 
-### 📬 How to report
-- Open a **private security advisory** on GitHub (preferred), or
-- Contact the maintainer directly via GitHub, or
+### Preferred reporting channel
+
+Use GitHub’s private vulnerability reporting for this repository:
+
+- Open a private report via the repository’s **Security** tab ("Report a vulnerability").
+- If private reporting is not enabled in your view, open a GitHub Security Advisory draft for the repository maintainers.
+
+Do **not** open a public issue for suspected vulnerabilities.
+
+#### Other reporting channels
+
+- Contact the maintainer directly via GitHub
 - Contact us via email [expensemanagementwebsite@gmail.com](mailto:expensemanagementwebsite@gmail.com)
 
-Please include:
-- A clear description of the vulnerability
-- Steps to reproduce the issue
-- Potential impact
-- Suggested fixes (if available)
 
-### ⏱️ Response timeline
-- Initial response: within **48–72 hours**
-- Status update: within **5–7 days**
+### What to include
 
-### 🔒 Responsible disclosure
-Please **do not publicly disclose** the vulnerability until it has been reviewed and addressed.
+Please include as much detail as possible:
 
-### ✅ What to expect
-- If the vulnerability is accepted:
-  - It will be fixed as soon as possible
-  - A patched version will be released
-- If declined:
-  - You will receive an explanation
+- Affected area (frontend, Firestore rules, Cloud Functions, deployment config, etc.)
+- Steps to reproduce
+- Expected vs. actual behavior
+- Impact assessment (confidentiality / integrity / availability)
+- Proof-of-concept details, logs, or screenshots (if safe to share)
+- Suggested remediation (optional)
 
----
+### Disclosure expectations
 
-## Additional Notes
+- Please do not publicly disclose the issue before a fix is available.
+- Maintainers will acknowledge reports and triage based on severity and reproducibility.
+- Resolution timelines vary by complexity and maintainer availability.
+- When a report is confirmed, the fix will be shipped in a supported release line.
 
-This project uses:
-- Firebase (Firestore, Authentication, Hosting)
+## Scope Notes
 
-While Firebase provides strong security features, proper configuration (e.g., Firestore rules, API restrictions) is critical. Misconfiguration may lead to vulnerabilities.
-
-If your report relates to Firebase configuration, please include relevant details.
+This project relies on Firebase services (Authentication, Firestore, Functions, Hosting).
+Configuration issues can be security-sensitive; include relevant Firebase project and rule/function context in reports.

@@ -4,37 +4,52 @@ import { useAuth } from '../context/AuthContext';
 
 export function useIncomingInvites() {
   const { user } = useAuth();
-  const [invites, setInvites] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const email = user?.email ?? null;
+  const [state, setState] = useState({
+    invites: [],
+    error: null,
+    forEmail: null,
+    forUser: null,
+  });
 
   useEffect(() => {
-    if (!user?.email) {
-      setInvites([]);
-      setLoading(false);
-      setError(null);
-      return;
-    }
-
-    setLoading(true);
-    setError(null);
+    if (!email) return;
 
     const unsubscribe = subscribeToIncomingInvites(
-      user.email,
+      email,
       (data) => {
-        setInvites(data);
-        setError(null);
-        setLoading(false);
+        setState({
+          invites: data,
+          error: null,
+          forEmail: email,
+          forUser: user,
+        });
       },
       (err) => {
-        setInvites([]);
-        setError(err?.message || 'שגיאה בטעינת ההזמנות');
-        setLoading(false);
-      }
+        setState({
+          invites: [],
+          error: err?.message || 'שגיאה בטעינת ההזמנות',
+          forEmail: email,
+          forUser: user,
+        });
+      },
     );
 
     return () => unsubscribe();
-  }, [user?.email]);
+  }, [email, user]);
 
-  return { invites, loading, error };
+  if (!email) {
+    return {
+      invites: [],
+      loading: false,
+      error: null,
+    };
+  }
+
+  const loading = state.forEmail !== email || state.forUser !== user;
+  return {
+    invites: loading ? [] : state.invites,
+    loading,
+    error: loading ? null : state.error,
+  };
 }

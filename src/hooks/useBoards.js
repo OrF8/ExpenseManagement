@@ -5,49 +5,71 @@ import { subscribeWithAppCheckRetry } from '../utils/appCheckRetry';
 
 export function useBoards() {
   const { user } = useAuth();
-  const [boards, setBoards] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [retryingSecureConnection, setRetryingSecureConnection] = useState(false);
+  const uid = user?.uid ?? null;
+  const [state, setState] = useState({
+    boards: [],
+    error: null,
+    retryingSecureConnection: false,
+    forUid: null,
+    forUser: null,
+    retryingForUser: null,
+  });
 
   useEffect(() => {
-    if (!user?.uid) {
-      setBoards([]);
-      setLoading(false);
-      setError(null);
-      setRetryingSecureConnection(false);
-      return;
-    }
-
-    setLoading(true);
-    setError(null);
-    setRetryingSecureConnection(false);
+    if (!uid) return;
 
     const unsubscribe = subscribeWithAppCheckRetry(
-      (onData, onError) => subscribeToBoards(user.uid, onData, onError),
+      (onData, onError) => subscribeToBoards(uid, onData, onError),
       (data) => {
-        setBoards(data);
-        setError(null);
-        setRetryingSecureConnection(false);
-        setLoading(false);
+        setState({
+          boards: data,
+          error: null,
+          retryingSecureConnection: false,
+          forUid: uid,
+          forUser: user,
+          retryingForUser: null,
+        });
       },
       (err) => {
-        setBoards([]);
-        setError(err?.message || 'שגיאה בטעינת הלוחות');
-        setRetryingSecureConnection(false);
-        setLoading(false);
+        setState({
+          boards: [],
+          error: err?.message || 'שגיאה בטעינת הלוחות',
+          retryingSecureConnection: false,
+          forUid: uid,
+          forUser: user,
+          retryingForUser: null,
+        });
       },
       {
         onRetryAttempt: () => {
-          setRetryingSecureConnection(true);
-          setLoading(true);
-          setError(null);
+          setState((prev) => ({
+            ...prev,
+            retryingSecureConnection: true,
+            error: null,
+            retryingForUser: user,
+          }));
         },
       },
     );
 
     return () => unsubscribe();
-  }, [user?.uid]);
+  }, [uid, user]);
 
-  return { boards, loading, error, retryingSecureConnection };
+  if (!uid) {
+    return {
+      boards: [],
+      loading: false,
+      error: null,
+      retryingSecureConnection: false,
+    };
+  }
+
+  const loading = state.forUid !== uid || state.forUser !== user;
+  return {
+    boards: loading ? [] : state.boards,
+    loading,
+    error: loading ? null : state.error,
+    retryingSecureConnection:
+      state.retryingSecureConnection && state.retryingForUser === user,
+  };
 }
