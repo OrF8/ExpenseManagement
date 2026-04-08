@@ -271,7 +271,7 @@ export function BoardPage() {
         b.id !== boardId &&
         isMergeValid(boardId, b.id, allBoards),
     );
-  }, [isOwner, board, allBoards, boardId, user?.uid]);
+  }, [isOwner, board, isSuperBoard, isSubBoard, allBoards, boardId, user?.uid]);
 
   async function handleMoveUnder(parentId) {
     const parent = allBoards.find((b) => b.id === parentId);
