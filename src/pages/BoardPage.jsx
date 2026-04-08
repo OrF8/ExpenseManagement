@@ -401,12 +401,13 @@ export function BoardPage() {
             };
           }),
         );
-        exportBoardToExcel({
+        await exportBoardToExcel({
           boardName: board.title,
           worksheets: subBoardSheets,
+          includeSummarySheet: true,
         });
       } else {
-        exportBoardToExcel({
+        await exportBoardToExcel({
           boardName: board.title,
           worksheets: [
             {
