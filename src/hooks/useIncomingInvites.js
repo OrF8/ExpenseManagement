@@ -5,7 +5,6 @@ import { useAuth } from '../context/AuthContext';
 export function useIncomingInvites() {
   const { user } = useAuth();
   const email = user?.email ?? null;
-
   const [state, setState] = useState({
     invites: [],
     error: null,
@@ -18,7 +17,11 @@ export function useIncomingInvites() {
     const unsubscribe = subscribeToIncomingInvites(
       email,
       (data) => {
-        setState({ invites: data, error: null, forEmail: email });
+        setState({
+          invites: data,
+          error: null,
+          forEmail: email,
+        });
       },
       (err) => {
         setState({
@@ -29,7 +32,14 @@ export function useIncomingInvites() {
       },
     );
 
-    return () => unsubscribe();
+    return () => {
+      unsubscribe();
+      setState({
+        invites: [],
+        error: null,
+        forEmail: null,
+      });
+    };
   }, [email]);
 
   if (!email) {
@@ -44,6 +54,6 @@ export function useIncomingInvites() {
   return {
     invites: loading ? [] : state.invites,
     loading,
-    error: state.error,
+    error: loading ? null : state.error,
   };
 }

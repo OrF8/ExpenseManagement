@@ -6,7 +6,6 @@ import { subscribeWithAppCheckRetry } from '../utils/appCheckRetry';
 export function useBoards() {
   const { user } = useAuth();
   const uid = user?.uid ?? null;
-
   const [state, setState] = useState({
     boards: [],
     error: null,
@@ -46,7 +45,15 @@ export function useBoards() {
       },
     );
 
-    return () => unsubscribe();
+    return () => {
+      unsubscribe();
+      setState({
+        boards: [],
+        error: null,
+        retryingSecureConnection: false,
+        forUid: null,
+      });
+    };
   }, [uid]);
 
   if (!uid) {
@@ -62,7 +69,7 @@ export function useBoards() {
   return {
     boards: loading ? [] : state.boards,
     loading,
-    error: state.error,
-    retryingSecureConnection: state.retryingSecureConnection,
+    error: loading ? null : state.error,
+    retryingSecureConnection: loading ? false : state.retryingSecureConnection,
   };
 }
