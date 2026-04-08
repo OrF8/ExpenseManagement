@@ -9,6 +9,7 @@ export function useIncomingInvites() {
     invites: [],
     error: null,
     forEmail: null,
+    forUser: null,
   });
 
   useEffect(() => {
@@ -21,6 +22,7 @@ export function useIncomingInvites() {
           invites: data,
           error: null,
           forEmail: email,
+          forUser: user,
         });
       },
       (err) => {
@@ -28,19 +30,13 @@ export function useIncomingInvites() {
           invites: [],
           error: err?.message || 'שגיאה בטעינת ההזמנות',
           forEmail: email,
+          forUser: user,
         });
       },
     );
 
-    return () => {
-      unsubscribe();
-      setState({
-        invites: [],
-        error: null,
-        forEmail: null,
-      });
-    };
-  }, [email]);
+    return () => unsubscribe();
+  }, [email, user]);
 
   if (!email) {
     return {
@@ -50,7 +46,7 @@ export function useIncomingInvites() {
     };
   }
 
-  const loading = state.forEmail !== email;
+  const loading = state.forEmail !== email || state.forUser !== user;
   return {
     invites: loading ? [] : state.invites,
     loading,

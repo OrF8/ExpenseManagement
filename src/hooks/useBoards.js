@@ -11,6 +11,8 @@ export function useBoards() {
     error: null,
     retryingSecureConnection: false,
     forUid: null,
+    forUser: null,
+    retryingForUser: null,
   });
 
   useEffect(() => {
@@ -24,6 +26,8 @@ export function useBoards() {
           error: null,
           retryingSecureConnection: false,
           forUid: uid,
+          forUser: user,
+          retryingForUser: null,
         });
       },
       (err) => {
@@ -32,6 +36,8 @@ export function useBoards() {
           error: err?.message || 'שגיאה בטעינת הלוחות',
           retryingSecureConnection: false,
           forUid: uid,
+          forUser: user,
+          retryingForUser: null,
         });
       },
       {
@@ -40,21 +46,14 @@ export function useBoards() {
             ...prev,
             retryingSecureConnection: true,
             error: null,
+            retryingForUser: user,
           }));
         },
       },
     );
 
-    return () => {
-      unsubscribe();
-      setState({
-        boards: [],
-        error: null,
-        retryingSecureConnection: false,
-        forUid: null,
-      });
-    };
-  }, [uid]);
+    return () => unsubscribe();
+  }, [uid, user]);
 
   if (!uid) {
     return {
@@ -65,11 +64,12 @@ export function useBoards() {
     };
   }
 
-  const loading = state.forUid !== uid;
+  const loading = state.forUid !== uid || state.forUser !== user;
   return {
     boards: loading ? [] : state.boards,
     loading,
     error: loading ? null : state.error,
-    retryingSecureConnection: loading ? false : state.retryingSecureConnection,
+    retryingSecureConnection:
+      state.retryingSecureConnection && state.retryingForUser === user,
   };
 }
