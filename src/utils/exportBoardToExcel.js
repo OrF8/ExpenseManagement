@@ -258,8 +258,6 @@ function buildSummarySheet(workbook, usedSheetNames, worksheets) {
   worksheet.columns = summaryColumns;
   worksheet.views = [{ state: 'frozen', ySplit: 1, rightToLeft: true }];
 
-  worksheet.addRow(summaryColumns.map((column) => column.header));
-
   worksheets.forEach(({ name, transactions = [] }) => {
     const stats = transactions.reduce(
       (acc, tx) => {
