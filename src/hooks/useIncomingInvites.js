@@ -5,11 +5,11 @@ import { useAuth } from '../context/AuthContext';
 export function useIncomingInvites() {
   const { user } = useAuth();
   const email = user?.email ?? null;
-
   const [state, setState] = useState({
     invites: [],
     error: null,
     forEmail: null,
+    forUser: null,
   });
 
   useEffect(() => {
@@ -18,19 +18,25 @@ export function useIncomingInvites() {
     const unsubscribe = subscribeToIncomingInvites(
       email,
       (data) => {
-        setState({ invites: data, error: null, forEmail: email });
+        setState({
+          invites: data,
+          error: null,
+          forEmail: email,
+          forUser: user,
+        });
       },
       (err) => {
         setState({
           invites: [],
           error: err?.message || 'שגיאה בטעינת ההזמנות',
           forEmail: email,
+          forUser: user,
         });
       },
     );
 
     return () => unsubscribe();
-  }, [email]);
+  }, [email, user]);
 
   if (!email) {
     return {
@@ -40,10 +46,10 @@ export function useIncomingInvites() {
     };
   }
 
-  const loading = state.forEmail !== email;
+  const loading = state.forEmail !== email || state.forUser !== user;
   return {
     invites: loading ? [] : state.invites,
     loading,
-    error: state.error,
+    error: loading ? null : state.error,
   };
 }

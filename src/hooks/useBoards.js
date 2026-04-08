@@ -6,12 +6,13 @@ import { subscribeWithAppCheckRetry } from '../utils/appCheckRetry';
 export function useBoards() {
   const { user } = useAuth();
   const uid = user?.uid ?? null;
-
   const [state, setState] = useState({
     boards: [],
     error: null,
     retryingSecureConnection: false,
     forUid: null,
+    forUser: null,
+    retryingForUser: null,
   });
 
   useEffect(() => {
@@ -25,6 +26,8 @@ export function useBoards() {
           error: null,
           retryingSecureConnection: false,
           forUid: uid,
+          forUser: user,
+          retryingForUser: null,
         });
       },
       (err) => {
@@ -33,6 +36,8 @@ export function useBoards() {
           error: err?.message || 'שגיאה בטעינת הלוחות',
           retryingSecureConnection: false,
           forUid: uid,
+          forUser: user,
+          retryingForUser: null,
         });
       },
       {
@@ -41,13 +46,14 @@ export function useBoards() {
             ...prev,
             retryingSecureConnection: true,
             error: null,
+            retryingForUser: user,
           }));
         },
       },
     );
 
     return () => unsubscribe();
-  }, [uid]);
+  }, [uid, user]);
 
   if (!uid) {
     return {
@@ -58,11 +64,12 @@ export function useBoards() {
     };
   }
 
-  const loading = state.forUid !== uid;
+  const loading = state.forUid !== uid || state.forUser !== user;
   return {
     boards: loading ? [] : state.boards,
     loading,
-    error: state.error,
-    retryingSecureConnection: state.retryingSecureConnection,
+    error: loading ? null : state.error,
+    retryingSecureConnection:
+      state.retryingSecureConnection && state.retryingForUser === user,
   };
 }
