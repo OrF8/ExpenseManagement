@@ -50,7 +50,7 @@ function parseDateValue(value) {
   }
 
   const [year, month, day] = normalized.split('-').map(Number);
-  const parsed = new Date(Date.UTC(year, month - 1, day));
+  const parsed = new Date(year, month - 1, day);
   if (
     Number.isNaN(parsed.getTime()) ||
     parsed.getUTCFullYear() !== year ||
