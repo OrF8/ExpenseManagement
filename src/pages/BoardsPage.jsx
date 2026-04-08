@@ -610,7 +610,7 @@ export function BoardsPage() {
             label="שם הלוח"
             value={newTitle}
             onChange={(e) => setNewTitle(e.target.value)}
-            placeholder="הוצאות ינואר 2025"
+            placeholder="הוצאות ינואר 2026"
             autoFocus
           />
           {createError && (
