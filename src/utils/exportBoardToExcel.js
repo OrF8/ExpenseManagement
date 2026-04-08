@@ -50,12 +50,12 @@ function parseDateValue(value) {
   }
 
   const [year, month, day] = normalized.split('-').map(Number);
-  const parsed = new Date(year, month - 1, day);
+  const parsed = new Date(Date.UTC(year, month - 1, day));
   if (
     Number.isNaN(parsed.getTime()) ||
-    parsed.getFullYear() !== year ||
-    parsed.getMonth() + 1 !== month ||
-    parsed.getDate() !== day
+    parsed.getUTCFullYear() !== year ||
+    parsed.getUTCMonth() + 1 !== month ||
+    parsed.getUTCDate() !== day
   ) {
     return null;
   }
@@ -190,7 +190,8 @@ function appendFooterRow(worksheet) {
   ]);
 
   const footerRowNumber = footerRow.number;
-  worksheet.mergeCells(footerRowNumber, 1, footerRowNumber, COLUMNS.length);
+  const lastCol = Math.max(worksheet.columnCount || 0, 1);
+  worksheet.mergeCells(footerRowNumber, 1, footerRowNumber, lastCol);
 
   const footerCell = worksheet.getCell(footerRowNumber, 1);
   footerCell.font = {
@@ -326,7 +327,9 @@ function triggerWorkbookDownload(buffer, filename) {
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
-  window.URL.revokeObjectURL(url);
+  window.setTimeout(() => {
+    window.URL.revokeObjectURL(url);
+  }, 0);
 }
 
 export async function exportBoardToExcel({ boardName, worksheets, includeSummarySheet = false }) {
