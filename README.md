@@ -7,8 +7,31 @@ It supports shared boards, one-level board hierarchies ("super boards" with sub-
 
 <p align="center">
   <img src="https://img.shields.io/badge/License-MIT-yellow.svg?logo=opensourceinitiative" alt="License: MIT">
+  <img src="https://img.shields.io/github/languages/top/OrF8/ExpenseManagement?style=default&logo=javascript&color=F7DF1E" alt="top-language">
   <img src="https://img.shields.io/badge/Release-v1.1.0-4c1?style=flat" alt="Release v1.1.0">
 </p>
+<p align="center">
+  <img src="https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=white" alt="react">
+  <img src="https://img.shields.io/badge/Vite-8-646CFF?logo=vite&logoColor=white" alt="vite">
+  <img src="https://img.shields.io/badge/Firebase-12-FFCA28?logo=firebase&logoColor=black" alt="firebase">
+  <img src="https://img.shields.io/badge/Tailwind_CSS-4-06B6D4?logo=tailwindcss&logoColor=white" alt="tailwind">
+</p>
+
+## Table of Contents
+
+- [Overview](#overview)
+- [Features](#Features)
+- [Boards vs. Super Boards](#boards-vs-super-boards)
+- [Access Model (Direct vs. Inherited)](#access-model-direct-vs-inherited)
+- [Invitation Flow](#invitation-flow)
+- [Architecture](#architecture)
+- [Project Structure](#project-structure)
+- [Setup](#setup)
+- [Development](#development)
+- [Deployment](#deployment)
+- [Security & Privacy Notes](#security--privacy-notes)
+- [Release Status](#release-status)
+- [License](#license)
 
 ## Overview
 
@@ -81,16 +104,15 @@ Notes:
 ```text
 ExpenseManagement/
 ├── src/
-│   ├── components/
-│   ├── context/
-│   ├── firebase/
-│   ├── hooks/
-│   ├── pages/
-│   └── utils/
-├── functions/
-├── firestore.rules
-├── firebase.json
-└── .github/workflows/
+│   ├── components/      # UI and board/collaborator components
+│   ├── context/         # Auth and theme providers
+│   ├── firebase/        # Firebase client modules (auth, boards, invites, users, config)
+│   ├── hooks/           # Data hooks (boards, transactions, incoming invites)
+│   └── pages/           # Route pages (auth, boards, board view, legal pages)
+├── functions/           # Callable Cloud Functions for invite/member/account flows
+├── firestore.rules      # Firestore authorization and validation rules
+├── firebase.json        # Hosting targets, headers, and Firebase service config
+└── .github/workflows/   # Deploy + CodeQL workflows
 ```
 
 ## Setup
@@ -233,4 +255,4 @@ See [CHANGELOG.md](./CHANGELOG.md) for release notes.
 
 ## License
 
-MIT. See [LICENSE](./LICENSE).
+This project is licensed under the MIT license. For more information, see the [LICENSE](./LICENSE) file.

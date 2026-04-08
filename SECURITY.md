@@ -20,10 +20,16 @@ Please report vulnerabilities **privately**.
 
 Use GitHub’s private vulnerability reporting for this repository:
 
-- Open a private report via the repository’s **Security** tab ("Report a vulnerability") when available.
+- Open a private report via the repository’s **Security** tab ("Report a vulnerability").
 - If private reporting is not enabled in your view, open a GitHub Security Advisory draft for the repository maintainers.
 
 Do **not** open a public issue for suspected vulnerabilities.
+
+#### Other reporting channels
+
+- Contact the maintainer directly via GitHub
+- Contact us via email [expensemanagementwebsite@gmail.com](mailto:expensemanagementwebsite@gmail.com)
+
 
 ### What to include
 
