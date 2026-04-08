@@ -73,6 +73,12 @@ export async function deleteTransaction(boardId, txId) {
   return deleteDoc(ref);
 }
 
+export async function getTransactionsForBoard(boardId) {
+  const q = query(txRef(boardId), orderBy('createdAt', 'desc'));
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+}
+
 /**
  * Compute the grand total of all transaction amounts for a board (one-shot read).
  * @param {string} boardId

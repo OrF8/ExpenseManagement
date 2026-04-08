@@ -12,7 +12,7 @@ import { useTransactions } from '../hooks/useTransactions';
 import { useBoards } from '../hooks/useBoards';
 import { useBoardTotals } from '../hooks/useBoardTotals';
 import { useAuth } from '../context/AuthContext';
-import { addTransaction, updateTransaction, deleteTransaction } from '../firebase/transactions';
+import { addTransaction, updateTransaction, deleteTransaction, getTransactionsForBoard } from '../firebase/transactions';
 import { subscribeToBoard, removeSubBoardFromSuper, mergeBoardsIntoSuper, createBoard, renameBoard } from '../firebase/boards';
 import { getUserProfile } from '../firebase/users';
 import { isMergeValid } from '../utils/boardHierarchy';
@@ -29,6 +29,7 @@ import { CollaboratorManager } from '../components/CollaboratorManager';
 import { BoardHierarchyActionsMenu } from '../components/ui/BoardHierarchyActionsMenu';
 import { TRANSACTION_TYPE_LABELS } from '../constants/transactionTypes';
 import { subscribeWithAppCheckRetry } from '../utils/appCheckRetry';
+import { exportBoardToExcel } from '../utils/exportBoardToExcel';
 
 function formatAmount(amount) {
   return new Intl.NumberFormat('he-IL', { style: 'currency', currency: 'ILS' }).format(amount);
@@ -48,6 +49,8 @@ export function BoardPage() {
   const [editTx, setEditTx] = useState(null);
   const [showCollabs, setShowCollabs] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [exportingExcel, setExportingExcel] = useState(false);
+  const [exportError, setExportError] = useState(null);
   const [userNickname, setUserNickname] = useState('');
   /**
    * Active payment-method filter.
@@ -383,6 +386,44 @@ export function BoardPage() {
     await deleteTransaction(boardId, txId);
   }
 
+  async function handleExportExcel() {
+    if (!board) return;
+    setExportingExcel(true);
+    setExportError(null);
+    try {
+      if (isSuperBoard) {
+        const subBoardSheets = await Promise.all(
+          (board.subBoardIds ?? []).map(async (subBoardId) => {
+            const subBoard = allBoards.find((candidate) => candidate.id === subBoardId);
+            return {
+              name: subBoard?.title || 'לוח',
+              transactions: await getTransactionsForBoard(subBoardId),
+            };
+          }),
+        );
+        await exportBoardToExcel({
+          boardName: board.title,
+          worksheets: subBoardSheets,
+          includeSummarySheet: true,
+        });
+      } else {
+        await exportBoardToExcel({
+          boardName: board.title,
+          worksheets: [
+            {
+              name: board.title || 'לוח',
+              transactions,
+            },
+          ],
+        });
+      }
+    } catch (err) {
+      setExportError(err.message || 'שגיאה בייצוא לאקסל. נסה שוב.');
+    } finally {
+      setExportingExcel(false);
+    }
+  }
+
   // ---------------------------------------------------------------------------
   // Loading / error states
   // ---------------------------------------------------------------------------
@@ -466,13 +507,27 @@ export function BoardPage() {
               שיתוף
             </Button>
             {/* Board hierarchy actions – merged into a single dropdown menu */}
-            {isOwner && (
+            {(isOwner || isSuperBoard) && (
               <BoardHierarchyActionsMenu
-                canAddSubBoard={!isSubBoard}
-                canMoveUnder={!isSuperBoard && !isSubBoard}
+                canAddSubBoard={isOwner && !isSubBoard}
+                canMoveUnder={isOwner && !isSuperBoard && !isSubBoard}
+                canExport={isSuperBoard}
                 onAddSubBoard={openAddSubBoardModal}
                 onMoveUnder={openMoveUnderModal}
+                onExport={handleExportExcel}
+                exporting={exportingExcel}
               />
+            )}
+            {!isSuperBoard && (
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={handleExportExcel}
+                loading={exportingExcel}
+                disabled={exportingExcel}
+              >
+                ייצוא לאקסל
+              </Button>
             )}
             {!isSuperBoard && (
               <Button size="sm" onClick={() => setShowAddModal(true)}>
@@ -487,6 +542,11 @@ export function BoardPage() {
       </header>
 
       <main className="max-w-3xl mx-auto px-4 py-8 flex flex-col gap-6">
+        {exportError && (
+          <div className="rounded-xl bg-red-50 dark:bg-red-900/30 border border-red-100 dark:border-red-800 px-4 py-3 text-sm text-red-600 dark:text-red-400">
+            {exportError}
+          </div>
+        )}
         {isSuperBoard ? (
           /* ---------------------------------------------------------------- */
           /* Super board view: sub-board grid                                  */

@@ -11,6 +11,8 @@ export function AppFooter() {
         <span aria-hidden="true">&middot;</span>
         <Link
           to="/privacy"
+          target="_blank"
+          rel="noopener noreferrer"
           className="hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors"
         >
           Privacy Policy
@@ -18,6 +20,8 @@ export function AppFooter() {
         <span aria-hidden="true">&middot;</span>
         <Link
           to="/terms"
+          target="_blank"
+          rel="noopener noreferrer"
           className="hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors"
         >
           Terms of Service

@@ -2,24 +2,25 @@ import { useEffect, useRef, useState } from 'react';
 
 /**
  * BoardHierarchyActionsMenu – a compact dropdown trigger that exposes
- * the two board-hierarchy actions:
- *   • הוסף לוח-משנה  (Add sub-board)
- *   • העבר תחת לוח   (Move under board)
- *
- * Only the options whose conditions are met are rendered, so the caller
- * still passes the same guards it had before.
+ * board-level actions.
  *
  * Props:
  *   canAddSubBoard  – whether to show "הוסף לוח-משנה"
  *   canMoveUnder    – whether to show "העבר תחת לוח"
+ *   canExport       – whether to show "ייצוא לאקסל"
  *   onAddSubBoard   – handler for "הוסף לוח-משנה"
  *   onMoveUnder     – handler for "העבר תחת לוח"
+ *   onExport        – handler for "ייצוא לאקסל"
+ *   exporting       – loading state for export action
  */
 export function BoardHierarchyActionsMenu({
   canAddSubBoard,
   canMoveUnder,
+  canExport,
   onAddSubBoard,
   onMoveUnder,
+  onExport,
+  exporting,
 }) {
   const [open, setOpen] = useState(false);
   const menuRef = useRef(null);
@@ -50,7 +51,7 @@ export function BoardHierarchyActionsMenu({
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [open]);
 
-  if (!canAddSubBoard && !canMoveUnder) return null;
+  if (!canAddSubBoard && !canMoveUnder && !canExport) return null;
 
   function handleAction(handler) {
     setOpen(false);
@@ -98,6 +99,27 @@ export function BoardHierarchyActionsMenu({
             end-0
           "
         >
+          {canExport && (
+            <button
+              role="menuitem"
+              type="button"
+              disabled={exporting}
+              onClick={() => handleAction(onExport)}
+              className="
+                w-full flex items-center gap-2
+                px-4 py-2
+                text-gray-700 dark:text-gray-200
+                hover:bg-gray-50 dark:hover:bg-gray-700
+                disabled:opacity-60 disabled:cursor-not-allowed
+                transition-colors text-start
+              "
+            >
+              <svg className="h-4 w-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 16V4m0 12l-4-4m4 4l4-4M4 20h16" />
+              </svg>
+              {exporting ? 'מייצא…' : 'ייצוא לאקסל'}
+            </button>
+          )}
           {canAddSubBoard && (
             <button
               role="menuitem"
