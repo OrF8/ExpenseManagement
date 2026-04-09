@@ -11,6 +11,11 @@ The format is inspired by [Keep a Changelog](https://keepachangelog.com/en/1.1.0
 
 [//]: # (- _No entries yet._)
 
+## [1.1.1]
+
+### Changed
+- Improved the transaction form by placing credit-card-specific fields in a more intuitive location.
+
 ## [1.1.0]
 
 ### Added
