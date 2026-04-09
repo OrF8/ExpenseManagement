@@ -183,7 +183,7 @@ export function TransactionForm({ initial, defaultName, defaultPaymentMethod, on
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-4" noValidate>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div className={form.type !== 'credit_card' ? 'sm:col-span-2' : ''}>
+        <div>
           <Input
             label="שם"
             name="name"
@@ -193,40 +193,40 @@ export function TransactionForm({ initial, defaultName, defaultPaymentMethod, on
             error={errors.name}
           />
         </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                סוג עסקה
+            </label>
+            <select
+                name="type"
+                value={form.type}
+                onChange={handleChange}
+                className="block w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-200 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:focus:border-indigo-500 dark:focus:ring-indigo-900"
+            >
+                <option value="">בחר סוג עסקה</option>
+                {Object.entries(TRANSACTION_TYPE_LABELS).map(([value, label]) => (
+                    <option key={value} value={value}>
+                        {label}
+                    </option>
+                ))}
+            </select>
+            {errors.type && (
+                <p className="text-xs text-red-500 mt-0.5" role="alert">{errors.type}</p>
+            )}
+          </div>
+      </div>
         {form.type === 'credit_card' && (
-          <Input
-            label="4 ספרות אחרונות של הכרטיס"
-            name="cardLast4"
-            value={form.cardLast4}
-            onChange={handleChange}
-            placeholder="1234"
-            maxLength={4}
-            inputMode="numeric"
-            error={errors.cardLast4}
-          />
+            <Input
+                label="4 ספרות אחרונות של הכרטיס"
+                name="cardLast4"
+                value={form.cardLast4}
+                onChange={handleChange}
+                placeholder="1234"
+                maxLength={4}
+                inputMode="numeric"
+                error={errors.cardLast4}
+            />
         )}
-      </div>
-      <div className="flex flex-col gap-1">
-        <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-          סוג עסקה
-        </label>
-        <select
-          name="type"
-          value={form.type}
-          onChange={handleChange}
-          className="block w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-200 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:focus:border-indigo-500 dark:focus:ring-indigo-900"
-        >
-          <option value="">בחר סוג עסקה</option>
-          {Object.entries(TRANSACTION_TYPE_LABELS).map(([value, label]) => (
-            <option key={value} value={value}>
-              {label}
-            </option>
-          ))}
-        </select>
-        {errors.type && (
-          <p className="text-xs text-red-500 mt-0.5" role="alert">{errors.type}</p>
-        )}
-      </div>
       <Input
         label="שם העסק"
         name="essence"
