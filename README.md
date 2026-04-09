@@ -18,7 +18,7 @@ It supports shared boards, one-level board hierarchies ("super boards" with sub-
 </p>
 <p align="center">
   <img src="https://github.com/OrF8/ExpenseManagement/actions/workflows/deploy.yml/badge.svg?branch=main" elt="Deploy to Firebase">
-  <img src="https://github.com/OrF8/ExpenseManagement/actions/workflows/codeql.yml/badge.svg" alt="CodeQL Advanced">
+  <img src="https://github.com/OrF8/ExpenseManagement/actions/workflows/codeql.yml/badge.svg?branch=main" alt="CodeQL Advanced">
 </p>
 
 ## Table of Contents
