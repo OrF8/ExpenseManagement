@@ -4,12 +4,14 @@ All notable changes to this project are documented in this file.
 
 The format is inspired by [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project follows [Semantic Versioning](https://semver.org/).
 
-[//]: # (## [Unreleased])
+## [1.1.2]
 
-[//]: # ()
-[//]: # (### Added)
+### Changed
+- Updated backend dependencies, including `firebase-admin` to `13.8.0`, plus related lockfile updates.
+- Refreshed frontend lockfile dependencies to current compatible versions for improved maintenance and stability.
 
-[//]: # (- _No entries yet._)
+### Security
+- Pulled in transitive dependency updates that address Dependabot-reported vulnerabilities (including `node-forge` via `firebase-admin`).
 
 ## [1.1.1]
 
