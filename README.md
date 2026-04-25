@@ -17,7 +17,7 @@ It supports shared boards, one-level board hierarchies ("super boards" with sub-
   <img src="https://img.shields.io/badge/Tailwind_CSS-4-06B6D4?logo=tailwindcss&logoColor=white" alt="tailwind">
 </p>
 <p align="center">
-  <img src="https://github.com/OrF8/ExpenseManagement/actions/workflows/deploy.yml/badge.svg?branch=main" elt="Deploy to Firebase">
+  <img src="https://github.com/OrF8/ExpenseManagement/actions/workflows/deploy.yml/badge.svg?branch=main" alt="Deploy to Firebase">
   <img src="https://github.com/OrF8/ExpenseManagement/actions/workflows/codeql.yml/badge.svg?branch=main" alt="CodeQL Advanced">
 </p>
 

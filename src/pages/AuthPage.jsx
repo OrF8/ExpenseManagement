@@ -120,7 +120,7 @@ export function AuthPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-white to-indigo-50 dark:from-gray-950 dark:via-gray-900 dark:to-slate-900 px-4">
+    <div className="min-h-screen flex items-center justify-center bg-linear-to-br from-slate-50 via-white to-indigo-50 dark:from-gray-950 dark:via-gray-900 dark:to-slate-900 px-4">
       <div className="w-full max-w-sm">
         <div className="mb-8 text-center">
           <img
@@ -237,7 +237,6 @@ export function AuthPage() {
                     </svg>
                   )}
                 </button>
-              </div>
             </div>
             {tab === 'signin' && (
               <div className="flex justify-start">
