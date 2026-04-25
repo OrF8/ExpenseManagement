@@ -1,18 +1,19 @@
 import { useId } from 'react';
 
-export function Input({ label, error, className = '', ...props }) {
-  const id = useId();
-  const errorId = `${id}-error`;
+export function Input({ id: providedId, label, error, className = '', ...props }) {
+    const generatedId = useId();
+    const inputId = providedId ?? generatedId;
+    const errorId = `${inputId}-error`;
 
   return (
     <div className="flex flex-col gap-1">
       {label && (
-        <label htmlFor={id} className="text-sm font-medium text-gray-700 dark:text-gray-300">
+          <label htmlFor={inputId} className="text-sm font-medium text-gray-700 dark:text-gray-300">
           {label}
         </label>
       )}
       <input
-        id={id}
+        id={inputId}
         aria-invalid={error ? 'true' : undefined}
         aria-describedby={error ? errorId : undefined}
         className={`

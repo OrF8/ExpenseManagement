@@ -1,7 +1,7 @@
 /**
  * Authentication page with sign-in and sign-up tabs.
  */
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { signIn, signUp, signInWithGoogle, resetPassword } from '../firebase/auth';
 import { Input } from '../components/ui/Input';
@@ -33,9 +33,11 @@ function getHebrewResetError(code) {
 }
 
 export function AuthPage() {
+  const passwordInputId = useId();
   const [tab, setTab] = useState('signin');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [nickname, setNickname] = useState('');
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
@@ -118,7 +120,7 @@ export function AuthPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-white to-indigo-50 dark:from-gray-950 dark:via-gray-900 dark:to-slate-900 px-4">
+    <div className="min-h-screen flex items-center justify-center bg-linear-to-br from-slate-50 via-white to-indigo-50 dark:from-gray-950 dark:via-gray-900 dark:to-slate-900 px-4">
       <div className="w-full max-w-sm">
         <div className="mb-8 text-center">
           <img
@@ -138,7 +140,12 @@ export function AuthPage() {
             ].map((t) => (
               <button
                 key={t.id}
-                onClick={() => { setTab(t.id); setError(null); setNickname(''); }}
+                onClick={() => {
+                  setTab(t.id);
+                  setError(null);
+                  setNickname('');
+                  setShowPassword(false);
+                }}
                 className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-all ${
                   tab === t.id
                     ? 'bg-white dark:bg-gray-700 text-indigo-600 dark:text-indigo-400 shadow-sm'
@@ -177,15 +184,60 @@ export function AuthPage() {
                 required
               />
             )}
-            <Input
-              label="סיסמה"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••••••"
-              autoComplete={tab === 'signin' ? 'current-password' : 'new-password'}
-              required
-            />
+            <div className="relative">
+              <Input
+                id={passwordInputId}
+                label="סיסמה"
+                type={showPassword ? 'text' : 'password'}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••"
+                autoComplete={tab === 'signin' ? 'current-password' : 'new-password'}
+                className="pl-11"
+                required
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword((prev) => !prev)}
+                aria-label={showPassword ? 'Hide password' : 'Show password'}
+                aria-pressed={showPassword}
+                className="absolute left-1 bottom-0 inline-flex h-10 w-10 items-center justify-center rounded-md text-gray-500 transition-colors hover:text-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-200 dark:text-gray-400 dark:hover:text-gray-200 dark:focus:ring-indigo-900"
+              >
+                {showPassword ? (
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    className="h-5 w-5"
+                    aria-hidden="true"
+                  >
+                      <path d="M10.58 10.58a2 2 0 1 0 2.83 2.83" />
+                      <path d="M9.88 4.24A10.94 10.94 0 0 1 12 4c7 0 10 8 10 8a17.6 17.6 0 0 1-2.17 3.19" />
+                      <path d="M6.61 6.61A17.36 17.36 0 0 0 2 12s3 8 10 8a9.74 9.74 0 0 0 5.39-1.61" />
+                      <line x1="2" x2="22" y1="2" y2="22" />
+                    </svg>
+                  ) : (
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      className="h-5 w-5"
+                      aria-hidden="true"
+                    >
+                      <path d="M2.06 12S5.03 4 12 4s9.94 8 9.94 8-2.97 8-9.94 8-9.94-8-9.94-8Z" />
+                      <circle cx="12" cy="12" r="3" />
+                    </svg>
+                  )}
+                </button>
+            </div>
             {tab === 'signin' && (
               <div className="flex justify-start">
                 <button
