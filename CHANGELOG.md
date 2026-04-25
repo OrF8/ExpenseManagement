@@ -4,6 +4,13 @@ All notable changes to this project are documented in this file.
 
 The format is inspired by [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project follows [Semantic Versioning](https://semver.org/).
 
+## [1.1.3]
+
+### Changed
+- Added a password visibility toggle to the login/auth form with eye/eye-off icons so users can show/hide password text on demand.
+- Kept passwords hidden by default whenever the auth form is opened, while preserving existing authentication and validation behavior.
+- Improved input accessibility/id consistency in shared form controls to ensure labels remain correctly linked to their inputs.
+
 ## [1.1.2]
 
 ### Changed
