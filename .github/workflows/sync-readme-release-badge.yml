@@ -1,0 +1,186 @@
+name: Sync README release version
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - package.json
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sync-readme-release-version-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  sync-readme-release-version:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          fetch-depth: 0
+          ref: ${{ github.ref_name }}
+
+      - name: Sync README release badge and Release Status version
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+
+          const readmePath = 'README.md';
+          const packageJsonPath = 'package.json';
+
+          const pkg = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
+          if (!pkg.version || typeof pkg.version !== 'string') {
+            throw new Error('package.json must contain a string "version" field.');
+          }
+
+          const targetVersion = `v${pkg.version}`;
+
+          const escapeShieldsValue = (value) =>
+            value.replace(/-/g, '--').replace(/_/g, '__').replace(/ /g, '_');
+
+          const escapeRegex = (value) =>
+            value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+          const updateShieldsReleaseBadgeUrl = (urlString) => {
+            const parsed = new URL(urlString);
+            if (parsed.hostname !== 'img.shields.io') {
+              return null;
+            }
+
+            const prefix = '/badge/Release-';
+            if (!parsed.pathname.startsWith(prefix)) {
+              return null;
+            }
+
+            const slug = parsed.pathname.slice(prefix.length);
+            const lastDash = slug.lastIndexOf('-');
+            if (lastDash <= 0 || lastDash === slug.length - 1) {
+              throw new Error('Found release badge URL, but could not parse its color segment.');
+            }
+
+            const color = slug.slice(lastDash + 1);
+            parsed.pathname = `${prefix}${escapeShieldsValue(targetVersion)}-${color}`;
+            return parsed.toString();
+          };
+
+          const updateReleaseBadgeInReadme = (readmeContent) => {
+            const urlRegex = /https?:\/\/[^\s"')>]+/g;
+            const urls = [...readmeContent.matchAll(urlRegex)].map((match) => match[0]);
+
+            let matchedOriginalUrl = null;
+            let matchedUpdatedUrl = null;
+
+            for (const rawUrl of urls) {
+              let shieldsUrl = null;
+
+              if (rawUrl.includes('img.shields.io')) {
+                shieldsUrl = rawUrl;
+              } else if (rawUrl.includes('camo.githubusercontent.com')) {
+                try {
+                  const camoUrl = new URL(rawUrl);
+                  const encodedUrl = camoUrl.searchParams.get('url');
+                  if (encodedUrl) {
+                    const decodedUrl = decodeURIComponent(encodedUrl);
+                    if (decodedUrl.includes('img.shields.io')) {
+                      shieldsUrl = decodedUrl;
+                    }
+                  }
+                } catch {
+                  // Ignore invalid URL and continue scanning.
+                }
+              }
+
+              if (!shieldsUrl || !shieldsUrl.includes('/badge/Release-')) {
+                continue;
+              }
+
+              const updatedShieldsUrl = updateShieldsReleaseBadgeUrl(shieldsUrl);
+              if (!updatedShieldsUrl) {
+                continue;
+              }
+
+              if (matchedOriginalUrl !== null) {
+                throw new Error('Found multiple release badges in README.md; expected exactly one.');
+              }
+
+              matchedOriginalUrl = rawUrl;
+              matchedUpdatedUrl = updatedShieldsUrl;
+            }
+
+            if (matchedOriginalUrl === null || matchedUpdatedUrl === null) {
+              throw new Error('Could not find a release badge in README.md (Shields pattern: /badge/Release-...).');
+            }
+
+            const replacedUrlContent = readmeContent.replace(matchedOriginalUrl, matchedUpdatedUrl);
+
+            const imgTagRegex = new RegExp(`<img\\b[^>]*\\bsrc=["']${escapeRegex(matchedUpdatedUrl)}["'][^>]*>`, 'i');
+            const imgTagMatch = replacedUrlContent.match(imgTagRegex);
+            if (!imgTagMatch) {
+              throw new Error('Could not find the updated release badge <img> tag to sync alt text.');
+            }
+
+            const currentTag = imgTagMatch[0];
+            const altVersionRegex = /(alt\s*=\s*["']\s*Release\s+)v\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?(\s*["'])/i;
+            const updatedTag = altVersionRegex.test(currentTag)
+              ? currentTag.replace(altVersionRegex, `$1${targetVersion}$2`)
+              : currentTag;
+
+            return replacedUrlContent.replace(currentTag, updatedTag);
+          };
+
+          const updateReleaseStatusSection = (readmeContent) => {
+            const headingRegex = /^(#{1,6})\s+Release Status\s*$/m;
+            const headingMatch = headingRegex.exec(readmeContent);
+            if (!headingMatch) {
+              throw new Error('Could not find a "Release Status" heading in README.md.');
+            }
+
+            const headingLevel = headingMatch[1].length;
+            const sectionStart = headingMatch.index + headingMatch[0].length;
+
+            const afterHeading = readmeContent.slice(sectionStart);
+            const nextHeadingRegex = new RegExp(`^#{1,${headingLevel}}\\s+`, 'm');
+            const nextHeadingMatch = nextHeadingRegex.exec(afterHeading);
+            const sectionEnd = nextHeadingMatch ? sectionStart + nextHeadingMatch.index : readmeContent.length;
+
+            const sectionBody = readmeContent.slice(sectionStart, sectionEnd);
+            const versionRegex = /v\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)*/;
+            if (!versionRegex.test(sectionBody)) {
+              throw new Error('Could not find release version text inside the "Release Status" section.');
+            }
+
+            const updatedSectionBody = sectionBody.replace(versionRegex, targetVersion);
+            return readmeContent.slice(0, sectionStart) + updatedSectionBody + readmeContent.slice(sectionEnd);
+          };
+
+          const originalReadme = fs.readFileSync(readmePath, 'utf8');
+          const withUpdatedBadge = updateReleaseBadgeInReadme(originalReadme);
+          const withUpdatedReleaseStatus = updateReleaseStatusSection(withUpdatedBadge);
+
+          if (withUpdatedReleaseStatus !== originalReadme) {
+            fs.writeFileSync(readmePath, withUpdatedReleaseStatus);
+            console.log(`README release references updated to ${targetVersion}.`);
+          } else {
+            console.log('README release references are already in sync.');
+          }
+          NODE
+
+      - name: Commit and push if README changed
+        run: |
+          if git diff --quiet -- README.md; then
+            echo "No README changes to commit."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add README.md
+          git commit -m "docs: sync README release version with package version"
+          git push origin HEAD:"${GITHUB_REF_NAME}"
