@@ -184,48 +184,37 @@ export function AuthPage() {
                 required
               />
             )}
-            <div className="flex flex-col gap-1">
-              <label htmlFor={passwordInputId} className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                סיסמה
-              </label>
-              <div className="relative">
-                <input
-                  id={passwordInputId}
-                  type={showPassword ? 'text' : 'password'}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••"
-                  autoComplete={tab === 'signin' ? 'current-password' : 'new-password'}
-                  className="
-                    block w-full rounded-lg border border-gray-200 bg-white
-                    px-3 py-2 pl-11 text-sm text-gray-900 placeholder:text-gray-400
-                    focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-200
-                    disabled:bg-gray-50 disabled:text-gray-500
-                    dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:placeholder:text-gray-500
-                    dark:focus:border-indigo-500 dark:focus:ring-indigo-900
-                    dark:disabled:bg-gray-900 dark:disabled:text-gray-600
-                  "
-                  required
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword((prev) => !prev)}
-                  aria-label={showPassword ? 'הסתר סיסמה' : 'הצג סיסמה'}
-                  aria-pressed={showPassword}
-                  className="absolute inset-y-0 end-1 inline-flex h-10 w-10 items-center justify-center rounded-md text-gray-500 transition-colors hover:text-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-200 dark:text-gray-400 dark:hover:text-gray-200 dark:focus:ring-indigo-900"
-                >
-                  {showPassword ? (
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      className="h-5 w-5"
-                      aria-hidden="true"
-                    >
+            <div className="relative">
+              <Input
+                id={passwordInputId}
+                label="סיסמה"
+                type={showPassword ? 'text' : 'password'}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••"
+                autoComplete={tab === 'signin' ? 'current-password' : 'new-password'}
+                className="pl-11"
+                required
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword((prev) => !prev)}
+                aria-label={showPassword ? 'Hide password' : 'Show password'}
+                aria-pressed={showPassword}
+                className="absolute inset-y-0 left-1 inline-flex h-10 w-10 items-center justify-center rounded-md text-gray-500 transition-colors hover:text-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-200 dark:text-gray-400 dark:hover:text-gray-200 dark:focus:ring-indigo-900"
+              >
+                {showPassword ? (
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    className="h-5 w-5"
+                    aria-hidden="true"
+                  >
                       <path d="M10.58 10.58a2 2 0 1 0 2.83 2.83" />
                       <path d="M9.88 4.24A10.94 10.94 0 0 1 12 4c7 0 10 8 10 8a17.6 17.6 0 0 1-2.17 3.19" />
                       <path d="M6.61 6.61A17.36 17.36 0 0 0 2 12s3 8 10 8a9.74 9.74 0 0 0 5.39-1.61" />
