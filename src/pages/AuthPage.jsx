@@ -212,7 +212,7 @@ export function AuthPage() {
                   onClick={() => setShowPassword((prev) => !prev)}
                   aria-label={showPassword ? 'הסתר סיסמה' : 'הצג סיסמה'}
                   aria-pressed={showPassword}
-                  className="absolute inset-y-0 left-1 inline-flex h-10 w-10 items-center justify-center rounded-md text-gray-500 transition-colors hover:text-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-200 dark:text-gray-400 dark:hover:text-gray-200 dark:focus:ring-indigo-900"
+                  className="absolute inset-y-0 end-1 inline-flex h-10 w-10 items-center justify-center rounded-md text-gray-500 transition-colors hover:text-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-200 dark:text-gray-400 dark:hover:text-gray-200 dark:focus:ring-indigo-900"
                 >
                   {showPassword ? (
                     <svg
