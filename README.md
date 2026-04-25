@@ -250,11 +250,6 @@ For vulnerability reporting, see [SECURITY.md](./SECURITY.md).
 
 Current release target: **v1.1.3**.
 
-Notable release focus:
-- hierarchy-aware collaboration,
-- Excel export improvements (including super-board multi-sheet export),
-- documentation refresh and version alignment.
-
 See [CHANGELOG.md](./CHANGELOG.md) for release notes.
 
 ## License
