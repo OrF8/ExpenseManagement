@@ -41,6 +41,9 @@ jobs:
           const escapeShieldsValue = (value) =>
             value.replace(/-/g, '--').replace(/_/g, '__').replace(/ /g, '_');
 
+          const escapeRegex = (value) =>
+            value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
           const updateShieldsReleaseBadgeUrl = (urlString) => {
             const parsed = new URL(urlString);
             if (parsed.hostname !== 'img.shields.io') {
@@ -111,7 +114,21 @@ jobs:
               throw new Error('Could not find a release badge in README.md (Shields pattern: /badge/Release-...).');
             }
 
-            return readmeContent.replace(matchedOriginalUrl, matchedUpdatedUrl);
+            const replacedUrlContent = readmeContent.replace(matchedOriginalUrl, matchedUpdatedUrl);
+
+            const imgTagRegex = new RegExp(`<img\\b[^>]*\\bsrc=["']${escapeRegex(matchedUpdatedUrl)}["'][^>]*>`, 'i');
+            const imgTagMatch = replacedUrlContent.match(imgTagRegex);
+            if (!imgTagMatch) {
+              throw new Error('Could not find the updated release badge <img> tag to sync alt text.');
+            }
+
+            const currentTag = imgTagMatch[0];
+            const altVersionRegex = /(alt\s*=\s*["']\s*Release\s+)v\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?(\s*["'])/i;
+            const updatedTag = altVersionRegex.test(currentTag)
+              ? currentTag.replace(altVersionRegex, `$1${targetVersion}$2`)
+              : currentTag;
+
+            return replacedUrlContent.replace(currentTag, updatedTag);
           };
 
           const updateReleaseStatusSection = (readmeContent) => {
@@ -163,4 +180,5 @@ jobs:
 
           git add README.md
           git commit -m "docs: sync README release version with package version"
-          git push
+          git pull --rebase origin "${GITHUB_REF_NAME}"
+          git push origin HEAD:"${GITHUB_REF_NAME}"
