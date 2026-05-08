@@ -4,6 +4,11 @@ All notable changes to this project are documented in this file.
 
 The format is inspired by [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project follows [Semantic Versioning](https://semver.org/).
 
+## [1.1.4]
+
+### Changed
+- Updated backend dependency `fast-xml-builder` to `1.2.0` to address a security vulnerabilities (CVE-2026-44665, CVE-2026-44665) in versions prior to `1.1.7`.
+
 ## [1.1.3]
 
 ### Changed
