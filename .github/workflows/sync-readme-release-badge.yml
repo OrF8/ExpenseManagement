@@ -10,6 +10,7 @@ on:
 
 permissions:
   contents: write
+  pull-requests: write
 
 concurrency:
   group: sync-readme-release-version-${{ github.ref }}
@@ -24,7 +25,7 @@ jobs:
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
           fetch-depth: 0
-          ref: ${{ github.ref_name }}
+          ref: main
 
       - name: Set up Node.js
         uses: actions/setup-node@60edb5dd545a775178f52524783378180af0d1f8 # v4.0.2
@@ -176,16 +177,17 @@ jobs:
           }
           NODE
 
-      - name: Commit and push if README changed
-        run: |
-          if git diff --quiet -- README.md; then
-            echo "No README changes to commit."
-            exit 0
-          fi
-
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
-          git add README.md
-          git commit -m "docs: sync README release version with package version"
-          git push origin HEAD:"${GITHUB_REF_NAME}"
+      - name: Create or update README sync pull request
+        uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: "docs: sync README release version with package version"
+          title: "docs: sync README release version with package version"
+          body: |
+              This pull request was generated automatically to sync the README release badge and
+              the `Release Status` version with the root `package.json` version.
+          branch: automation/sync-readme-release-version
+          base: main
+          add-paths: README.md
+          labels: automated
+          delete-branch: true
