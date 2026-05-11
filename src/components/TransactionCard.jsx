@@ -25,7 +25,7 @@ function formatTransactionDate(dateStr) {
   return `${String(day).padStart(2, '0')}/${String(month).padStart(2, '0')}/${year}`;
 }
 
-export function TransactionCard({ transaction, onEdit, onDelete }) {
+export function TransactionCard({ transaction, onEdit, onDelete, onMove }) {
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState(null);
 
@@ -86,6 +86,17 @@ export function TransactionCard({ transaction, onEdit, onDelete }) {
             {formatAmount(transaction.amount)}
           </span>
           <div className="flex gap-1">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => onMove(transaction)}
+              title="העבר עסקה"
+              aria-label="העבר עסקה"
+            >
+              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 7h11m0 0l-3-3m3 3l-3 3M20 17H9m0 0l3-3m-3 3l3 3" />
+              </svg>
+            </Button>
             <Button
               variant="ghost"
               size="sm"

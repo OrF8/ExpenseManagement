@@ -14,7 +14,8 @@ import {
   orderBy,
   serverTimestamp,
 } from 'firebase/firestore';
-import { db } from './config';
+import { httpsCallable } from 'firebase/functions';
+import { db, functions } from './config';
 
 const txRef = (boardId) =>
   collection(db, 'boards', boardId, 'transactions');
@@ -91,4 +92,23 @@ export async function getBoardTotal(boardId) {
     total += Number(d.data().amount) || 0;
   });
   return total;
+}
+
+/**
+ * Move transaction between boards via secure callable function.
+ */
+export async function moveTransaction(sourceBoardId, destinationBoardId, transactionId) {
+  const fn = httpsCallable(functions, 'moveTransaction');
+  try {
+    const result = await fn({ sourceBoardId, destinationBoardId, transactionId });
+    return result.data;
+  } catch (err) {
+    const code = err?.code || '';
+    if (code === 'functions/unauthenticated') throw new Error('עליך להתחבר מחדש כדי להעביר עסקה.');
+    if (code === 'functions/permission-denied') throw new Error('אין לך הרשאה להעביר עסקה לאחד הלוחות שנבחרו.');
+    if (code === 'functions/not-found') throw new Error(err?.message || 'העסקה לא נמצאה. ייתכן שהיא נמחקה או הועברה כבר.');
+    if (code === 'functions/already-exists') throw new Error('כבר קיימת עסקה עם אותו מזהה בלוח היעד.');
+    if (code === 'functions/failed-precondition') throw new Error(err?.message || 'לא ניתן להעביר את העסקה.');
+    throw new Error('אירעה שגיאה בעת העברת העסקה. נסה שוב.');
+  }
 }

@@ -4,6 +4,12 @@ All notable changes to this project are documented in this file.
 
 The format is inspired by [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project follows [Semantic Versioning](https://semver.org/).
 
+## [1.2.0]
+
+### Added
+
+- Added the ability to move transactions between boards the user has access to.
+
 ## [1.1.4]
 
 ### Changed

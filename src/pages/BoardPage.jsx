@@ -12,7 +12,7 @@ import { useTransactions } from '../hooks/useTransactions';
 import { useBoards } from '../hooks/useBoards';
 import { useBoardTotals } from '../hooks/useBoardTotals';
 import { useAuth } from '../context/AuthContext';
-import { addTransaction, updateTransaction, deleteTransaction, getTransactionsForBoard } from '../firebase/transactions';
+import { addTransaction, updateTransaction, deleteTransaction, getTransactionsForBoard, moveTransaction } from '../firebase/transactions';
 import { subscribeToBoard, removeSubBoardFromSuper, mergeBoardsIntoSuper, createBoard, renameBoard } from '../firebase/boards';
 import { getUserProfile } from '../firebase/users';
 import { isMergeValid } from '../utils/boardHierarchy';
@@ -51,6 +51,7 @@ export function BoardPage() {
   const [submitting, setSubmitting] = useState(false);
   const [exportingExcel, setExportingExcel] = useState(false);
   const [exportError, setExportError] = useState(null);
+  const [moveSuccessMessage, setMoveSuccessMessage] = useState(null);
   const [userNickname, setUserNickname] = useState('');
   /**
    * Active payment-method filter.
@@ -386,6 +387,39 @@ export function BoardPage() {
     await deleteTransaction(boardId, txId);
   }
 
+  const [moveTx, setMoveTx] = useState(null);
+  const [moveDestinationBoardId, setMoveDestinationBoardId] = useState('');
+  const [movingTransaction, setMovingTransaction] = useState(false);
+  const [moveTransactionError, setMoveTransactionError] = useState(null);
+
+  const destinationBoards = useMemo(
+    () => allBoards.filter((candidate) => candidate.id !== boardId),
+    [allBoards, boardId],
+  );
+
+  function openMoveModal(transaction) {
+    setMoveTx(transaction);
+    setMoveDestinationBoardId('');
+    setMoveTransactionError(null);
+  }
+
+  async function handleMoveTransaction() {
+    if (!moveTx || !moveDestinationBoardId) return;
+    setMovingTransaction(true);
+    setMoveTransactionError(null);
+    try {
+      await moveTransaction(boardId, moveDestinationBoardId, moveTx.id);
+      setMoveTx(null);
+      setMoveDestinationBoardId('');
+      setMoveSuccessMessage('העסקה הועברה בהצלחה.');
+      window.setTimeout(() => setMoveSuccessMessage(null), 3000);
+    } catch (err) {
+      setMoveTransactionError(err.message || 'אירעה שגיאה בעת העברת העסקה. נסה שוב.');
+    } finally {
+      setMovingTransaction(false);
+    }
+  }
+
   async function handleExportExcel() {
     if (!board) return;
     setExportingExcel(true);
@@ -545,6 +579,11 @@ export function BoardPage() {
         {exportError && (
           <div className="rounded-xl bg-red-50 dark:bg-red-900/30 border border-red-100 dark:border-red-800 px-4 py-3 text-sm text-red-600 dark:text-red-400">
             {exportError}
+          </div>
+        )}
+        {moveSuccessMessage && (
+          <div className="rounded-xl bg-emerald-50 dark:bg-emerald-900/30 border border-emerald-100 dark:border-emerald-800 px-4 py-3 text-sm text-emerald-700 dark:text-emerald-400">
+            {moveSuccessMessage}
           </div>
         )}
         {isSuperBoard ? (
@@ -718,6 +757,7 @@ export function BoardPage() {
                     <TransactionCard
                       key={tx.id}
                       transaction={tx}
+                      onMove={openMoveModal}
                       onEdit={(tx) => setEditTx(tx)}
                       onDelete={handleDelete}
                     />
@@ -756,6 +796,45 @@ export function BoardPage() {
           onCancel={() => setEditTx(null)}
           submitting={submitting}
         />
+      </Modal>
+
+      <Modal
+        isOpen={!!moveTx}
+        onClose={() => !movingTransaction && setMoveTx(null)}
+        title="העברת עסקה"
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-gray-600 dark:text-gray-300">בחר לוח יעד שאליו העסקה תועבר.</p>
+          {destinationBoards.length === 0 ? (
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              אין לוחות אחרים שניתן להעביר אליהם את העסקה.
+            </p>
+          ) : (
+            <label className="block space-y-2">
+              <span className="text-sm text-gray-700 dark:text-gray-200">בחר לוח יעד</span>
+              <select
+                className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:bg-gray-800 dark:border-gray-700"
+                value={moveDestinationBoardId}
+                onChange={(e) => setMoveDestinationBoardId(e.target.value)}
+                disabled={movingTransaction}
+              >
+                <option value="">בחר...</option>
+                {destinationBoards.map((candidate) => (
+                  <option key={candidate.id} value={candidate.id}>{candidate.title}</option>
+                ))}
+              </select>
+            </label>
+          )}
+          {moveTransactionError && (
+            <p className="text-sm text-red-500 dark:text-red-400" role="alert">{moveTransactionError}</p>
+          )}
+          <div className="flex justify-end gap-2">
+            <Button variant="secondary" onClick={() => setMoveTx(null)} disabled={movingTransaction}>ביטול</Button>
+            <Button onClick={handleMoveTransaction} loading={movingTransaction} disabled={!moveDestinationBoardId || destinationBoards.length === 0}>
+              {movingTransaction ? 'מעביר...' : 'העבר'}
+            </Button>
+          </div>
+        </div>
       </Modal>
 
       {/* Collaborators Modal */}
