@@ -553,7 +553,19 @@ exports.moveTransaction = onCall(
         if (!sourceBoardSnap.exists) throw new HttpsError('not-found', 'לוח המקור לא נמצא');
         if (!destinationBoardSnap.exists) throw new HttpsError('not-found', 'לוח היעד לא נמצא');
 
-        if (!userHasBoardAccess(sourceBoardSnap.data(), uid) || !userHasBoardAccess(destinationBoardSnap.data(), uid)) {
+        const sourceBoard = sourceBoardSnap.data();
+        const destinationBoard = destinationBoardSnap.data();
+        const isSuperBoard = (board) => Array.isArray(board && board.subBoardIds);
+
+        if (isSuperBoard(sourceBoard)) {
+          throw new HttpsError('failed-precondition', 'לא ניתן להעביר עסקה מלוח-על');
+        }
+
+        if (isSuperBoard(destinationBoard)) {
+          throw new HttpsError('failed-precondition', 'לא ניתן להעביר עסקה ללוח-על');
+        }
+
+        if (!userHasBoardAccess(sourceBoard, uid) || !userHasBoardAccess(destinationBoard, uid)) {
           throw new HttpsError('permission-denied', 'אין לך הרשאה להעביר עסקה לאחד הלוחות שנבחרו');
         }
 
