@@ -6,6 +6,11 @@ The format is inspired by [Keep a Changelog](https://keepachangelog.com/en/1.1.0
 
 ## [1.1.4]
 
+## [Unreleased]
+
+### Added
+- Added the ability to move transactions between boards the user has access to.
+
 ### Changed
 - Updated backend dependency `fast-xml-builder` to `1.2.0` to address a security vulnerabilities (CVE-2026-44665, CVE-2026-44665) in versions prior to `1.1.7`.
 

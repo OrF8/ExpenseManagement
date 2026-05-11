@@ -53,6 +53,11 @@ admin.initializeApp();
 
 const db = admin.firestore();
 
+function userHasBoardAccess(boardData, uid) {
+  const memberUids = Array.isArray(boardData?.memberUids) ? boardData.memberUids : [];
+  return memberUids.includes(uid);
+}
+
 // ---------------------------------------------------------------------------
 // Internal helpers
 // ---------------------------------------------------------------------------
@@ -503,6 +508,78 @@ exports.declineBoardInvite = onCall(
 
       return {success: true};
     }
+);
+
+/**
+ * moveTransaction
+ *
+ * Moves a single transaction document from one board to another in a single
+ * Firestore transaction. Preserves the original transaction ID and data.
+ */
+exports.moveTransaction = onCall(
+    {enforceAppCheck: true},
+    async (request) => {
+      if (!request.auth) {
+        throw new HttpsError('unauthenticated', 'עליך להתחבר כדי להעביר עסקה');
+      }
+
+      const uid = request.auth.uid;
+      const {sourceBoardId, destinationBoardId, transactionId} = request.data || {};
+      if (
+        typeof sourceBoardId !== 'string' || !sourceBoardId.trim() ||
+        typeof destinationBoardId !== 'string' || !destinationBoardId.trim() ||
+        typeof transactionId !== 'string' || !transactionId.trim()
+      ) {
+        throw new HttpsError('invalid-argument', 'sourceBoardId, destinationBoardId ו-transactionId נדרשים');
+      }
+
+      if (sourceBoardId === destinationBoardId) {
+        throw new HttpsError('failed-precondition', 'לא ניתן להעביר עסקה לאותו לוח');
+      }
+
+      const sourceBoardRef = db.collection('boards').doc(sourceBoardId);
+      const destinationBoardRef = db.collection('boards').doc(destinationBoardId);
+      const sourceTxRef = sourceBoardRef.collection('transactions').doc(transactionId);
+      const destinationTxRef = destinationBoardRef.collection('transactions').doc(transactionId);
+
+      await db.runTransaction(async (tx) => {
+        const [sourceBoardSnap, destinationBoardSnap, sourceTxSnap, destinationTxSnap] = await Promise.all([
+          tx.get(sourceBoardRef),
+          tx.get(destinationBoardRef),
+          tx.get(sourceTxRef),
+          tx.get(destinationTxRef),
+        ]);
+
+        if (!sourceBoardSnap.exists) throw new HttpsError('not-found', 'לוח המקור לא נמצא');
+        if (!destinationBoardSnap.exists) throw new HttpsError('not-found', 'לוח היעד לא נמצא');
+
+        if (!userHasBoardAccess(sourceBoardSnap.data(), uid) || !userHasBoardAccess(destinationBoardSnap.data(), uid)) {
+          throw new HttpsError('permission-denied', 'אין לך הרשאה להעביר עסקה לאחד הלוחות שנבחרו');
+        }
+
+        if (!sourceTxSnap.exists) {
+          throw new HttpsError('not-found', 'העסקה לא נמצאה. ייתכן שהיא נמחקה או הועברה כבר');
+        }
+
+        if (destinationTxSnap.exists) {
+          throw new HttpsError('already-exists', 'כבר קיימת עסקה עם אותו מזהה בלוח היעד');
+        }
+
+        const transactionData = sourceTxSnap.data();
+        tx.set(destinationTxRef, {
+          ...transactionData,
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+        tx.delete(sourceTxRef);
+      });
+
+      return {
+        success: true,
+        sourceBoardId,
+        destinationBoardId,
+        transactionId,
+      };
+    },
 );
 
 /**
