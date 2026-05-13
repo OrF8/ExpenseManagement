@@ -92,18 +92,6 @@ export async function deleteBoard(boardId) {
 }
 
 /**
- * Fetch a single board by ID.
- * @param {string} boardId
- * @returns {Promise<{id: string, ...}>|null}
- */
-export async function getBoard(boardId) {
-  const ref = doc(db, 'boards', boardId);
-  const snap = await getDoc(ref);
-  if (!snap.exists()) return null;
-  return { id: snap.id, ...snap.data() };
-}
-
-/**
  * Subscribe to real-time updates of a single board document.
  * @param {string} boardId
  * @param {function} onData  - Callback receiving the board object, or null if it no longer exists

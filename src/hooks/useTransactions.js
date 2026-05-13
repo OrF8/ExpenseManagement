@@ -3,8 +3,8 @@
  * State tracks the boardId it was loaded for, so stale data from a previous
  * board is never shown and loading is correct when navigating between boards.
  */
-import { useState, useEffect, useMemo } from 'react';
-import { subscribeToTransactions } from '../firebase/transactions';
+import {useEffect, useMemo, useState} from 'react';
+import {subscribeToTransactions} from '../firebase/transactions';
 
 export function useTransactions(boardId) {
   // forBoardId tracks which board's data is currently in state
@@ -12,12 +12,11 @@ export function useTransactions(boardId) {
 
   useEffect(() => {
     if (!boardId) return;
-    const unsub = subscribeToTransactions(
-      boardId,
-      (data) => setState({ transactions: data, error: null, forBoardId: boardId }),
-      (err) => setState({ transactions: [], error: err.message, forBoardId: boardId })
+    return subscribeToTransactions(
+        boardId,
+        (data) => setState({transactions: data, error: null, forBoardId: boardId}),
+        (err) => setState({transactions: [], error: err.message, forBoardId: boardId})
     );
-    return unsub;
   }, [boardId]);
 
   const loading = !!boardId && state.forBoardId !== boardId;

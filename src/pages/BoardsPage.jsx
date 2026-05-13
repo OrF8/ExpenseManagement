@@ -67,7 +67,7 @@ export function BoardsPage() {
         console.error('Failed to load user profile:', err);
       }
     }
-    loadProfile();
+    loadProfile().then(r => r).catch(err => console.error('Error in loadProfile:', err));
   }, [user]);
 
   // ---------------------------------------------------------------------------

@@ -8,7 +8,7 @@ import { ThemeToggle } from '../components/ui/ThemeToggle';
 
 export function LandingPage() {
   return (
-    <div className="min-h-screen flex flex-col bg-gradient-to-br from-slate-50 via-white to-indigo-50 dark:from-gray-950 dark:via-gray-900 dark:to-slate-900" dir="ltr">
+    <div className="min-h-screen flex flex-col bg-linear-to-br from-slate-50 via-white to-indigo-50 dark:from-gray-950 dark:via-gray-900 dark:to-slate-900" dir="ltr">
       {/* Header */}
       <header className="bg-white/80 dark:bg-gray-900/80 backdrop-blur border-b border-gray-100 dark:border-gray-800 sticky top-0 z-10">
         <div className="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
