@@ -6,30 +6,42 @@
  *  - Super board (board.subBoardIds?.length > 0): shows sub-board grid with
  *    aggregate total and affordances to remove or add sub-boards.
  */
-import { useState, useEffect, useMemo } from 'react';
-import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import { useTransactions } from '../hooks/useTransactions';
-import { useBoards } from '../hooks/useBoards';
-import { useBoardTotals } from '../hooks/useBoardTotals';
-import { useAuth } from '../context/AuthContext';
-import { addTransaction, updateTransaction, deleteTransaction, getTransactionsForBoard, moveTransaction } from '../firebase/transactions';
-import { subscribeToBoard, removeSubBoardFromSuper, mergeBoardsIntoSuper, createBoard, renameBoard } from '../firebase/boards';
-import { getUserProfile } from '../firebase/users';
-import { isMergeValid } from '../utils/boardHierarchy';
-import { Button } from '../components/ui/Button';
-import { Spinner } from '../components/ui/Spinner';
-import { Input } from '../components/ui/Input';
-import { EmptyState } from '../components/ui/EmptyState';
-import { Modal } from '../components/ui/Modal';
-import { ThemeToggle } from '../components/ui/ThemeToggle';
-import { TransactionForm } from '../components/TransactionForm';
-import { TransactionCard } from '../components/TransactionCard';
-import { TotalsSummary } from '../components/TotalsSummary';
-import { CollaboratorManager } from '../components/CollaboratorManager';
-import { BoardHierarchyActionsMenu } from '../components/ui/BoardHierarchyActionsMenu';
-import { TRANSACTION_TYPE_LABELS } from '../constants/transactionTypes';
-import { subscribeWithAppCheckRetry } from '../utils/appCheckRetry';
-import { exportBoardToExcel } from '../utils/exportBoardToExcel';
+import {useEffect, useMemo, useState} from 'react';
+import {useLocation, useNavigate, useParams} from 'react-router-dom';
+import {useTransactions} from '../hooks/useTransactions';
+import {useBoards} from '../hooks/useBoards';
+import {useBoardTotals} from '../hooks/useBoardTotals';
+import {useAuth} from '../context/AuthContext';
+import {
+  addTransaction,
+  deleteTransaction,
+  getTransactionsForBoard,
+  moveTransaction,
+  updateTransaction
+} from '../firebase/transactions';
+import {
+  createBoard,
+  mergeBoardsIntoSuper,
+  removeSubBoardFromSuper,
+  renameBoard,
+  subscribeToBoard
+} from '../firebase/boards';
+import {getUserProfile} from '../firebase/users';
+import {isMergeValid} from '../utils/boardHierarchy';
+import {Button} from '../components/ui/Button';
+import {Spinner} from '../components/ui/Spinner';
+import {Input} from '../components/ui/Input';
+import {EmptyState} from '../components/ui/EmptyState';
+import {Modal} from '../components/ui/Modal';
+import {ThemeToggle} from '../components/ui/ThemeToggle';
+import {TransactionForm} from '../components/TransactionForm';
+import {TransactionCard} from '../components/TransactionCard';
+import {TotalsSummary} from '../components/TotalsSummary';
+import {CollaboratorManager} from '../components/CollaboratorManager';
+import {BoardHierarchyActionsMenu} from '../components/ui/BoardHierarchyActionsMenu';
+import {TRANSACTION_TYPE_LABELS} from '../constants/transactionTypes';
+import {subscribeWithAppCheckRetry} from '../utils/appCheckRetry';
+import {exportBoardToExcel} from '../utils/exportBoardToExcel';
 
 function formatAmount(amount) {
   return new Intl.NumberFormat('he-IL', { style: 'currency', currency: 'ILS' }).format(amount);
@@ -87,51 +99,51 @@ export function BoardPage() {
 
   // Subscribe to real-time board metadata updates
   useEffect(() => {
-    const unsub = subscribeWithAppCheckRetry(
-      (onData, onError) => subscribeToBoard(boardId, onData, onError),
-      (b) => {
-        if (!b || !b.memberUids.includes(user?.uid)) {
-          setBoardState((prev) => ({
-            ...prev,
+    return subscribeWithAppCheckRetry(
+        (onData, onError) => subscribeToBoard(boardId, onData, onError),
+        (b) => {
+          if (!b || !b.memberUids.includes(user?.uid)) {
+            setBoardState((prev) => ({
+              ...prev,
+              boardId,
+              board: null,
+              loading: false,
+              error: null,
+              retryingSecureConnection: false,
+            }));
+            navigate('/boards');
+            return;
+          }
+          setBoardState({
+            boardId,
+            board: b,
+            loading: false,
+            error: null,
+            retryingSecureConnection: false,
+          });
+        },
+        (err) => {
+          setBoardState({
             boardId,
             board: null,
             loading: false,
+            error: err.message,
             retryingSecureConnection: false,
-          }));
-          navigate('/boards');
-          return;
-        }
-        setBoardState({
-          boardId,
-          board: b,
-          loading: false,
-          error: null,
-          retryingSecureConnection: false,
-        });
-      },
-      (err) => {
-        setBoardState({
-          boardId,
-          board: null,
-          loading: false,
-          error: err.message,
-          retryingSecureConnection: false,
-        });
-      },
-      {
-        onRetryAttempt: () => {
-          setBoardState((prev) => ({
-            ...prev,
-            boardId,
-            board: prev.boardId === boardId ? prev.board : null,
-            loading: true,
-            error: null,
-            retryingSecureConnection: true,
-          }));
+          });
         },
-      },
+        {
+          onRetryAttempt: () => {
+            setBoardState((prev) => ({
+              ...prev,
+              boardId,
+              board: prev.boardId === boardId ? prev.board : null,
+              loading: true,
+              error: null,
+              retryingSecureConnection: true,
+            }));
+          },
+        },
     );
-    return unsub;
   }, [boardId, user, navigate]);
 
   // ---------------------------------------------------------------------------
@@ -617,7 +629,7 @@ export function BoardPage() {
           /* ---------------------------------------------------------------- */
           <>
             {/* Aggregate total banner */}
-            <div className="rounded-2xl bg-gradient-to-br from-indigo-50 to-white border border-indigo-100 p-5 dark:from-indigo-950/50 dark:to-gray-900 dark:border-indigo-900">
+            <div className="rounded-2xl bg-linear-to-br from-indigo-50 to-white border border-indigo-100 p-5 dark:from-indigo-950/50 dark:to-gray-900 dark:border-indigo-900">
               <p className="text-sm font-semibold text-indigo-700 dark:text-indigo-400 uppercase tracking-wide mb-1">
                 סה"כ הוצאות
               </p>
