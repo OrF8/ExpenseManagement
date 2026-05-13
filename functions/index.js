@@ -821,7 +821,7 @@ exports.deleteBoard = onCall(
  *
  *    Ownership invariant: all boards in a hierarchy share the same ownerUid.
  *    The UI enforces this by requiring the caller to own both the dragged
- *    board and the drop target when merging into a super-board.  Therefore
+ *    board and the drop target when merging into a super-board. Therefore,
  *    querying ownerUid == callerUid already captures all boards in every
  *    hierarchy the user created, without needing to traverse parents.
  *

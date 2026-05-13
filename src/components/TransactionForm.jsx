@@ -75,7 +75,7 @@ function validate(form) {
  * @param {string} [defaultName]     – Pre-filled name for create mode.
  * @param {{type: string, cardLast4?: string}} [defaultPaymentMethod]
  *   Pre-fills just the payment-method fields (type + cardLast4) in create mode,
- *   without triggering edit-mode behaviour (submit button stays "הוסף עסקה").
+ *   without triggering edit-mode behavior (submit button stays "הוסף עסקה").
  * @param onSubmit - Async function called with validated form data on submit.
  * @param onCancel - Function called when user cancels the form.
  * @param submitting - Boolean indicating if the form is currently submitting, used to show loading state on the submit action.

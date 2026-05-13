@@ -5,31 +5,6 @@
  *   parentBoardId : string | null   – ID of the super board, or null for top-level
  *   subBoardIds   : string[]        – ordered list of direct child board IDs
  */
-
-/**
- * Collect all descendant board IDs of a given board (depth-first).
- * The visited Set prevents infinite loops if a cycle exists in the data.
- *
- * @param {string}   boardId
- * @param {Array}    allBoards  – flat array of board objects
- * @param {Set}      [visited]  – internal, do not pass
- * @returns {string[]}
- */
-export function getDescendantIds(boardId, allBoards, visited = new Set()) {
-  if (visited.has(boardId)) return [];
-  visited.add(boardId);
-
-  const board = allBoards.find((b) => b.id === boardId);
-  const subIds = board?.subBoardIds ?? [];
-  const result = [];
-
-  for (const subId of subIds) {
-    result.push(subId);
-    result.push(...getDescendantIds(subId, allBoards, visited));
-  }
-  return result;
-}
-
 /**
  * Return true when making childId a sub-board of parentId is allowed.
  *
@@ -61,9 +36,7 @@ export function isMergeValid(childId, parentId, allBoards) {
   if (parent?.parentBoardId) return false;
 
   // No duplicates: child is not already a direct sub-board of parent
-  if (parent?.subBoardIds?.includes(childId)) return false;
-
-  return true;
+  return !parent?.subBoardIds?.includes(childId);
 }
 
 /**

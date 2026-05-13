@@ -23,7 +23,7 @@ export function TotalsSummary({ totals, activeFilterKey, onFilterChange }) {
   const isInteractive = typeof onFilterChange === 'function';
 
   return (
-    <div className="rounded-2xl bg-gradient-to-br from-indigo-50 to-white border border-indigo-100 p-5 dark:from-indigo-950/50 dark:to-gray-900 dark:border-indigo-900">
+    <div className="rounded-2xl bg-linear-to-br from-indigo-50 to-white border border-indigo-100 p-5 dark:from-indigo-950/50 dark:to-gray-900 dark:border-indigo-900">
       <h3 className="text-sm font-semibold text-indigo-700 dark:text-indigo-400 mb-3 uppercase tracking-wide">
         סיכום עסקאות
       </h3>

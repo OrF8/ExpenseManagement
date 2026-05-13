@@ -1,8 +1,8 @@
 /**
  * Board detail page.
  *
- * Behaviour:
- *  - Regular board: shows transactions and totals (existing behaviour).
+ * Behavior:
+ *  - Regular board: shows transactions and totals (existing behavior).
  *  - Super board (board.subBoardIds?.length > 0): shows sub-board grid with
  *    aggregate total and affordances to remove or add sub-boards.
  */
@@ -204,7 +204,7 @@ export function BoardPage() {
   /**
    * Derives the defaultPaymentMethod value for TransactionForm from an active
    * payment-method filter key. Returns undefined when no filter is active, or
-   * when the type is not a recognised transaction type (e.g. 'unknown').
+   * when the type is not a recognized transaction type (e.g. 'unknown').
    */
   function paymentFilterToDefaultPaymentMethod(filterKey) {
     if (!filterKey) return undefined;
@@ -213,7 +213,7 @@ export function BoardPage() {
     }
     if (filterKey.startsWith('type:')) {
       const typeName = filterKey.slice(5);
-      // Only prefill recognised types so the form doesn't show an invalid/unselectable value
+      // Only prefill recognized types so the form doesn't show an invalid/unselectable value
       if (!Object.prototype.hasOwnProperty.call(TRANSACTION_TYPE_LABELS, typeName)) return undefined;
       return { type: typeName };
     }

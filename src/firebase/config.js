@@ -25,17 +25,13 @@ if (import.meta.env.DEV || import.meta.env.VITE_APPCHECK_DEBUG === 'true') {
   self.FIREBASE_APPCHECK_DEBUG_TOKEN =
       import.meta.env.VITE_APPCHECK_DEBUG_TOKEN || true;
 }
-
-export const appCheck = initializeAppCheck(app, {
+initializeAppCheck(app, {
   provider: new ReCaptchaV3Provider(
       import.meta.env.VITE_RECAPTCHA_V3_SITE_KEY
   ),
   isTokenAutoRefreshEnabled: true,
 });
-
 export const auth = getAuth(app);
 export const db = getFirestore(app);
 export const functions = getFunctions(app);
 export const googleProvider = new GoogleAuthProvider();
-
-export default app;
