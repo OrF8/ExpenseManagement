@@ -115,6 +115,7 @@ export function BoardPage() {
           setBoardState((prev) => ({
             ...prev,
             boardId,
+            board: prev.boardId === boardId ? prev.board : null,
             loading: true,
             error: null,
             retryingSecureConnection: true,

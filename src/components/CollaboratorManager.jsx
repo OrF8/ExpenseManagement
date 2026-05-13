@@ -153,6 +153,23 @@ export function CollaboratorManager({ board }) {
 
   // All documents in the invites subcollection are pending by definition.
   // Filter out any that have expired (TTL may not have removed them yet).
+  const nextInviteExpiry = useMemo(() => {
+    const expiries = invites
+      .map((invite) => invite.expiresAt?.toMillis?.())
+      .filter((value) => typeof value === 'number' && value > now);
+    if (!expiries.length) return null;
+    return Math.min(...expiries);
+  }, [invites, now]);
+
+  useEffect(() => {
+    if (!nextInviteExpiry) return;
+    const waitMs = Math.max(0, nextInviteExpiry - Date.now());
+    const timeoutId = setTimeout(() => {
+      setNow(Date.now());
+    }, waitMs + 1);
+    return () => clearTimeout(timeoutId);
+  }, [nextInviteExpiry]);
+
   const pendingInvites = invites.filter((i) => {
     if (!i.expiresAt) return true; // legacy doc without expiry — treat as active
     return i.expiresAt.toMillis() > now;
