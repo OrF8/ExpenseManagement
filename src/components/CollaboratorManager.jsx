@@ -14,7 +14,7 @@
  * Boards without directMemberUids (created before this field was added) treat all
  * memberUids as direct for backward compatibility.
  */
-import {useEffect, useRef, useState} from 'react';
+import {useEffect, useMemo, useRef, useState} from 'react';
 import {
   createBoardInvite,
   deleteBoardInvite,
@@ -38,16 +38,25 @@ export function CollaboratorManager({ board }) {
   const [removeError, setRemoveError] = useState(null);
   const [leaveError, setLeaveError] = useState(null);
   const [memberProfiles, setMemberProfiles] = useState([]);
+  const [now, setNow] = useState(() => Date.now());
   const successTimerRef = useRef(null);
 
   const isOwner = user?.uid === board.ownerUid;
 
   // Direct members: users explicitly invited to this board.
   // Backward compat: if directMemberUids is absent, treat all memberUids as direct.
-  const directMemberUids = board.directMemberUids ?? board.memberUids ?? [];
+  const directMemberUids = useMemo(
+    () => (board.directMemberUids ?? board.memberUids ?? []),
+    [board.directMemberUids, board.memberUids],
+  );
   // Inherited members: in memberUids but NOT in directMemberUids (via ancestor board)
-  const inheritedMemberUids = (board.memberUids ?? []).filter(
-    (uid) => !directMemberUids.includes(uid),
+  const inheritedMemberUids = useMemo(
+    () => (board.memberUids ?? []).filter((uid) => !directMemberUids.includes(uid)),
+    [board.memberUids, directMemberUids],
+  );
+  const allUids = useMemo(
+    () => [...new Set([...directMemberUids, ...inheritedMemberUids])],
+    [directMemberUids, inheritedMemberUids],
   );
 
   // Subscribe to board invites (owner only — rules enforce this server-side)
@@ -55,7 +64,10 @@ export function CollaboratorManager({ board }) {
     if (!isOwner) return;
     return subscribeToBoardInvites(
         board.id,
-        (data) => setInvites(data),
+        (data) => {
+          setInvites(data);
+          setNow(Date.now());
+        },
         (err) => console.error('subscribeToBoardInvites error:', err)
     );
   }, [board.id, isOwner]);
@@ -63,17 +75,13 @@ export function CollaboratorManager({ board }) {
   // Load minimal display profiles for all board members (direct + inherited)
   // via a secure callable (avoids direct cross-user /users reads in the client).
   useEffect(() => {
-    const allUids = [...new Set([...directMemberUids, ...inheritedMemberUids])];
-    if (!allUids.length) {
-      setMemberProfiles([]);
-      return;
-    }
+    if (!allUids.length) return;
     let stale = false;
     getUserProfilesByUids(board.id, allUids)
       .then((profiles) => { if (!stale) setMemberProfiles(profiles); })
       .catch((err) => console.error('getUserProfilesByUids error:', err));
     return () => { stale = true; };
-  }, [board.id, board.memberUids, board.directMemberUids]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [board.id, allUids]);
 
   // Clear the success timer when the component unmounts
   useEffect(() => {
@@ -145,9 +153,26 @@ export function CollaboratorManager({ board }) {
 
   // All documents in the invites subcollection are pending by definition.
   // Filter out any that have expired (TTL may not have removed them yet).
+  const nextInviteExpiry = useMemo(() => {
+    const expiries = invites
+      .map((invite) => invite.expiresAt?.toMillis?.())
+      .filter((value) => typeof value === 'number' && value > now);
+    if (!expiries.length) return null;
+    return Math.min(...expiries);
+  }, [invites, now]);
+
+  useEffect(() => {
+    if (!nextInviteExpiry) return;
+    const waitMs = Math.max(0, nextInviteExpiry - Date.now());
+    const timeoutId = setTimeout(() => {
+      setNow(Date.now());
+    }, waitMs + 1);
+    return () => clearTimeout(timeoutId);
+  }, [nextInviteExpiry]);
+
   const pendingInvites = invites.filter((i) => {
     if (!i.expiresAt) return true; // legacy doc without expiry — treat as active
-    return i.expiresAt.toMillis() > Date.now();
+    return i.expiresAt.toMillis() > now;
   });
 
   function renderMemberRow(uid, { inherited = false } = {}) {
@@ -250,7 +275,7 @@ export function CollaboratorManager({ board }) {
           <p className="text-xs text-red-500 dark:text-red-400 mb-2">{leaveError}</p>
         )}
         <div className="flex flex-col gap-1">
-          {directMemberUids.map((uid) => renderMemberRow(uid))}
+          {allUids.length === 0 ? null : directMemberUids.map((uid) => renderMemberRow(uid))}
         </div>
       </div>
 

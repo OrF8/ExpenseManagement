@@ -6,30 +6,42 @@
  *  - Super board (board.subBoardIds?.length > 0): shows sub-board grid with
  *    aggregate total and affordances to remove or add sub-boards.
  */
-import { useState, useEffect, useMemo } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { useTransactions } from '../hooks/useTransactions';
-import { useBoards } from '../hooks/useBoards';
-import { useBoardTotals } from '../hooks/useBoardTotals';
-import { useAuth } from '../context/AuthContext';
-import { addTransaction, updateTransaction, deleteTransaction, getTransactionsForBoard, moveTransaction } from '../firebase/transactions';
-import { subscribeToBoard, removeSubBoardFromSuper, mergeBoardsIntoSuper, createBoard, renameBoard } from '../firebase/boards';
-import { getUserProfile } from '../firebase/users';
-import { isMergeValid } from '../utils/boardHierarchy';
-import { Button } from '../components/ui/Button';
-import { Spinner } from '../components/ui/Spinner';
-import { Input } from '../components/ui/Input';
-import { EmptyState } from '../components/ui/EmptyState';
-import { Modal } from '../components/ui/Modal';
-import { ThemeToggle } from '../components/ui/ThemeToggle';
-import { TransactionForm } from '../components/TransactionForm';
-import { TransactionCard } from '../components/TransactionCard';
-import { TotalsSummary } from '../components/TotalsSummary';
-import { CollaboratorManager } from '../components/CollaboratorManager';
-import { BoardHierarchyActionsMenu } from '../components/ui/BoardHierarchyActionsMenu';
-import { TRANSACTION_TYPE_LABELS } from '../constants/transactionTypes';
-import { subscribeWithAppCheckRetry } from '../utils/appCheckRetry';
-import { exportBoardToExcel } from '../utils/exportBoardToExcel';
+import {useEffect, useMemo, useState} from 'react';
+import {useLocation, useNavigate, useParams} from 'react-router-dom';
+import {useTransactions} from '../hooks/useTransactions';
+import {useBoards} from '../hooks/useBoards';
+import {useBoardTotals} from '../hooks/useBoardTotals';
+import {useAuth} from '../context/AuthContext';
+import {
+  addTransaction,
+  deleteTransaction,
+  getTransactionsForBoard,
+  moveTransaction,
+  updateTransaction
+} from '../firebase/transactions';
+import {
+  createBoard,
+  mergeBoardsIntoSuper,
+  removeSubBoardFromSuper,
+  renameBoard,
+  subscribeToBoard
+} from '../firebase/boards';
+import {getUserProfile} from '../firebase/users';
+import {isMergeValid} from '../utils/boardHierarchy';
+import {Button} from '../components/ui/Button';
+import {Spinner} from '../components/ui/Spinner';
+import {Input} from '../components/ui/Input';
+import {EmptyState} from '../components/ui/EmptyState';
+import {Modal} from '../components/ui/Modal';
+import {ThemeToggle} from '../components/ui/ThemeToggle';
+import {TransactionForm} from '../components/TransactionForm';
+import {TransactionCard} from '../components/TransactionCard';
+import {TotalsSummary} from '../components/TotalsSummary';
+import {CollaboratorManager} from '../components/CollaboratorManager';
+import {BoardHierarchyActionsMenu} from '../components/ui/BoardHierarchyActionsMenu';
+import {TRANSACTION_TYPE_LABELS} from '../constants/transactionTypes';
+import {subscribeWithAppCheckRetry} from '../utils/appCheckRetry';
+import {exportBoardToExcel} from '../utils/exportBoardToExcel';
 
 function formatAmount(amount) {
   return new Intl.NumberFormat('he-IL', { style: 'currency', currency: 'ILS' }).format(amount);
@@ -37,14 +49,18 @@ function formatAmount(amount) {
 
 export function BoardPage() {
   const { boardId } = useParams();
+  const location = useLocation();
   const { user } = useAuth();
   const navigate = useNavigate();
   const { transactions, loading, error, totals } = useTransactions(boardId);
   const { boards: allBoards } = useBoards();
-  const [board, setBoard] = useState(null);
-  const [boardLoading, setBoardLoading] = useState(true);
-  const [boardError, setBoardError] = useState(null);
-  const [boardRetryingSecureConnection, setBoardRetryingSecureConnection] = useState(false);
+  const [boardState, setBoardState] = useState({
+    boardId: null,
+    board: null,
+    loading: true,
+    error: null,
+    retryingSecureConnection: false,
+  });
   const [showAddModal, setShowAddModal] = useState(false);
   const [editTx, setEditTx] = useState(null);
   const [showCollabs, setShowCollabs] = useState(false);
@@ -58,12 +74,20 @@ export function BoardPage() {
    * null  → no filter active
    * string → a perGroup key, e.g. "card:1234" or "type:cash"
    */
-  const [activePaymentFilterKey, setActivePaymentFilterKey] = useState(null);
-
-  // Clear the payment-method filter whenever the user navigates to a different board
-  useEffect(() => {
-    setActivePaymentFilterKey(null);
-  }, [boardId]);
+  const [activePaymentFilter, setActivePaymentFilter] = useState({
+    boardId: null,
+    routeKey: null,
+    key: null,
+  });
+  const activePaymentFilterKey =
+    activePaymentFilter.boardId === boardId && activePaymentFilter.routeKey === location.key
+      ? activePaymentFilter.key
+      : null;
+  const board = boardState.boardId === boardId ? boardState.board : null;
+  const boardLoading = boardState.boardId !== boardId ? true : boardState.loading;
+  const boardError = boardState.boardId !== boardId ? null : boardState.error;
+  const boardRetryingSecureConnection =
+    boardState.boardId !== boardId ? false : boardState.retryingSecureConnection;
 
   // Load current user's nickname for defaulting the transaction name
   useEffect(() => {
@@ -75,37 +99,51 @@ export function BoardPage() {
 
   // Subscribe to real-time board metadata updates
   useEffect(() => {
-    setBoardLoading(true);
-    setBoardError(null);
-    setBoardRetryingSecureConnection(false);
-
-    const unsub = subscribeWithAppCheckRetry(
-      (onData, onError) => subscribeToBoard(boardId, onData, onError),
-      (b) => {
-        if (!b || !b.memberUids.includes(user?.uid)) {
-          setBoardRetryingSecureConnection(false);
-          setBoardLoading(false);
-          navigate('/boards');
-          return;
-        }
-        setBoard(b);
-        setBoardRetryingSecureConnection(false);
-        setBoardLoading(false);
-      },
-      (err) => {
-        setBoardError(err.message);
-        setBoardRetryingSecureConnection(false);
-        setBoardLoading(false);
-      },
-      {
-        onRetryAttempt: () => {
-          setBoardRetryingSecureConnection(true);
-          setBoardLoading(true);
-          setBoardError(null);
+    return subscribeWithAppCheckRetry(
+        (onData, onError) => subscribeToBoard(boardId, onData, onError),
+        (b) => {
+          if (!b || !b.memberUids.includes(user?.uid)) {
+            setBoardState((prev) => ({
+              ...prev,
+              boardId,
+              board: null,
+              loading: false,
+              error: null,
+              retryingSecureConnection: false,
+            }));
+            navigate('/boards');
+            return;
+          }
+          setBoardState({
+            boardId,
+            board: b,
+            loading: false,
+            error: null,
+            retryingSecureConnection: false,
+          });
         },
-      },
+        (err) => {
+          setBoardState({
+            boardId,
+            board: null,
+            loading: false,
+            error: err.message,
+            retryingSecureConnection: false,
+          });
+        },
+        {
+          onRetryAttempt: () => {
+            setBoardState((prev) => ({
+              ...prev,
+              boardId,
+              board: prev.boardId === boardId ? prev.board : null,
+              loading: true,
+              error: null,
+              retryingSecureConnection: true,
+            }));
+          },
+        },
     );
-    return unsub;
   }, [boardId, user, navigate]);
 
   // ---------------------------------------------------------------------------
@@ -119,17 +157,16 @@ export function BoardPage() {
   const isSubBoard = !!board?.parentBoardId;
   const isOwner = board?.ownerUid === user?.uid;
 
-  const subBoards = useMemo(() => {
-    if (!isSuperBoard) return [];
-    return (board.subBoardIds ?? [])
-      .map((id) => allBoards.find((b) => b.id === id))
-      .filter(Boolean);
-  }, [isSuperBoard, board?.subBoardIds, allBoards]);
-
   const subBoardIds = useMemo(
     () => (board?.subBoardIds ?? []),
     [board?.subBoardIds],
   );
+  const subBoards = useMemo(() => {
+    if (!isSuperBoard) return [];
+    return subBoardIds
+      .map((id) => allBoards.find((b) => b.id === id))
+      .filter(Boolean);
+  }, [isSuperBoard, subBoardIds, allBoards]);
   const { totals: subBoardTotals } = useBoardTotals(subBoardIds);
 
   const aggregateTotal = useMemo(
@@ -592,7 +629,7 @@ export function BoardPage() {
           /* ---------------------------------------------------------------- */
           <>
             {/* Aggregate total banner */}
-            <div className="rounded-2xl bg-gradient-to-br from-indigo-50 to-white border border-indigo-100 p-5 dark:from-indigo-950/50 dark:to-gray-900 dark:border-indigo-900">
+            <div className="rounded-2xl bg-linear-to-br from-indigo-50 to-white border border-indigo-100 p-5 dark:from-indigo-950/50 dark:to-gray-900 dark:border-indigo-900">
               <p className="text-sm font-semibold text-indigo-700 dark:text-indigo-400 uppercase tracking-wide mb-1">
                 סה"כ הוצאות
               </p>
@@ -691,7 +728,7 @@ export function BoardPage() {
             <TotalsSummary
               totals={totals}
               activeFilterKey={activePaymentFilterKey}
-              onFilterChange={setActivePaymentFilterKey}
+              onFilterChange={(key) => setActivePaymentFilter({ boardId, routeKey: location.key, key })}
             />
 
             {/* Active payment-method filter indicator */}
@@ -702,7 +739,7 @@ export function BoardPage() {
                 </span>
                 <button
                   type="button"
-                  onClick={() => setActivePaymentFilterKey(null)}
+                  onClick={() => setActivePaymentFilter({ boardId, routeKey: location.key, key: null })}
                   className="mr-auto flex items-center gap-1 text-indigo-500 hover:text-indigo-700 dark:hover:text-indigo-300 transition-colors"
                   aria-label="נקה סינון"
                 >
@@ -741,7 +778,10 @@ export function BoardPage() {
                   description={activePaymentFilterKey ? 'אין עסקאות התואמות לאמצעי התשלום שנבחר' : 'הוסף את העסקה הראשונה כדי להתחיל לעקוב'}
                   action={
                     activePaymentFilterKey ? (
-                      <Button variant="secondary" onClick={() => setActivePaymentFilterKey(null)}>
+                      <Button
+                        variant="secondary"
+                        onClick={() => setActivePaymentFilter({ boardId, routeKey: location.key, key: null })}
+                      >
                         נקה סינון
                       </Button>
                     ) : (
