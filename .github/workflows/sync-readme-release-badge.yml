@@ -189,5 +189,7 @@ jobs:
           branch: automation/sync-readme-release-version
           base: main
           add-paths: README.md
-          labels: automated
+          labels: |
+            automated
+            dependencies
           delete-branch: true
