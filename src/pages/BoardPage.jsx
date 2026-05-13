@@ -41,10 +41,13 @@ export function BoardPage() {
   const navigate = useNavigate();
   const { transactions, loading, error, totals } = useTransactions(boardId);
   const { boards: allBoards } = useBoards();
-  const [board, setBoard] = useState(null);
-  const [boardLoading, setBoardLoading] = useState(true);
-  const [boardError, setBoardError] = useState(null);
-  const [boardRetryingSecureConnection, setBoardRetryingSecureConnection] = useState(false);
+  const [boardState, setBoardState] = useState({
+    boardId: null,
+    board: null,
+    loading: true,
+    error: null,
+    retryingSecureConnection: false,
+  });
   const [showAddModal, setShowAddModal] = useState(false);
   const [editTx, setEditTx] = useState(null);
   const [showCollabs, setShowCollabs] = useState(false);
@@ -58,12 +61,13 @@ export function BoardPage() {
    * null  → no filter active
    * string → a perGroup key, e.g. "card:1234" or "type:cash"
    */
-  const [activePaymentFilterKey, setActivePaymentFilterKey] = useState(null);
-
-  // Clear the payment-method filter whenever the user navigates to a different board
-  useEffect(() => {
-    setActivePaymentFilterKey(null);
-  }, [boardId]);
+  const [activePaymentFilter, setActivePaymentFilter] = useState({ boardId: null, key: null });
+  const activePaymentFilterKey = activePaymentFilter.boardId === boardId ? activePaymentFilter.key : null;
+  const board = boardState.boardId === boardId ? boardState.board : null;
+  const boardLoading = boardState.boardId !== boardId ? true : boardState.loading;
+  const boardError = boardState.boardId !== boardId ? null : boardState.error;
+  const boardRetryingSecureConnection =
+    boardState.boardId !== boardId ? false : boardState.retryingSecureConnection;
 
   // Load current user's nickname for defaulting the transaction name
   useEffect(() => {
@@ -75,33 +79,46 @@ export function BoardPage() {
 
   // Subscribe to real-time board metadata updates
   useEffect(() => {
-    setBoardLoading(true);
-    setBoardError(null);
-    setBoardRetryingSecureConnection(false);
-
     const unsub = subscribeWithAppCheckRetry(
       (onData, onError) => subscribeToBoard(boardId, onData, onError),
       (b) => {
         if (!b || !b.memberUids.includes(user?.uid)) {
-          setBoardRetryingSecureConnection(false);
-          setBoardLoading(false);
+          setBoardState((prev) => ({
+            ...prev,
+            boardId,
+            board: null,
+            loading: false,
+            retryingSecureConnection: false,
+          }));
           navigate('/boards');
           return;
         }
-        setBoard(b);
-        setBoardRetryingSecureConnection(false);
-        setBoardLoading(false);
+        setBoardState({
+          boardId,
+          board: b,
+          loading: false,
+          error: null,
+          retryingSecureConnection: false,
+        });
       },
       (err) => {
-        setBoardError(err.message);
-        setBoardRetryingSecureConnection(false);
-        setBoardLoading(false);
+        setBoardState({
+          boardId,
+          board: null,
+          loading: false,
+          error: err.message,
+          retryingSecureConnection: false,
+        });
       },
       {
         onRetryAttempt: () => {
-          setBoardRetryingSecureConnection(true);
-          setBoardLoading(true);
-          setBoardError(null);
+          setBoardState((prev) => ({
+            ...prev,
+            boardId,
+            loading: true,
+            error: null,
+            retryingSecureConnection: true,
+          }));
         },
       },
     );
@@ -119,17 +136,16 @@ export function BoardPage() {
   const isSubBoard = !!board?.parentBoardId;
   const isOwner = board?.ownerUid === user?.uid;
 
-  const subBoards = useMemo(() => {
-    if (!isSuperBoard) return [];
-    return (board.subBoardIds ?? [])
-      .map((id) => allBoards.find((b) => b.id === id))
-      .filter(Boolean);
-  }, [isSuperBoard, board?.subBoardIds, allBoards]);
-
   const subBoardIds = useMemo(
     () => (board?.subBoardIds ?? []),
     [board?.subBoardIds],
   );
+  const subBoards = useMemo(() => {
+    if (!isSuperBoard) return [];
+    return subBoardIds
+      .map((id) => allBoards.find((b) => b.id === id))
+      .filter(Boolean);
+  }, [isSuperBoard, subBoardIds, allBoards]);
   const { totals: subBoardTotals } = useBoardTotals(subBoardIds);
 
   const aggregateTotal = useMemo(
@@ -691,7 +707,7 @@ export function BoardPage() {
             <TotalsSummary
               totals={totals}
               activeFilterKey={activePaymentFilterKey}
-              onFilterChange={setActivePaymentFilterKey}
+              onFilterChange={(key) => setActivePaymentFilter({ boardId, key })}
             />
 
             {/* Active payment-method filter indicator */}
@@ -702,7 +718,7 @@ export function BoardPage() {
                 </span>
                 <button
                   type="button"
-                  onClick={() => setActivePaymentFilterKey(null)}
+                  onClick={() => setActivePaymentFilter({ boardId, key: null })}
                   className="mr-auto flex items-center gap-1 text-indigo-500 hover:text-indigo-700 dark:hover:text-indigo-300 transition-colors"
                   aria-label="נקה סינון"
                 >
@@ -741,7 +757,7 @@ export function BoardPage() {
                   description={activePaymentFilterKey ? 'אין עסקאות התואמות לאמצעי התשלום שנבחר' : 'הוסף את העסקה הראשונה כדי להתחיל לעקוב'}
                   action={
                     activePaymentFilterKey ? (
-                      <Button variant="secondary" onClick={() => setActivePaymentFilterKey(null)}>
+                      <Button variant="secondary" onClick={() => setActivePaymentFilter({ boardId, key: null })}>
                         נקה סינון
                       </Button>
                     ) : (
