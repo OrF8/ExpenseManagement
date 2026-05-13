@@ -64,10 +64,7 @@ Write-Host "Installing dependencies..."
 npm ci
 
 Write-Host "Installing function dependencies..."
-Push-Location
-Set-Location (Join-Path $root "functions")
-npm ci
-Pop-Location
+npm --prefix functions ci
 
 Write-Host "Deploying Firebase functions..."
 $jsonFunctionsOutputPath = Join-Path $firebaseDir "firebase-functions-output.json"
