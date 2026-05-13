@@ -2,7 +2,7 @@
   "name": "expense-management-functions",
   "description": "Firebase Cloud Functions for Expense Management",
   "scripts": {
-    "lint": "echo \"Skipping lint\"",
+    "lint": "eslint --no-ignore index.js",
     "serve": "firebase emulators:start --only functions",
     "shell": "firebase functions:shell",
     "start": "npm run shell",
@@ -10,7 +10,7 @@
     "logs": "firebase functions:log"
   },
   "engines": {
-    "node": "22"
+    "node": "24"
   },
   "main": "index.js",
   "dependencies": {
@@ -22,5 +22,5 @@
     "eslint-config-google": "^0.14.0"
   },
   "private": true,
-  "version": "1.2.0"
+  "version": "1.2.1"
 }

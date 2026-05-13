@@ -4,6 +4,14 @@ All notable changes to this project are documented in this file.
 
 The format is inspired by [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project follows [Semantic Versioning](https://semver.org/).
 
+## [1.2.1]
+
+### Changed
+- Updated backend dependency `brotobuf-js` to `7.5.8` to address a security vulnerability (CVE-2026-44292) in versions prior to `7.5.5`.
+- Refreshed frontend lockfile dependencies to current compatible versions for improved maintenance and stability.
+- Minor optimizations and cleanup in all the code.
+- Fixed linting issues in `CollaboratorManager.jsx` and `BoardPage.jsx` for improved code quality and consistency.
+
 ## [1.2.0]
 
 ### Added
