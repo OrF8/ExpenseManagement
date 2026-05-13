@@ -7,7 +7,7 @@
  *    aggregate total and affordances to remove or add sub-boards.
  */
 import { useState, useEffect, useMemo } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useTransactions } from '../hooks/useTransactions';
 import { useBoards } from '../hooks/useBoards';
 import { useBoardTotals } from '../hooks/useBoardTotals';
@@ -37,6 +37,7 @@ function formatAmount(amount) {
 
 export function BoardPage() {
   const { boardId } = useParams();
+  const location = useLocation();
   const { user } = useAuth();
   const navigate = useNavigate();
   const { transactions, loading, error, totals } = useTransactions(boardId);
@@ -61,8 +62,15 @@ export function BoardPage() {
    * null  → no filter active
    * string → a perGroup key, e.g. "card:1234" or "type:cash"
    */
-  const [activePaymentFilter, setActivePaymentFilter] = useState({ boardId: null, key: null });
-  const activePaymentFilterKey = activePaymentFilter.boardId === boardId ? activePaymentFilter.key : null;
+  const [activePaymentFilter, setActivePaymentFilter] = useState({
+    boardId: null,
+    routeKey: null,
+    key: null,
+  });
+  const activePaymentFilterKey =
+    activePaymentFilter.boardId === boardId && activePaymentFilter.routeKey === location.key
+      ? activePaymentFilter.key
+      : null;
   const board = boardState.boardId === boardId ? boardState.board : null;
   const boardLoading = boardState.boardId !== boardId ? true : boardState.loading;
   const boardError = boardState.boardId !== boardId ? null : boardState.error;
@@ -708,7 +716,7 @@ export function BoardPage() {
             <TotalsSummary
               totals={totals}
               activeFilterKey={activePaymentFilterKey}
-              onFilterChange={(key) => setActivePaymentFilter({ boardId, key })}
+              onFilterChange={(key) => setActivePaymentFilter({ boardId, routeKey: location.key, key })}
             />
 
             {/* Active payment-method filter indicator */}
@@ -719,7 +727,7 @@ export function BoardPage() {
                 </span>
                 <button
                   type="button"
-                  onClick={() => setActivePaymentFilter({ boardId, key: null })}
+                  onClick={() => setActivePaymentFilter({ boardId, routeKey: location.key, key: null })}
                   className="mr-auto flex items-center gap-1 text-indigo-500 hover:text-indigo-700 dark:hover:text-indigo-300 transition-colors"
                   aria-label="נקה סינון"
                 >
@@ -758,7 +766,10 @@ export function BoardPage() {
                   description={activePaymentFilterKey ? 'אין עסקאות התואמות לאמצעי התשלום שנבחר' : 'הוסף את העסקה הראשונה כדי להתחיל לעקוב'}
                   action={
                     activePaymentFilterKey ? (
-                      <Button variant="secondary" onClick={() => setActivePaymentFilter({ boardId, key: null })}>
+                      <Button
+                        variant="secondary"
+                        onClick={() => setActivePaymentFilter({ boardId, routeKey: location.key, key: null })}
+                      >
                         נקה סינון
                       </Button>
                     ) : (
