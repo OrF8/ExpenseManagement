@@ -53,7 +53,7 @@ Data is stored in Firestore and updates in real time.
   - `directMemberUids`: explicitly invited to a board.
   - `memberUids`: effective access (direct + inherited from parent board).
 - **Inherited access:** Membership flows **down** from a super board to its sub-boards.
-- **Transactions:** Create, edit, and delete transactions on regular boards.
+- **Transactions:** Create, edit, transfer, and delete transactions on regular boards.
 - **Amounts:** Positive and negative amounts are supported (useful for refunds/credits).
 - **Future dates:** Optional `transactionDate` accepts valid `YYYY-MM-DD` dates, including future dates.
 - **Excel export:**
