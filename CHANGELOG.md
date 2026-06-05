@@ -6,6 +6,9 @@ The format is inspired by [Keep a Changelog](https://keepachangelog.com/en/1.1.0
 
 ## [1.2.1]
 
+### Unreleased
+- Minor `Dependabot` security fixes.
+
 ### Changed
 - Updated backend dependency `protobufjs` to `7.5.8` to address a security vulnerability (CVE-2026-44292) in versions prior to `7.5.5`.
 - Refreshed frontend lockfile dependencies to current compatible versions for improved maintenance and stability.
