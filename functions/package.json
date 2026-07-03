@@ -1,6 +1,8 @@
 {
   "name": "expense-management-functions",
   "description": "Firebase Cloud Functions for Expense Management",
+  "private": true,
+  "version": "1.2.2",
   "scripts": {
     "lint": "eslint .",
     "serve": "firebase emulators:start --only functions",
@@ -21,6 +23,7 @@
     "eslint": "^9.39.4",
     "eslint-config-google": "^0.14.0"
   },
-  "private": true,
-  "version": "1.2.1"
+  "overrides": {
+  "protobufjs": "7.6.3"
+  }
 }

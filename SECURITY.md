@@ -5,11 +5,11 @@
 Security fixes are provided for the latest minor line only.
 
 | Version | Supported |
-|---------| -- |
-| 1.2.x   | ✅ |
-| 1.1.x   | ❌ |
-| 1.0.x   | ❌ |
-| < 1.0.0 | ❌ |
+|---------|:---------:|
+| 1.2.x   |    ✅     |
+| 1.1.x   |     ❌    |
+| 1.0.x   |     ❌    |
+| < 1.0.0 |     ❌    |
 
 If you run a self-hosted deployment, upgrade to the latest `1.2.x` patch release as soon as practical.
 
@@ -30,7 +30,6 @@ Do **not** open a public issue for suspected vulnerabilities.
 
 - Contact the maintainer directly via GitHub
 - Contact us via email [expensemanagementwebsite@gmail.com](mailto:expensemanagementwebsite@gmail.com)
-
 
 ### What to include
 
