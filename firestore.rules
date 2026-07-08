@@ -36,6 +36,31 @@ service cloud.firestore {
         ).data.ownerUid == request.auth.uid;
     }
 
+    function baseTransactionKeys() {
+      return [
+        'name',
+        'cardLast4',
+        'essence',
+        'comment',
+        'amount',
+        'installmentCurrent',
+        'installmentTotal',
+        'type',
+        'transactionDate',
+        'createdByUid',
+        'createdAt',
+      ];
+    }
+
+    function transactionMetadataKeys() {
+      return [
+        'updatedAt',
+        'duplicatedFrom',
+        'duplicatedByUid',
+        'duplicatedAt',
+      ];
+    }
+
     function allowedTransactionKeys() {
       return [
         'name',
@@ -49,6 +74,10 @@ service cloud.firestore {
         'transactionDate',
         'createdByUid',
         'createdAt',
+        'updatedAt',
+        'duplicatedFrom',
+        'duplicatedByUid',
+        'duplicatedAt',
       ];
     }
 
@@ -89,9 +118,8 @@ service cloud.firestore {
           );
     }
 
-    function isValidTransactionData(data) {
-      return data.keys().hasOnly(allowedTransactionKeys())
-        && data.name is string
+    function isValidTransactionFields(data) {
+      return data.name is string
         && data.name.size() > 0
         && data.name.size() <= 80
         && data.essence is string
@@ -106,6 +134,63 @@ service cloud.firestore {
         && isValidTransactionType(data.type)
         && isValidTransactionDate(data.transactionDate)
         && isValidInstallments(data);
+    }
+
+    function isValidTransactionMetadata(data) {
+      return (
+          !data.keys().hasAny(['updatedAt']) ||
+          data.updatedAt is timestamp
+        )
+        && (
+          !data.keys().hasAny(['duplicatedByUid']) ||
+          data.duplicatedByUid is string
+        )
+        && (
+          !data.keys().hasAny(['duplicatedAt']) ||
+          data.duplicatedAt is timestamp
+        )
+        && (
+          !data.keys().hasAny(['duplicatedFrom']) ||
+          (
+            data.duplicatedFrom is map
+            && data.duplicatedFrom.keys().hasOnly(['boardId', 'transactionId'])
+            && data.duplicatedFrom.keys().hasAll(['boardId', 'transactionId'])
+            && data.duplicatedFrom.boardId is string
+            && data.duplicatedFrom.transactionId is string
+          )
+        );
+    }
+
+    function isValidTransactionData(data) {
+      return data.keys().hasOnly(baseTransactionKeys())
+        && isValidTransactionFields(data);
+    }
+
+    function isValidTransactionDataWithMetadata(data) {
+      return data.keys().hasOnly(allowedTransactionKeys())
+        && isValidTransactionFields(data)
+        && isValidTransactionMetadata(data);
+    }
+
+    function preservesOptionalImmutableTransactionField(fieldName) {
+      return (
+          !resource.data.keys().hasAny([fieldName])
+          && !request.resource.data.keys().hasAny([fieldName])
+        )
+        || (
+          resource.data.keys().hasAny([fieldName])
+          && request.resource.data.keys().hasAny([fieldName])
+          && request.resource.data[fieldName] == resource.data[fieldName]
+        );
+    }
+
+    function preservesImmutableTransactionFields() {
+      return request.resource.data.createdByUid == resource.data.createdByUid
+        && request.resource.data.createdAt == resource.data.createdAt
+        && preservesOptionalImmutableTransactionField('updatedAt')
+        && preservesOptionalImmutableTransactionField('duplicatedFrom')
+        && preservesOptionalImmutableTransactionField('duplicatedByUid')
+        && preservesOptionalImmutableTransactionField('duplicatedAt');
     }
 
     match /boards/{boardId} {
@@ -131,9 +216,8 @@ service cloud.firestore {
         && request.resource.data.createdAt == request.time;
 
       allow update: if isBoardMember(boardId)
-        && isValidTransactionData(request.resource.data)
-        && request.resource.data.createdByUid == resource.data.createdByUid
-        && request.resource.data.createdAt == resource.data.createdAt;
+        && isValidTransactionDataWithMetadata(request.resource.data)
+        && preservesImmutableTransactionFields();
 
       allow delete: if isBoardMember(boardId);
     }

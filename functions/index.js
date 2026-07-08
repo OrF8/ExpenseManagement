@@ -618,6 +618,10 @@ exports.duplicateTransaction = onCall(
         throw new HttpsError('invalid-argument', 'sourceBoardId, destinationBoardId ו-transactionId נדרשים');
       }
 
+      if (sourceBoardId === destinationBoardId) {
+        throw new HttpsError('failed-precondition', 'לא ניתן לשכפל עסקה לאותו לוח');
+      }
+
       const sourceBoardRef = db.collection('boards').doc(sourceBoardId);
       const destinationBoardRef = db.collection('boards').doc(destinationBoardId);
       const sourceTxRef = sourceBoardRef.collection('transactions').doc(transactionId);
@@ -636,6 +640,10 @@ exports.duplicateTransaction = onCall(
         const sourceBoard = sourceBoardSnap.data();
         const destinationBoard = destinationBoardSnap.data();
         const isSuperBoard = (board) => Array.isArray(board?.subBoardIds) && board.subBoardIds.length > 0;
+
+        if (isSuperBoard(sourceBoard)) {
+          throw new HttpsError('failed-precondition', 'לא ניתן לשכפל עסקה מלוח-על');
+        }
 
         if (isSuperBoard(destinationBoard)) {
           throw new HttpsError('failed-precondition', 'לא ניתן לשכפל עסקה ללוח-על');
