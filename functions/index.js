@@ -595,6 +595,86 @@ exports.moveTransaction = onCall(
 );
 
 /**
+ * duplicateTransaction
+ *
+ * Duplicates a single transaction document from one board to another in a
+ * Firestore transaction. The source transaction is left unchanged and the
+ * duplicate receives a new generated document ID.
+ */
+exports.duplicateTransaction = onCall(
+    {enforceAppCheck: true},
+    async (request) => {
+      if (!request.auth) {
+        throw new HttpsError('unauthenticated', 'עליך להתחבר כדי לשכפל עסקה');
+      }
+
+      const uid = request.auth.uid;
+      const {sourceBoardId, destinationBoardId, transactionId} = request.data || {};
+      if (
+        typeof sourceBoardId !== 'string' || !sourceBoardId.trim() ||
+        typeof destinationBoardId !== 'string' || !destinationBoardId.trim() ||
+        typeof transactionId !== 'string' || !transactionId.trim()
+      ) {
+        throw new HttpsError('invalid-argument', 'sourceBoardId, destinationBoardId ו-transactionId נדרשים');
+      }
+
+      const sourceBoardRef = db.collection('boards').doc(sourceBoardId);
+      const destinationBoardRef = db.collection('boards').doc(destinationBoardId);
+      const sourceTxRef = sourceBoardRef.collection('transactions').doc(transactionId);
+      const destinationTxRef = destinationBoardRef.collection('transactions').doc();
+
+      await db.runTransaction(async (tx) => {
+        const [sourceBoardSnap, destinationBoardSnap, sourceTxSnap] = await Promise.all([
+          tx.get(sourceBoardRef),
+          tx.get(destinationBoardRef),
+          tx.get(sourceTxRef),
+        ]);
+
+        if (!sourceBoardSnap.exists) throw new HttpsError('not-found', 'לוח המקור לא נמצא');
+        if (!destinationBoardSnap.exists) throw new HttpsError('not-found', 'לוח היעד לא נמצא');
+
+        const sourceBoard = sourceBoardSnap.data();
+        const destinationBoard = destinationBoardSnap.data();
+        const isSuperBoard = (board) => Array.isArray(board?.subBoardIds) && board.subBoardIds.length > 0;
+
+        if (isSuperBoard(destinationBoard)) {
+          throw new HttpsError('failed-precondition', 'לא ניתן לשכפל עסקה ללוח-על');
+        }
+
+        if (!userHasBoardAccess(sourceBoard, uid) || !userHasBoardAccess(destinationBoard, uid)) {
+          throw new HttpsError('permission-denied', 'אין לך הרשאה לשכפל עסקה לאחד הלוחות שנבחרו');
+        }
+
+        if (!sourceTxSnap.exists) {
+          throw new HttpsError('not-found', 'העסקה לא נמצאה. ייתכן שהיא נמחקה');
+        }
+
+        const transactionData = sourceTxSnap.data();
+        tx.set(destinationTxRef, {
+          ...transactionData,
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          createdByUid: uid,
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          duplicatedFrom: {
+            boardId: sourceBoardId,
+            transactionId,
+          },
+          duplicatedByUid: uid,
+          duplicatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+      });
+
+      return {
+        success: true,
+        sourceBoardId,
+        destinationBoardId,
+        sourceTransactionId: transactionId,
+        duplicatedTransactionId: destinationTxRef.id,
+      };
+    },
+);
+
+/**
  * removeBoardMember
  *
  * Callable function that allows the board owner to remove a non-owner member

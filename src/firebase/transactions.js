@@ -112,3 +112,21 @@ export async function moveTransaction(sourceBoardId, destinationBoardId, transac
     throw new Error('אירעה שגיאה בעת העברת העסקה. נסה שוב.');
   }
 }
+
+/**
+ * Duplicate transaction to another board via secure callable function.
+ */
+export async function duplicateTransaction(sourceBoardId, destinationBoardId, transactionId) {
+  const fn = httpsCallable(functions, 'duplicateTransaction');
+  try {
+    const result = await fn({ sourceBoardId, destinationBoardId, transactionId });
+    return result.data;
+  } catch (err) {
+    const code = err?.code || '';
+    if (code === 'functions/unauthenticated') throw new Error('עליך להתחבר מחדש כדי לשכפל עסקה.');
+    if (code === 'functions/permission-denied') throw new Error('אין לך הרשאה לשכפל עסקה לאחד הלוחות שנבחרו.');
+    if (code === 'functions/not-found') throw new Error(err?.message || 'העסקה לא נמצאה. ייתכן שהיא נמחקה.');
+    if (code === 'functions/failed-precondition') throw new Error(err?.message || 'לא ניתן לשכפל את העסקה.');
+    throw new Error('אירעה שגיאה בעת שכפול העסקה. נסה שוב.');
+  }
+}
