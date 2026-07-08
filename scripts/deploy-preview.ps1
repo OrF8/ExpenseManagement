@@ -75,6 +75,10 @@ firebase deploy --only functions `
 Write-Host ""
 Write-Host "Raw Firebase functions output saved to: $jsonFunctionsOutputPath"
 
+Write-Host "Deploying Firestore rules..."
+firebase deploy --only firestore:rules `
+    --project $env:FIREBASE_PROJECT_ID
+
 Write-Host "Building preview..."
 npx vite build --mode preview
 
