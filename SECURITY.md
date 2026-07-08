@@ -6,7 +6,8 @@ Security fixes are provided for the latest minor line only.
 
 | Version | Supported |
 |---------|:---------:|
-| 1.2.x   |    ✅     |
+| 1.3.x   |    ✅     |
+| 1.2.x   |    ❌     |
 | 1.1.x   |     ❌    |
 | 1.0.x   |     ❌    |
 | < 1.0.0 |     ❌    |
