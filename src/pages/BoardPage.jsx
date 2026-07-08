@@ -15,6 +15,7 @@ import {useAuth} from '../context/AuthContext';
 import {
   addTransaction,
   deleteTransaction,
+  duplicateTransaction,
   getTransactionsForBoard,
   moveTransaction,
   updateTransaction
@@ -68,6 +69,7 @@ export function BoardPage() {
   const [exportingExcel, setExportingExcel] = useState(false);
   const [exportError, setExportError] = useState(null);
   const [moveSuccessMessage, setMoveSuccessMessage] = useState(null);
+  const [duplicateSuccessMessage, setDuplicateSuccessMessage] = useState(null);
   const [userNickname, setUserNickname] = useState('');
   /**
    * Active payment-method filter.
@@ -428,9 +430,20 @@ export function BoardPage() {
   const [moveDestinationBoardId, setMoveDestinationBoardId] = useState('');
   const [movingTransaction, setMovingTransaction] = useState(false);
   const [moveTransactionError, setMoveTransactionError] = useState(null);
+  const [duplicateTx, setDuplicateTx] = useState(null);
+  const [duplicateDestinationBoardId, setDuplicateDestinationBoardId] = useState('');
+  const [duplicatingTransaction, setDuplicatingTransaction] = useState(false);
+  const [duplicateTransactionError, setDuplicateTransactionError] = useState(null);
+
+  const isBoardSuperBoard = (candidate) => (candidate?.subBoardIds?.length ?? 0) > 0;
 
   const destinationBoards = useMemo(
     () => allBoards.filter((candidate) => candidate.id !== boardId),
+    [allBoards, boardId],
+  );
+
+  const duplicateDestinationBoards = useMemo(
+    () => allBoards.filter((candidate) => candidate.id !== boardId && !isBoardSuperBoard(candidate)),
     [allBoards, boardId],
   );
 
@@ -454,6 +467,29 @@ export function BoardPage() {
       setMoveTransactionError(err.message || 'אירעה שגיאה בעת העברת העסקה. נסה שוב.');
     } finally {
       setMovingTransaction(false);
+    }
+  }
+
+  function openDuplicateModal(transaction) {
+    setDuplicateTx(transaction);
+    setDuplicateDestinationBoardId('');
+    setDuplicateTransactionError(null);
+  }
+
+  async function handleDuplicateTransaction() {
+    if (!duplicateTx || !duplicateDestinationBoardId) return;
+    setDuplicatingTransaction(true);
+    setDuplicateTransactionError(null);
+    try {
+      await duplicateTransaction(boardId, duplicateDestinationBoardId, duplicateTx.id);
+      setDuplicateTx(null);
+      setDuplicateDestinationBoardId('');
+      setDuplicateSuccessMessage('העסקה שוכפלה בהצלחה.');
+      window.setTimeout(() => setDuplicateSuccessMessage(null), 3000);
+    } catch (err) {
+      setDuplicateTransactionError(err.message || 'אירעה שגיאה בעת שכפול העסקה. נסה שוב.');
+    } finally {
+      setDuplicatingTransaction(false);
     }
   }
 
@@ -621,6 +657,11 @@ export function BoardPage() {
         {moveSuccessMessage && (
           <div className="rounded-xl bg-emerald-50 dark:bg-emerald-900/30 border border-emerald-100 dark:border-emerald-800 px-4 py-3 text-sm text-emerald-700 dark:text-emerald-400">
             {moveSuccessMessage}
+          </div>
+        )}
+        {duplicateSuccessMessage && (
+          <div className="rounded-xl bg-emerald-50 dark:bg-emerald-900/30 border border-emerald-100 dark:border-emerald-800 px-4 py-3 text-sm text-emerald-700 dark:text-emerald-400">
+            {duplicateSuccessMessage}
           </div>
         )}
         {isSuperBoard ? (
@@ -798,6 +839,7 @@ export function BoardPage() {
                       key={tx.id}
                       transaction={tx}
                       onMove={openMoveModal}
+                      onDuplicate={openDuplicateModal}
                       onEdit={(tx) => setEditTx(tx)}
                       onDelete={handleDelete}
                     />
@@ -872,6 +914,47 @@ export function BoardPage() {
             <Button variant="secondary" onClick={() => setMoveTx(null)} disabled={movingTransaction}>ביטול</Button>
             <Button onClick={handleMoveTransaction} loading={movingTransaction} disabled={!moveDestinationBoardId || destinationBoards.length === 0}>
               {movingTransaction ? 'מעביר...' : 'העבר'}
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+
+
+      <Modal
+        isOpen={!!duplicateTx}
+        onClose={() => !duplicatingTransaction && setDuplicateTx(null)}
+        title="שכפול עסקה"
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-gray-600 dark:text-gray-300">בחר לוח יעד שאליו העסקה תשוכפל.</p>
+          {duplicateDestinationBoards.length === 0 ? (
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              אין לוחות אחרים שניתן לשכפל אליהם את העסקה.
+            </p>
+          ) : (
+            <label className="block space-y-2">
+              <span className="text-sm text-gray-700 dark:text-gray-200">בחר לוח יעד</span>
+              <select
+                className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:bg-gray-800 dark:border-gray-700"
+                value={duplicateDestinationBoardId}
+                onChange={(e) => setDuplicateDestinationBoardId(e.target.value)}
+                disabled={duplicatingTransaction}
+              >
+                <option value="">בחר...</option>
+                {duplicateDestinationBoards.map((candidate) => (
+                  <option key={candidate.id} value={candidate.id}>{candidate.title}</option>
+                ))}
+              </select>
+            </label>
+          )}
+          {duplicateTransactionError && (
+            <p className="text-sm text-red-500 dark:text-red-400" role="alert">{duplicateTransactionError}</p>
+          )}
+          <div className="flex justify-end gap-2">
+            <Button variant="secondary" onClick={() => setDuplicateTx(null)} disabled={duplicatingTransaction}>ביטול</Button>
+            <Button onClick={handleDuplicateTransaction} loading={duplicatingTransaction} disabled={!duplicateDestinationBoardId || duplicateDestinationBoards.length === 0}>
+              {duplicatingTransaction ? 'משכפל...' : 'שכפל'}
             </Button>
           </div>
         </div>

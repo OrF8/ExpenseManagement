@@ -4,12 +4,38 @@ All notable changes to this project are documented in this file.
 
 The format is inspired by [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project follows [Semantic Versioning](https://semver.org/).
 
-## [1.2.1]
+## [1.3.0]
 
-### Unreleased
-- Minor `Dependabot` security fixes.
+### Added
+
+- Added the ability to duplicate a transaction to another regular board while keeping the original transaction unchanged.
+- Added a dedicated duplicate transaction action, destination-board selection modal, Hebrew success/error messages, and secure server-side duplication through a Firebase Callable Function.
+- Added duplication metadata for copied transactions, including the source board, source transaction, duplicating user, and duplication timestamp.
 
 ### Changed
+
+- Updated deployment flows to deploy Firestore rules together with Firebase Functions and Hosting, ensuring rule changes are applied when backend or schema behavior changes.
+
+### Fixed
+
+- Updated Firestore transaction rules so duplicated transactions remain editable while preserving immutable creation and duplication metadata.
+- Added server-side validation to prevent duplicating transactions to the same board.
+- Added server-side validation to prevent duplicating transactions from or to super-boards.
+
+### Security
+
+- Security policy updated to supported-version policy for `1.3.x`.
+
+## [1.2.2]
+
+### Security
+
+- Dependabot security updates.
+
+## [1.2.1]
+
+### Changed
+
 - Updated backend dependency `protobufjs` to `7.5.8` to address a security vulnerability (CVE-2026-44292) in versions prior to `7.5.5`.
 - Refreshed frontend lockfile dependencies to current compatible versions for improved maintenance and stability.
 - Minor optimizations and cleanup in all the code.
@@ -24,11 +50,13 @@ The format is inspired by [Keep a Changelog](https://keepachangelog.com/en/1.1.0
 ## [1.1.4]
 
 ### Changed
+
 - Updated backend dependency `fast-xml-builder` to `1.2.0` to address a security vulnerabilities (CVE-2026-44665, CVE-2026-44665) in versions prior to `1.1.7`.
 
 ## [1.1.3]
 
 ### Changed
+
 - Added a password visibility toggle to the login/auth form with eye/eye-off icons so users can show/hide password text on demand.
 - Kept passwords hidden by default whenever the auth form is opened, while preserving existing authentication and validation behavior.
 - Improved input accessibility/id consistency in shared form controls to ensure labels remain correctly linked to their inputs.
@@ -36,20 +64,24 @@ The format is inspired by [Keep a Changelog](https://keepachangelog.com/en/1.1.0
 ## [1.1.2]
 
 ### Changed
+
 - Updated backend dependencies, including `firebase-admin` to `13.8.0`, plus related lockfile updates.
 - Refreshed frontend lockfile dependencies to current compatible versions for improved maintenance and stability.
 
 ### Security
+
 - Pulled in transitive dependency updates that address Dependabot-reported vulnerabilities (including `node-forge` via `firebase-admin`).
 
 ## [1.1.1]
 
 ### Changed
+
 - Improved the transaction form by placing credit-card-specific fields in a more intuitive location.
 
 ## [1.1.0]
 
 ### Added
+
 - Excel export for boards using `.xlsx` output.
 - Super-board export support with multiple worksheets (one worksheet per sub-board).
 - Optional summary worksheet in super-board exports.
@@ -57,28 +89,34 @@ The format is inspired by [Keep a Changelog](https://keepachangelog.com/en/1.1.0
 - Explicit direct vs. inherited collaborator display in board collaboration management.
 
 ### Changed
+
 - Documentation refresh across README, security policy, and release notes for the `v1.1.0` release.
 - Version alignment across frontend and Cloud Functions packages to `1.1.0`.
 
 ### Fixed
+
 - Export date handling and workbook formatting improvements in generated Excel files.
 - Export-related CSP allowance updates for ExcelJS-hosted assets.
 - Board/super-board export UI flow improvements and related stability fixes.
 
 ### Security
+
 - Security policy updated to supported-version policy for `1.1.x` and private reporting guidance.
 
 ## [1.0.4]
 
 ### Changed
+
 - Dependency and maintenance updates before `1.1.0`.
 
 ## [1.0.1]
 
 ### Changed
+
 - Early post-`1.0.0` maintenance updates.
 
 ## [1.0.0]
 
 ### Added
+
 - Initial public release of the Expense Management application.
