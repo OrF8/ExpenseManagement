@@ -116,10 +116,14 @@ export async function moveTransaction(sourceBoardId, destinationBoardId, transac
 /**
  * Duplicate transaction to another board via secure callable function.
  */
-export async function duplicateTransaction(sourceBoardId, destinationBoardId, transactionId) {
+export async function duplicateTransaction(sourceBoardId, destinationBoardIdsOrId, transactionId) {
   const fn = httpsCallable(functions, 'duplicateTransaction');
+  const payload = Array.isArray(destinationBoardIdsOrId)
+    ? { sourceBoardId, destinationBoardIds: destinationBoardIdsOrId, transactionId }
+    : { sourceBoardId, destinationBoardId: destinationBoardIdsOrId, transactionId };
+
   try {
-    const result = await fn({ sourceBoardId, destinationBoardId, transactionId });
+    const result = await fn(payload);
     return result.data;
   } catch (err) {
     const code = err?.code || '';

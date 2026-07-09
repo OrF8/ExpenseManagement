@@ -52,15 +52,6 @@ service cloud.firestore {
       ];
     }
 
-    function transactionMetadataKeys() {
-      return [
-        'updatedAt',
-        'duplicatedFrom',
-        'duplicatedByUid',
-        'duplicatedAt',
-      ];
-    }
-
     function allowedTransactionKeys() {
       return [
         'name',
