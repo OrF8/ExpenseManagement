@@ -431,7 +431,7 @@ export function BoardPage() {
   const [movingTransaction, setMovingTransaction] = useState(false);
   const [moveTransactionError, setMoveTransactionError] = useState(null);
   const [duplicateTx, setDuplicateTx] = useState(null);
-  const [duplicateDestinationBoardId, setDuplicateDestinationBoardId] = useState('');
+  const [duplicateDestinationBoardIds, setDuplicateDestinationBoardIds] = useState([]);
   const [duplicatingTransaction, setDuplicatingTransaction] = useState(false);
   const [duplicateTransactionError, setDuplicateTransactionError] = useState(null);
 
@@ -472,19 +472,28 @@ export function BoardPage() {
 
   function openDuplicateModal(transaction) {
     setDuplicateTx(transaction);
-    setDuplicateDestinationBoardId('');
+    setDuplicateDestinationBoardIds([]);
     setDuplicateTransactionError(null);
   }
 
+  function toggleDuplicateDestinationBoard(boardId) {
+    setDuplicateDestinationBoardIds((current) =>
+      current.includes(boardId) ? current.filter((id) => id !== boardId) : [...current, boardId],
+    );
+  }
+
   async function handleDuplicateTransaction() {
-    if (!duplicateTx || !duplicateDestinationBoardId) return;
+    if (!duplicateTx || duplicateDestinationBoardIds.length === 0) return;
     setDuplicatingTransaction(true);
     setDuplicateTransactionError(null);
     try {
-      await duplicateTransaction(boardId, duplicateDestinationBoardId, duplicateTx.id);
+      const result = await duplicateTransaction(boardId, duplicateDestinationBoardIds, duplicateTx.id);
+      const duplicateCount = result?.duplicatedTransactions?.length || duplicateDestinationBoardIds.length;
       setDuplicateTx(null);
-      setDuplicateDestinationBoardId('');
-      setDuplicateSuccessMessage('העסקה שוכפלה בהצלחה.');
+      setDuplicateDestinationBoardIds([]);
+      setDuplicateSuccessMessage(
+        duplicateCount === 1 ? 'העסקה שוכפלה בהצלחה.' : `העסקה שוכפלה ל-${duplicateCount} לוחות בהצלחה.`,
+      );
       window.setTimeout(() => setDuplicateSuccessMessage(null), 3000);
     } catch (err) {
       setDuplicateTransactionError(err.message || 'אירעה שגיאה בעת שכפול העסקה. נסה שוב.');
@@ -923,37 +932,59 @@ export function BoardPage() {
 
       <Modal
         isOpen={!!duplicateTx}
-        onClose={() => !duplicatingTransaction && setDuplicateTx(null)}
+        onClose={() => {
+          if (!duplicatingTransaction) {
+            setDuplicateTx(null);
+            setDuplicateDestinationBoardIds([]);
+            setDuplicateTransactionError(null);
+          }
+        }}
         title="שכפול עסקה"
       >
         <div className="space-y-4">
-          <p className="text-sm text-gray-600 dark:text-gray-300">בחר לוח יעד שאליו העסקה תשוכפל.</p>
+          <p className="text-sm text-gray-600 dark:text-gray-300">בחר לוח יעד אחד או יותר שאליהם העסקה תשוכפל.</p>
           {duplicateDestinationBoards.length === 0 ? (
             <p className="text-sm text-gray-500 dark:text-gray-400">
               אין לוחות אחרים שניתן לשכפל אליהם את העסקה.
             </p>
           ) : (
-            <label className="block space-y-2">
-              <span className="text-sm text-gray-700 dark:text-gray-200">בחר לוח יעד</span>
-              <select
-                className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:bg-gray-800 dark:border-gray-700"
-                value={duplicateDestinationBoardId}
-                onChange={(e) => setDuplicateDestinationBoardId(e.target.value)}
-                disabled={duplicatingTransaction}
-              >
-                <option value="">בחר...</option>
+            <div className="space-y-2">
+              <p className="text-sm text-gray-700 dark:text-gray-200">בחר לוחות יעד</p>
+              <div className="max-h-56 space-y-2 overflow-y-auto rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-800">
                 {duplicateDestinationBoards.map((candidate) => (
-                  <option key={candidate.id} value={candidate.id}>{candidate.title}</option>
+                  <label
+                    key={candidate.id}
+                    className="flex cursor-pointer items-center gap-3 rounded-md px-2 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700/60"
+                  >
+                    <input
+                      type="checkbox"
+                      className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                      checked={duplicateDestinationBoardIds.includes(candidate.id)}
+                      onChange={() => toggleDuplicateDestinationBoard(candidate.id)}
+                      disabled={duplicatingTransaction}
+                    />
+                    <span>{candidate.title}</span>
+                  </label>
                 ))}
-              </select>
-            </label>
+              </div>
+            </div>
           )}
           {duplicateTransactionError && (
             <p className="text-sm text-red-500 dark:text-red-400" role="alert">{duplicateTransactionError}</p>
           )}
           <div className="flex justify-end gap-2">
-            <Button variant="secondary" onClick={() => setDuplicateTx(null)} disabled={duplicatingTransaction}>ביטול</Button>
-            <Button onClick={handleDuplicateTransaction} loading={duplicatingTransaction} disabled={!duplicateDestinationBoardId || duplicateDestinationBoards.length === 0}>
+            <Button
+              variant="secondary"
+              onClick={() => {
+                setDuplicateTx(null);
+                setDuplicateDestinationBoardIds([]);
+                setDuplicateTransactionError(null);
+              }}
+              disabled={duplicatingTransaction}
+            >
+              ביטול
+            </Button>
+            <Button onClick={handleDuplicateTransaction} loading={duplicatingTransaction} disabled={!duplicateTx || duplicateDestinationBoardIds.length === 0 || duplicateDestinationBoards.length === 0 || duplicatingTransaction}>
               {duplicatingTransaction ? 'משכפל...' : 'שכפל'}
             </Button>
           </div>
