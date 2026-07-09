@@ -4,6 +4,24 @@ All notable changes to this project are documented in this file.
 
 The format is inspired by [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project follows [Semantic Versioning](https://semver.org/).
 
+## [1.4.0]
+
+### Added
+
+- Added support for duplicating a transaction to multiple destination boards in a single operation.
+- Replaced the duplicate transaction destination dropdown with a checkbox list, allowing users to select one or more eligible boards.
+- Added count-aware Hebrew success messaging for multi-board duplication.
+
+### Changed
+
+- Updated the transaction duplication callable to accept multiple destination board IDs while preserving backward compatibility with the previous single-board payload.
+- Updated duplicate transaction validation to normalize board IDs, reject duplicate destinations, reject same-board duplication, and limit the number of destination boards per request.
+- Improved the duplication flow to validate all selected boards before writing, keeping the operation all-or-nothing.
+
+### Fixed
+
+- Preserved backward compatibility for existing single-board `duplicateTransaction` helper calls.
+
 ## [1.3.0]
 
 ### Added
