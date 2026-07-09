@@ -615,19 +615,36 @@ exports.duplicateTransaction = onCall(
         destinationBoardIds,
         transactionId,
       } = request.data || {};
-      const normalizedDestinationBoardIds = Array.isArray(destinationBoardIds) ?
+      const MAX_DESTINATION_BOARDS = 50;
+      const rawDestinationBoardIds = Array.isArray(destinationBoardIds) ?
         destinationBoardIds :
         typeof destinationBoardId === 'string' ? [destinationBoardId] : [];
+      const normalizedSourceBoardId = typeof sourceBoardId === 'string' ?
+        sourceBoardId.trim() :
+        sourceBoardId;
+      const normalizedTransactionId = typeof transactionId === 'string' ?
+        transactionId.trim() :
+        transactionId;
+      const normalizedDestinationBoardIds = rawDestinationBoardIds.map(
+          (boardId) => typeof boardId === 'string' ? boardId.trim() : boardId,
+      );
 
       if (
-        typeof sourceBoardId !== 'string' || !sourceBoardId.trim() ||
-        typeof transactionId !== 'string' || !transactionId.trim()
+        typeof normalizedSourceBoardId !== 'string' || !normalizedSourceBoardId ||
+        typeof normalizedTransactionId !== 'string' || !normalizedTransactionId
       ) {
         throw new HttpsError('invalid-argument', 'sourceBoardId ו-transactionId נדרשים');
       }
 
       if (!normalizedDestinationBoardIds.length) {
         throw new HttpsError('invalid-argument', 'יש לבחור לפחות לוח יעד אחד');
+      }
+
+      if (normalizedDestinationBoardIds.length > MAX_DESTINATION_BOARDS) {
+        throw new HttpsError(
+            'invalid-argument',
+            `ניתן לשכפל עד ${MAX_DESTINATION_BOARDS} לוחות בפעולה אחת`,
+        );
       }
 
       const hasInvalidDestinationBoardId = normalizedDestinationBoardIds.some(
@@ -637,7 +654,7 @@ exports.duplicateTransaction = onCall(
         throw new HttpsError('invalid-argument', 'כל לוחות היעד חייבים להיות מזהים תקינים');
       }
 
-      if (normalizedDestinationBoardIds.includes(sourceBoardId)) {
+      if (normalizedDestinationBoardIds.includes(normalizedSourceBoardId)) {
         throw new HttpsError('failed-precondition', 'לא ניתן לשכפל עסקה לאותו לוח');
       }
 
@@ -645,8 +662,8 @@ exports.duplicateTransaction = onCall(
         throw new HttpsError('invalid-argument', 'לא ניתן לבחור את אותו לוח יעד יותר מפעם אחת');
       }
 
-      const sourceBoardRef = db.collection('boards').doc(sourceBoardId);
-      const sourceTxRef = sourceBoardRef.collection('transactions').doc(transactionId);
+      const sourceBoardRef = db.collection('boards').doc(normalizedSourceBoardId);
+      const sourceTxRef = sourceBoardRef.collection('transactions').doc(normalizedTransactionId);
       const destinationBoardRefs = normalizedDestinationBoardIds.map(
           (boardId) => db.collection('boards').doc(boardId),
       );
@@ -703,8 +720,8 @@ exports.duplicateTransaction = onCall(
             createdByUid: uid,
             updatedAt: admin.firestore.FieldValue.serverTimestamp(),
             duplicatedFrom: {
-              boardId: sourceBoardId,
-              transactionId,
+              boardId: normalizedSourceBoardId,
+              transactionId: normalizedTransactionId,
             },
             duplicatedByUid: uid,
             duplicatedAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -714,9 +731,9 @@ exports.duplicateTransaction = onCall(
 
       return {
         success: true,
-        sourceBoardId,
+        sourceBoardId: normalizedSourceBoardId,
         destinationBoardIds: normalizedDestinationBoardIds,
-        sourceTransactionId: transactionId,
+        sourceTransactionId: normalizedTransactionId,
         duplicatedTransactions,
       };
     },
