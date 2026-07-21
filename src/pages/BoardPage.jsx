@@ -894,7 +894,7 @@ export function BoardPage() {
         onClose={() => !movingTransaction && setMoveTx(null)}
         title="העברת עסקה"
       >
-        <div className="space-y-4">
+        <div className="min-w-0 space-y-4">
           <p className="text-sm text-gray-600 dark:text-gray-300">בחר לוח יעד שאליו העסקה תועבר.</p>
           {destinationBoards.length === 0 ? (
             <p className="text-sm text-gray-500 dark:text-gray-400">
@@ -904,7 +904,7 @@ export function BoardPage() {
             <label className="block space-y-2">
               <span className="text-sm text-gray-700 dark:text-gray-200">בחר לוח יעד</span>
               <select
-                className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:bg-gray-800 dark:border-gray-700"
+                className="w-full max-w-full min-w-0 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:bg-gray-800 dark:border-gray-700"
                 value={moveDestinationBoardId}
                 onChange={(e) => setMoveDestinationBoardId(e.target.value)}
                 disabled={movingTransaction}
@@ -919,7 +919,7 @@ export function BoardPage() {
           {moveTransactionError && (
             <p className="text-sm text-red-500 dark:text-red-400" role="alert">{moveTransactionError}</p>
           )}
-          <div className="flex justify-end gap-2">
+          <div className="flex flex-wrap justify-end gap-2">
             <Button variant="secondary" onClick={() => setMoveTx(null)} disabled={movingTransaction}>ביטול</Button>
             <Button onClick={handleMoveTransaction} loading={movingTransaction} disabled={!moveDestinationBoardId || destinationBoards.length === 0}>
               {movingTransaction ? 'מעביר...' : 'העבר'}
@@ -941,7 +941,7 @@ export function BoardPage() {
         }}
         title="שכפול עסקה"
       >
-        <div className="space-y-4">
+        <div className="min-w-0 space-y-4">
           <p className="text-sm text-gray-600 dark:text-gray-300">בחר לוח יעד אחד או יותר שאליהם העסקה תשוכפל.</p>
           {duplicateDestinationBoards.length === 0 ? (
             <p className="text-sm text-gray-500 dark:text-gray-400">
@@ -950,11 +950,11 @@ export function BoardPage() {
           ) : (
             <div className="space-y-2">
               <p className="text-sm text-gray-700 dark:text-gray-200">בחר לוחות יעד</p>
-              <div className="max-h-56 space-y-2 overflow-y-auto rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-800">
+              <div className="max-h-56 min-w-0 space-y-2 overflow-y-auto overflow-x-hidden overscroll-contain rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-800">
                 {duplicateDestinationBoards.map((candidate) => (
                   <label
                     key={candidate.id}
-                    className="flex cursor-pointer items-center gap-3 rounded-md px-2 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700/60"
+                    className="flex min-w-0 cursor-pointer items-center gap-3 rounded-md px-2 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700/60"
                   >
                     <input
                       type="checkbox"
@@ -963,7 +963,7 @@ export function BoardPage() {
                       onChange={() => toggleDuplicateDestinationBoard(candidate.id)}
                       disabled={duplicatingTransaction}
                     />
-                    <span>{candidate.title}</span>
+                    <span className="min-w-0 break-words">{candidate.title}</span>
                   </label>
                 ))}
               </div>
@@ -972,7 +972,7 @@ export function BoardPage() {
           {duplicateTransactionError && (
             <p className="text-sm text-red-500 dark:text-red-400" role="alert">{duplicateTransactionError}</p>
           )}
-          <div className="flex justify-end gap-2">
+          <div className="flex flex-wrap justify-end gap-2">
             <Button
               variant="secondary"
               onClick={() => {
@@ -1006,13 +1006,13 @@ export function BoardPage() {
         onClose={() => setShowAddSubBoard(false)}
         title="הוסף לוח-משנה"
       >
-        <div className="flex flex-col gap-5">
+        <div className="min-w-0 flex flex-col gap-5">
           {/* Section 1: Create a brand-new sub-board */}
           <div>
             <p className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
               יצירת לוח-משנה חדש
             </p>
-            <form onSubmit={handleCreateSubBoard} className="flex flex-col gap-3">
+            <form onSubmit={handleCreateSubBoard} className="min-w-0 flex flex-col gap-3">
               <Input
                 label="שם הלוח החדש"
                 value={newSubBoardTitle}
@@ -1094,7 +1094,7 @@ export function BoardPage() {
         onClose={() => setShowMoveUnder(false)}
         title="העבר תחת לוח"
       >
-        <div className="flex flex-col gap-4">
+        <div className="min-w-0 flex flex-col gap-4">
           {moveUnderError && (
             <p className="text-sm text-red-500 dark:text-red-400">{moveUnderError}</p>
           )}
@@ -1149,7 +1149,7 @@ export function BoardPage() {
         onClose={() => setShowRename(false)}
         title="ערוך שם לוח"
       >
-        <form onSubmit={handleRename} className="flex flex-col gap-4">
+        <form onSubmit={handleRename} className="min-w-0 flex flex-col gap-4">
           <Input
             label="שם הלוח"
             value={renameTitle}
@@ -1159,7 +1159,7 @@ export function BoardPage() {
           {renameError && (
             <p className="text-sm text-red-500 dark:text-red-400">{renameError}</p>
           )}
-          <div className="flex gap-3 justify-end">
+          <div className="flex flex-wrap gap-3 justify-end">
             <Button type="button" variant="secondary" onClick={() => setShowRename(false)}>
               ביטול
             </Button>
