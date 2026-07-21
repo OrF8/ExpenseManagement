@@ -1,8 +1,8 @@
-import { useEffect, useId, useRef } from 'react';
+import { useEffect, useId } from 'react';
+import { acquireBodyScrollLock } from './bodyScrollLock';
 
 export function Modal({ isOpen, onClose, title, children }) {
   const titleId = useId();
-  const previousBodyOverflow = useRef(null);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -14,13 +14,7 @@ export function Modal({ isOpen, onClose, title, children }) {
   useEffect(() => {
     if (!isOpen) return;
 
-    previousBodyOverflow.current = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-
-    return () => {
-      document.body.style.overflow = previousBodyOverflow.current ?? '';
-      previousBodyOverflow.current = null;
-    };
+    return acquireBodyScrollLock();
   }, [isOpen]);
 
   if (!isOpen) return null;
