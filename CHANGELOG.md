@@ -4,6 +4,15 @@ All notable changes to this project are documented in this file.
 
 The format is inspired by [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project follows [Semantic Versioning](https://semver.org/).
 
+## [1.4.1]
+
+### Fixed
+
+- Fixed shared modal forms overflowing beyond the visible viewport on mobile devices and short desktop screens.
+- Added internal modal-content scrolling so transaction form actions remain visible and reachable.
+- Prevented the background page from scrolling while a modal is open.
+- Fixed horizontal form overflow on narrow screens across create, edit, duplicate, and other shared modal transaction flows.
+
 ## [1.4.0]
 
 ### Added

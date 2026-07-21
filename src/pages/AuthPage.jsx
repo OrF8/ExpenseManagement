@@ -281,7 +281,7 @@ export function AuthPage() {
       </div>
 
       <Modal isOpen={showResetModal} onClose={closeResetModal} title="איפוס סיסמה">
-        <form onSubmit={handleResetPassword} className="flex flex-col gap-4">
+        <form onSubmit={handleResetPassword} className="min-w-0 flex flex-col gap-4">
           <p className="text-sm text-gray-600 dark:text-gray-400">
             הזן את כתובת האימייל שלך ונשלח לך קישור לאיפוס הסיסמה.
           </p>
@@ -295,16 +295,16 @@ export function AuthPage() {
             required
           />
           {resetMessage && (
-            <div className="rounded-lg bg-green-50 dark:bg-green-900/30 border border-green-100 dark:border-green-800 px-3 py-2.5 text-sm text-green-700 dark:text-green-400">
+            <div className="break-words rounded-lg bg-green-50 dark:bg-green-900/30 border border-green-100 dark:border-green-800 px-3 py-2.5 text-sm text-green-700 dark:text-green-400">
               {resetMessage}
             </div>
           )}
           {resetError && (
-            <div className="rounded-lg bg-red-50 dark:bg-red-900/30 border border-red-100 dark:border-red-800 px-3 py-2.5 text-sm text-red-600 dark:text-red-400">
+            <div className="break-words rounded-lg bg-red-50 dark:bg-red-900/30 border border-red-100 dark:border-red-800 px-3 py-2.5 text-sm text-red-600 dark:text-red-400">
               {resetError}
             </div>
           )}
-          <div className="flex gap-3 justify-end">
+          <div className="flex flex-wrap gap-3 justify-end">
             <Button type="button" variant="secondary" onClick={closeResetModal}>
               ביטול
             </Button>

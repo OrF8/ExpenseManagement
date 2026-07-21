@@ -605,7 +605,7 @@ export function BoardsPage() {
         onClose={() => { setShowCreate(false); setNewTitle(''); setCreateError(null); }}
         title="יצירת לוח חדש"
       >
-        <form onSubmit={handleCreate} className="flex flex-col gap-4">
+        <form onSubmit={handleCreate} className="min-w-0 flex flex-col gap-4">
           <Input
             label="שם הלוח"
             value={newTitle}
@@ -614,9 +614,9 @@ export function BoardsPage() {
             autoFocus
           />
           {createError && (
-            <p className="text-sm text-red-500 dark:text-red-400">{createError}</p>
+            <p className="break-words text-sm text-red-500 dark:text-red-400">{createError}</p>
           )}
-          <div className="flex gap-3 justify-end">
+          <div className="flex flex-wrap gap-3 justify-end">
             <Button
               type="button"
               variant="secondary"
@@ -637,7 +637,7 @@ export function BoardsPage() {
         onClose={closeProfile}
         title="הגדרות חשבון"
       >
-        <div className="flex flex-col gap-5">
+        <div className="min-w-0 flex flex-col gap-5">
           {/* Profile info */}
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-400 font-semibold text-sm select-none">
@@ -651,7 +651,7 @@ export function BoardsPage() {
 
           {/* Edit nickname */}
           {showEditNickname ? (
-            <form onSubmit={handleSaveNickname} className="flex flex-col gap-3">
+            <form onSubmit={handleSaveNickname} className="min-w-0 flex flex-col gap-3">
               <Input
                 label="כינוי חדש"
                 value={editNicknameValue}
@@ -659,7 +659,7 @@ export function BoardsPage() {
                 error={editNicknameError}
                 autoFocus
               />
-              <div className="flex gap-2 justify-end">
+              <div className="flex flex-wrap gap-2 justify-end">
                 <Button type="button" variant="secondary" size="sm" onClick={closeEditNickname}>
                   ביטול
                 </Button>
@@ -702,7 +702,7 @@ export function BoardsPage() {
         onClose={deleting ? () => {} : closeDeleteConfirm}
         title="מחיקת חשבון לצמיתות"
       >
-        <div className="flex flex-col gap-4">
+        <div className="min-w-0 flex flex-col gap-4">
           {/* Warning list */}
           <div className="rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 p-4">
             <ul className="text-sm text-red-700 dark:text-red-400 space-y-1.5 list-disc list-inside">
@@ -714,10 +714,10 @@ export function BoardsPage() {
           </div>
 
           {deleteAccountError && (
-            <p className="text-sm text-red-500 dark:text-red-400">{deleteAccountError}</p>
+            <p className="break-words text-sm text-red-500 dark:text-red-400">{deleteAccountError}</p>
           )}
 
-          <div className="flex gap-3 justify-end">
+          <div className="flex flex-wrap gap-3 justify-end">
             <Button
               type="button"
               variant="secondary"

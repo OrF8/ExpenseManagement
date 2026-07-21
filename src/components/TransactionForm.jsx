@@ -181,9 +181,9 @@ export function TransactionForm({ initial, defaultName, defaultPaymentMethod, on
   }
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-4" noValidate>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-        <div>
+    <form onSubmit={handleSubmit} className="min-w-0 max-w-full flex flex-col gap-4 overflow-x-hidden" noValidate>
+      <div className="grid min-w-0 grid-cols-1 gap-2 sm:grid-cols-2">
+        <div className="min-w-0">
           <Input
             label="שם"
             name="name"
@@ -193,7 +193,7 @@ export function TransactionForm({ initial, defaultName, defaultPaymentMethod, on
             error={errors.name}
           />
         </div>
-          <div className="flex flex-col gap-1">
+          <div className="min-w-0 flex flex-col gap-1">
             <label htmlFor="transaction-type" className="text-sm font-medium text-gray-700 dark:text-gray-300">
                 סוג עסקה
             </label>
@@ -204,7 +204,7 @@ export function TransactionForm({ initial, defaultName, defaultPaymentMethod, on
                 onChange={handleChange}
                 aria-invalid={errors.type ? 'true' : undefined}
                 aria-describedby={errors.type ? 'transaction-type-error' : undefined}
-                className="block w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-200 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:focus:border-indigo-500 dark:focus:ring-indigo-900"
+                className="block w-full max-w-full min-w-0 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-200 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:focus:border-indigo-500 dark:focus:ring-indigo-900"
             >
                 <option value="">בחר סוג עסקה</option>
                 {Object.entries(TRANSACTION_TYPE_LABELS).map(([value, label]) => (
@@ -238,7 +238,7 @@ export function TransactionForm({ initial, defaultName, defaultPaymentMethod, on
         placeholder="הזן שם העסק"
         error={errors.essence}
       />
-      <div className="flex flex-col gap-1">
+      <div className="min-w-0 flex flex-col gap-1">
         <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
           פירוט/הערות (אופציונלי)
         </label>
@@ -248,14 +248,14 @@ export function TransactionForm({ initial, defaultName, defaultPaymentMethod, on
           onChange={handleChange}
           placeholder="הוסף פירוט או הערות..."
           rows={2}
-          className="block w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-200 disabled:bg-gray-50 disabled:text-gray-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:placeholder:text-gray-500 dark:focus:border-indigo-500 dark:focus:ring-indigo-900 resize-none"
+          className="block w-full max-w-full min-w-0 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-200 disabled:bg-gray-50 disabled:text-gray-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:placeholder:text-gray-500 dark:focus:border-indigo-500 dark:focus:ring-indigo-900 resize-none"
         />
       </div>
-      <div className="flex flex-col gap-1">
+      <div className="min-w-0 flex flex-col gap-1">
         <label htmlFor="transaction-amount" className="text-sm font-medium text-gray-700 dark:text-gray-300">
           סכום (₪)
         </label>
-        <div dir="ltr" className="flex items-stretch gap-2">
+        <div dir="ltr" className="flex min-w-0 items-stretch gap-2">
           <button
             type="button"
             aria-label="החלף סימן סכום"
@@ -275,7 +275,7 @@ export function TransactionForm({ initial, defaultName, defaultPaymentMethod, on
             aria-invalid={errors.amount ? 'true' : undefined}
             aria-describedby={errors.amount ? 'transaction-amount-error' : undefined}
             className={`
-              block w-full rounded-lg border border-gray-200 bg-white
+              block w-full min-w-0 rounded-lg border border-gray-200 bg-white
               px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400
               focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-200
               disabled:bg-gray-50 disabled:text-gray-500
@@ -302,11 +302,11 @@ export function TransactionForm({ initial, defaultName, defaultPaymentMethod, on
         error={errors.transactionDate}
       />
       {form.type === 'credit_card' && (
-      <div className="rounded-xl bg-gray-50 dark:bg-gray-800/50 p-4 border border-gray-100 dark:border-gray-700">
+      <div className="min-w-0 overflow-x-hidden rounded-xl bg-gray-50 dark:bg-gray-800/50 p-4 border border-gray-100 dark:border-gray-700">
         <p className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-3">
           פירוט תשלומים (אופציונלי)
         </p>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2">
           <Input
             label="תשלום נוכחי"
             name="installmentCurrent"
@@ -332,7 +332,7 @@ export function TransactionForm({ initial, defaultName, defaultPaymentMethod, on
         </div>
       </div>
       )}
-      <div className="flex gap-3 pt-2 justify-end">
+      <div className="flex flex-wrap gap-3 pt-2 justify-end">
         <Button type="button" variant="secondary" onClick={onCancel}>
           ביטול
         </Button>
@@ -341,7 +341,7 @@ export function TransactionForm({ initial, defaultName, defaultPaymentMethod, on
         </Button>
       </div>
       {submitError && (
-        <p className="text-sm text-red-500 text-center" role="alert" aria-live="polite">
+        <p className="break-words text-sm text-red-500 text-center" role="alert" aria-live="polite">
           {submitError}
         </p>
       )}
