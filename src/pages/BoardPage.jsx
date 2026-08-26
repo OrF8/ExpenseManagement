@@ -37,12 +37,18 @@ import {Modal} from '../components/ui/Modal';
 import {ThemeToggle} from '../components/ui/ThemeToggle';
 import {TransactionForm} from '../components/TransactionForm';
 import {TransactionCard} from '../components/TransactionCard';
+import {TransactionFilters} from '../components/TransactionFilters';
 import {TotalsSummary} from '../components/TotalsSummary';
 import {CollaboratorManager} from '../components/CollaboratorManager';
 import {BoardHierarchyActionsMenu} from '../components/ui/BoardHierarchyActionsMenu';
 import {TRANSACTION_TYPE_LABELS} from '../constants/transactionTypes';
 import {subscribeWithAppCheckRetry} from '../utils/appCheckRetry';
 import {exportBoardToExcel} from '../utils/exportBoardToExcel';
+import {
+  countActiveTransactionFilters,
+  EMPTY_TRANSACTION_FILTERS,
+  filterTransactions,
+} from '../utils/transactionFilters';
 
 function formatAmount(amount) {
   return new Intl.NumberFormat('he-IL', { style: 'currency', currency: 'ILS' }).format(amount);
@@ -71,20 +77,19 @@ export function BoardPage() {
   const [moveSuccessMessage, setMoveSuccessMessage] = useState(null);
   const [duplicateSuccessMessage, setDuplicateSuccessMessage] = useState(null);
   const [userNickname, setUserNickname] = useState('');
-  /**
-   * Active payment-method filter.
-   * null  → no filter active
-   * string → a perGroup key, e.g. "card:1234" or "type:cash"
-   */
-  const [activePaymentFilter, setActivePaymentFilter] = useState({
+  const [transactionFilterState, setTransactionFilterState] = useState({
     boardId: null,
     routeKey: null,
-    key: null,
+    filters: EMPTY_TRANSACTION_FILTERS,
   });
+  const transactionFilters =
+    transactionFilterState.boardId === boardId &&
+    transactionFilterState.routeKey === location.key
+      ? transactionFilterState.filters
+      : EMPTY_TRANSACTION_FILTERS;
   const activePaymentFilterKey =
-    activePaymentFilter.boardId === boardId && activePaymentFilter.routeKey === location.key
-      ? activePaymentFilter.key
-      : null;
+    transactionFilters.paymentMethod || null;
+  const hasActiveTransactionFilters = countActiveTransactionFilters(transactionFilters) > 0;
   const board = boardState.boardId === boardId ? boardState.board : null;
   const boardLoading = boardState.boardId !== boardId ? true : boardState.loading;
   const boardError = boardState.boardId !== boardId ? null : boardState.error;
@@ -177,31 +182,27 @@ export function BoardPage() {
   );
 
   // ---------------------------------------------------------------------------
-  // Payment-method filter helpers
+  // Board-scoped transaction filter helpers
   // ---------------------------------------------------------------------------
 
-  /**
-   * Returns filtered transactions based on the active payment-method filter key.
-   * Uses the same null-coalescing as the totals hook (useTransactions) to ensure
-   * the filter key always matches what was used to build perGroup entries.
-   * key format: "card:XXXX" or "type:<typeName>"
-   */
   const visibleTransactions = useMemo(() => {
-    if (!activePaymentFilterKey) return transactions;
-    return transactions.filter((tx) => {
-      if (activePaymentFilterKey.startsWith('card:')) {
-        const last4 = activePaymentFilterKey.slice(5);
-        // Mirror the totals hook: `tx.cardLast4 ?? ''`
-        return tx.type === 'credit_card' && (tx.cardLast4 ?? '') === last4;
-      }
-      if (activePaymentFilterKey.startsWith('type:')) {
-        const typeName = activePaymentFilterKey.slice(5);
-        // Mirror the totals hook: `tx.type ?? 'unknown'`
-        return (tx.type ?? 'unknown') === typeName;
-      }
-      return false;
+    return filterTransactions(transactions, transactionFilters);
+  }, [transactions, transactionFilters]);
+
+  function handleTransactionFiltersChange(filters) {
+    setTransactionFilterState({boardId, routeKey: location.key, filters});
+  }
+
+  function handlePaymentFilterChange(key) {
+    handleTransactionFiltersChange({
+      ...transactionFilters,
+      paymentMethod: key ?? '',
     });
-  }, [transactions, activePaymentFilterKey]);
+  }
+
+  function clearTransactionFilters() {
+    handleTransactionFiltersChange({...EMPTY_TRANSACTION_FILTERS});
+  }
 
   /**
    * Derives the defaultPaymentMethod value for TransactionForm from an active
@@ -221,20 +222,6 @@ export function BoardPage() {
     }
     return undefined;
   }
-
-  /**
-   * Human-readable label for the active payment-method filter.
-   */
-  function paymentFilterLabel(filterKey) {
-    if (!filterKey) return '';
-    if (filterKey.startsWith('card:')) return `****${filterKey.slice(5)}`;
-    if (filterKey.startsWith('type:')) {
-      const typeName = filterKey.slice(5);
-      return TRANSACTION_TYPE_LABELS[typeName] || typeName;
-    }
-    return filterKey;
-  }
-
 
   const [removingSubBoardId, setRemovingSubBoardId] = useState(null);
   const [removeSubBoardError, setRemoveSubBoardError] = useState(null);
@@ -778,28 +765,16 @@ export function BoardPage() {
             <TotalsSummary
               totals={totals}
               activeFilterKey={activePaymentFilterKey}
-              onFilterChange={(key) => setActivePaymentFilter({ boardId, routeKey: location.key, key })}
+              onFilterChange={handlePaymentFilterChange}
             />
 
-            {/* Active payment-method filter indicator */}
-            {activePaymentFilterKey && (
-              <div className="flex items-center gap-2 rounded-xl bg-indigo-50 dark:bg-indigo-950/50 border border-indigo-200 dark:border-indigo-800 px-4 py-2 text-sm">
-                <span className="text-indigo-600 dark:text-indigo-400">
-                  מסונן לפי: <strong>{paymentFilterLabel(activePaymentFilterKey)}</strong>
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setActivePaymentFilter({ boardId, routeKey: location.key, key: null })}
-                  className="mr-auto flex items-center gap-1 text-indigo-500 hover:text-indigo-700 dark:hover:text-indigo-300 transition-colors"
-                  aria-label="נקה סינון"
-                >
-                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                  נקה סינון
-                </button>
-              </div>
-            )}
+            <TransactionFilters
+              key={boardId + ':' + location.key}
+              filters={transactionFilters}
+              transactions={transactions}
+              visibleCount={visibleTransactions.length}
+              onChange={handleTransactionFiltersChange}
+            />
 
             {/* Transactions */}
             <div>
@@ -824,15 +799,15 @@ export function BoardPage() {
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
                     </svg>
                   }
-                  title={activePaymentFilterKey ? 'אין עסקאות בסינון זה' : 'אין עסקאות עדיין'}
-                  description={activePaymentFilterKey ? 'אין עסקאות התואמות לאמצעי התשלום שנבחר' : 'הוסף את העסקה הראשונה כדי להתחיל לעקוב'}
+                  title={hasActiveTransactionFilters ? 'אין עסקאות התואמות לסינון' : 'אין עסקאות עדיין'}
+                  description={hasActiveTransactionFilters ? 'אפשר לשנות או לנקות את המסננים כדי לראות עסקאות נוספות' : 'הוסף את העסקה הראשונה כדי להתחיל לעקוב'}
                   action={
-                    activePaymentFilterKey ? (
+                    hasActiveTransactionFilters ? (
                       <Button
                         variant="secondary"
-                        onClick={() => setActivePaymentFilter({ boardId, routeKey: location.key, key: null })}
+                        onClick={clearTransactionFilters}
                       >
-                        נקה סינון
+                        נקה את כל המסננים
                       </Button>
                     ) : (
                       <Button onClick={() => setShowAddModal(true)}>
