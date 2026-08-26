@@ -31,11 +31,12 @@ export function TransactionFilters({filters, transactions, visibleCount, onChang
     Number(filters.minAmount) > Number(filters.maxAmount);
 
   const paymentOptions = useMemo(() => {
-    const keys = [...new Set(transactions.map(getTransactionPaymentFilterKey))];
-    return keys.sort((a, b) =>
+    const keys = new Set(transactions.map(getTransactionPaymentFilterKey));
+    if (filters.paymentMethod) keys.add(filters.paymentMethod);
+    return [...keys].sort((a, b) =>
       paymentFilterLabel(a).localeCompare(paymentFilterLabel(b), 'he'),
     );
-  }, [transactions]);
+  }, [transactions, filters.paymentMethod]);
 
   function setField(field, value) {
     onChange({...filters, [field]: value});
