@@ -6,14 +6,15 @@ Security fixes are provided for the latest minor line only.
 
 | Version | Supported |
 |---------|:---------:|
-| 1.4.x   |    ✅     |
+| 1.5.x   |    ✅     |
+| 1.4.x   |    ❌     |
 | 1.3.x   |    ❌     |
 | 1.2.x   |    ❌     |
 | 1.1.x   |    ❌     |
 | 1.0.x   |    ❌     |
 | < 1.0.0 |    ❌     |
 
-If you run a self-hosted deployment, upgrade to the latest `1.4.x` patch release as soon as practical.
+If you run a self-hosted deployment, upgrade to the latest `1.5.x` patch release as soon as practical.
 
 ## Reporting a Vulnerability
 

@@ -4,6 +4,17 @@ All notable changes to this project are documented in this file.
 
 The format is inspired by [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project follows [Semantic Versioning](https://semver.org/).
 
+## [1.5.0]
+
+### Added
+
+- Added board-scoped transaction filters for business/name/notes search, exact date, payment method or credit card, and minimum/maximum amount.
+- Added live filtered-result counts and a single action for clearing all active filters.
+
+### Changed
+
+- Integrated the existing clickable payment totals with the new filter panel while keeping filters isolated to the currently opened regular board.
+
 ## [1.4.1]
 
 ### Fixed
