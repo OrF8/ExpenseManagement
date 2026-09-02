@@ -4,6 +4,16 @@ All notable changes to this project are documented in this file.
 
 The format is inspired by [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project follows [Semantic Versioning](https://semver.org/).
 
+## [1.5.1]
+
+### Changed
+
+- Aligned the frontend and Cloud Functions package metadata with release `1.5.1`.
+
+### Security
+
+- Updated the enforced `protobufjs` version from `7.6.3` to `7.6.5` in both production dependency trees, resolving Dependabot alerts #64 and #68 for denial of service via infinite-looping `.proto` option parsing.
+
 ## [1.5.0]
 
 ### Added
