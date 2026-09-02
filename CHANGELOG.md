@@ -13,7 +13,8 @@ The format is inspired by [Keep a Changelog](https://keepachangelog.com/en/1.1.0
 ### Security
 
 - Updated the enforced `protobufjs` version from `7.6.3` to `7.6.5` in both production dependency trees, resolving Dependabot alerts #64 and #68 for denial of service via infinite-looping `.proto` option parsing.
-- Updated the enforced `browserslist` version from `4.28.1` to `4.28.8`, resolving Dependabot alert #82 for crash / prototype write via untrusted browserslist-stats.json custom stats (normalizeStats)
+- Updated the enforced `browserslist` version from `4.28.1` to `4.28.8`, resolving Dependabot alert #82 for crash / prototype write via untrusted browserslist-stats.json custom stats (normalizeStats).
+- Updated the enforced `humanfs` version from `0.16.7` to ` 0.16.8`, resolving Dependabot alert #84 for recursive copy follows symlinked files and copies data from outside the source tree.
 
 ## [1.5.0]
 
