@@ -4,6 +4,13 @@ All notable changes to this project are documented in this file.
 
 The format is inspired by [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project follows [Semantic Versioning](https://semver.org/).
 
+## [1.6.1] — 2026-10-02
+
+### Changed
+- Automatic FX conversions involving ILS now prefer the Bank of Israel provider through Frankfurter v2, using the BOI representative rate when that currency pair is available.
+- ILS pairs that are unavailable from BOI fall back to Frankfurter's existing blended reference-rate feed; non-ILS pairs continue using the blended feed.
+- Saved automatic conversions now record `boi` when the Bank of Israel provider supplied the snapshot, preserving the actual source alongside the rate and observation date.
+
 ## [1.6.0] — 2026-10-02
 
 ### Added
