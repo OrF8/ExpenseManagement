@@ -1,5 +1,7 @@
 import { canonicalAmount, convert, currencyOf, currencyDigits, validateRate, boardAmount } from './shared/money.mjs';
 
+const TRUSTED_AUTOMATIC_PROVIDERS = new Set(['frankfurter', 'boi']);
+
 /** Only trusted provider output or validated manual input may create snapshots.
  * @param {{previous?: import('./shared/money.mjs').Transaction, input?: {amount?: string, currency?: string, fxMode?: string, manualRate?: string}, targetCurrency: string, getRate: (base: string, quote: string) => Promise<{rate: string, rateDate: string, source: string, provider: string}>, replaceTarget?: boolean}} options
  */
@@ -32,6 +34,6 @@ export async function resolveMoney({ previous, input = {}, targetCurrency, getRa
   }
   const reference = await getRate(currency, targetCurrency);
   validateRate(reference.rate);
-  if (reference.source !== 'automatic' || reference.provider !== 'frankfurter' || !/^\d{4}-\d{2}-\d{2}$/.test(reference.rateDate)) throw new Error('Invalid provider metadata');
+  if (reference.source !== 'automatic' || !TRUSTED_AUTOMATIC_PROVIDERS.has(reference.provider) || !/^\d{4}-\d{2}-\d{2}$/.test(reference.rateDate)) throw new Error('Invalid provider metadata');
   return { ...fields, conversion: { ...reference, targetCurrency, convertedAmount: convert(amount, currency, reference.rate, targetCurrency) } };
 }
