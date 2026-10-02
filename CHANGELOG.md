@@ -4,6 +4,12 @@ All notable changes to this project are documented in this file.
 
 The format is inspired by [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project follows [Semantic Versioning](https://semver.org/).
 
+## [1.6.2] — 2026-10-02
+
+### Fixed
+- Fixed automatic ILS conversions failing with `Invalid provider metadata` after BOI representative-rate support was introduced.
+- Trusted automatic snapshots now accept both the existing `frankfurter` provider and the new `boi` provider while continuing to reject unknown provider metadata.
+
 ## [1.6.1] — 2026-10-02
 
 ### Changed
