@@ -1,3 +1,4 @@
+import { boardAmount, minorUnits } from '../../functions/shared/money.mjs';
 export const EMPTY_TRANSACTION_FILTERS = Object.freeze({
   query: '',
   transactionDate: '',
@@ -20,12 +21,12 @@ export function countActiveTransactionFilters(filters) {
   return Object.values(filters).filter((value) => String(value ?? '').trim() !== '').length;
 }
 
-export function filterTransactions(transactions, filters) {
+export function filterTransactions(transactions, filters, currency = 'ILS') {
   const query = normalizeSearchValue(filters.query);
   const hasMinAmount = String(filters.minAmount ?? '').trim() !== '';
   const hasMaxAmount = String(filters.maxAmount ?? '').trim() !== '';
-  const minAmount = Number(filters.minAmount);
-  const maxAmount = Number(filters.maxAmount);
+  const minAmount = hasMinAmount ? minorUnits(filters.minAmount, currency, {legacy: true}) : null;
+  const maxAmount = hasMaxAmount ? minorUnits(filters.maxAmount, currency, {legacy: true}) : null;
 
   return transactions.filter((transaction) => {
     if (query) {
@@ -45,9 +46,9 @@ export function filterTransactions(transactions, filters) {
       getTransactionPaymentFilterKey(transaction) !== filters.paymentMethod
     ) return false;
 
-    const amount = Number(transaction.amount);
-    if (hasMinAmount && (!Number.isFinite(amount) || amount < minAmount)) return false;
-    if (hasMaxAmount && (!Number.isFinite(amount) || amount > maxAmount)) return false;
+    const amount = minorUnits(boardAmount(transaction, currency), currency);
+    if (hasMinAmount && amount < minAmount) return false;
+    if (hasMaxAmount && amount > maxAmount) return false;
 
     return true;
   });

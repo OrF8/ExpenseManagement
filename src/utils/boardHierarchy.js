@@ -1,3 +1,4 @@
+import { mergeCurrencyTotals } from '../../functions/shared/money.mjs';
 /**
  * Utility functions for board hierarchy operations.
  *
@@ -53,18 +54,16 @@ export function isMergeValid(childId, parentId, allBoards) {
  * @returns {number}
  */
 export function getAggregateTotalForBoard(boardId, totalsMap, allBoards, visited = new Set()) {
-  if (visited.has(boardId)) return 0;
+  if (visited.has(boardId)) return {};
   visited.add(boardId);
 
   const board = allBoards.find((b) => b.id === boardId);
   const subIds = board?.subBoardIds ?? [];
 
   if (subIds.length === 0) {
-    return totalsMap[boardId] ?? 0;
+    return totalsMap[boardId] ?? {};
   }
 
-  return subIds.reduce(
-    (sum, subId) => sum + getAggregateTotalForBoard(subId, totalsMap, allBoards, visited),
-    0,
-  );
+  if (subIds.some(id => !totalsMap[id])) return {};
+  return mergeCurrencyTotals(subIds.map(subId => getAggregateTotalForBoard(subId, totalsMap, allBoards, visited)));
 }

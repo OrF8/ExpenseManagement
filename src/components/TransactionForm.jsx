@@ -1,3 +1,5 @@
+import { CurrencySelector } from './CurrencySelector';
+import { canonicalAmount, currencyOf, validateRate, convert, formatMoney } from '../../functions/shared/money.mjs';
 /**
  * Form for creating or editing a transaction.
  * Validates all fields per requirements.
@@ -24,10 +26,8 @@ function validate(form) {
   if (!form.name.trim()) errors.name = 'שדה חובה';
   if (!form.type) errors.type = 'יש לבחור סוג עסקה';
   if (!form.essence.trim()) errors.essence = 'שדה חובה';
-  const amt = parseFloat(form.amount);
-  const AMOUNT_LIMIT = 100000000;
-  if (!form.amount || !Number.isFinite(amt) || amt === 0 || amt <= -AMOUNT_LIMIT || amt >= AMOUNT_LIMIT)
-    errors.amount = 'סכום חייב להיות מספר תקין, שונה מאפס, גדול מ-100,000,000- וקטן מ-100,000,000';
+  try { canonicalAmount(form.amount, form.currency); }
+  catch (error) { errors.amount = error.message; }
 
   if (form.transactionDate) {
     const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
@@ -80,10 +80,14 @@ function validate(form) {
  * @param onCancel - Function called when user cancels the form.
  * @param submitting - Boolean indicating if the form is currently submitting, used to show loading state on the submit action.
  */
-export function TransactionForm({ initial, defaultName, defaultPaymentMethod, onSubmit, onCancel, submitting }) {
+export function TransactionForm({ initial, defaultName, defaultPaymentMethod, onSubmit, onCancel, submitting, boardCurrency = 'ILS', currencyRevision = 0 }) {
+  const [editorCurrencyRevision] = useState(currencyRevision);
+  const [fxMode, setFxMode] = useState('preserve');
+  const [manualRate, setManualRate] = useState(initial?.conversion?.rate ?? '');
   const [form, setForm] = useState(
     initial
       ? {
+          currency: currencyOf(initial),
           name: initial.name || '',
           cardLast4: initial.cardLast4 || '',
           essence: initial.essence || '',
@@ -102,6 +106,7 @@ export function TransactionForm({ initial, defaultName, defaultPaymentMethod, on
         }
       : {
           ...EMPTY_FORM,
+          currency: boardCurrency,
           name: defaultName || '',
           type: defaultPaymentMethod?.type || '',
           cardLast4: defaultPaymentMethod?.cardLast4 || '',
@@ -134,8 +139,7 @@ export function TransactionForm({ initial, defaultName, defaultPaymentMethod, on
     const rawAmount = form.amount.trim();
     if (!rawAmount) return;
 
-    const parsedAmount = Number(rawAmount);
-    if (!Number.isFinite(parsedAmount) || parsedAmount === 0) return;
+    if (!/^-?\d+(\.\d+)?$/.test(rawAmount)) return;
 
     const nextAmount = rawAmount.startsWith('-')
       ? rawAmount.slice(1)
@@ -151,7 +155,12 @@ export function TransactionForm({ initial, defaultName, defaultPaymentMethod, on
 
   async function handleSubmit(e) {
     e.preventDefault();
+    const unchangedMoney = initial && form.amount === String(initial.amount) && form.currency === currencyOf(initial);
     const errs = validate(form);
+    if (unchangedMoney) delete errs.amount;
+    if (form.currency !== boardCurrency && fxMode === 'manual') {
+      try { validateRate(manualRate); } catch (error) { errs.amount = error.message; }
+    }
     if (Object.keys(errs).length > 0) {
       setErrors(errs);
       return;
@@ -162,7 +171,9 @@ export function TransactionForm({ initial, defaultName, defaultPaymentMethod, on
       cardLast4: isCreditCard ? form.cardLast4 : null,
       essence: form.essence.trim(),
       comment: form.comment.trim() || null,
-      amount: parseFloat(form.amount),
+      ...(!unchangedMoney ? {amount: canonicalAmount(form.amount, form.currency), currency: form.currency} : {}),
+      fxMode,
+      ...(fxMode === 'manual' && form.currency !== boardCurrency ? {manualRate} : {}),
       installmentCurrent: isCreditCard && form.installmentCurrent !== ''
         ? parseInt(form.installmentCurrent, 10)
         : null,
@@ -174,7 +185,7 @@ export function TransactionForm({ initial, defaultName, defaultPaymentMethod, on
     };
     try {
       setSubmitError(null);
-      await onSubmit(data);
+      await onSubmit(data, editorCurrencyRevision);
     } catch (err) {
       setSubmitError(err.message || 'שגיאה בשמירת העסקה. נסה שוב.');
     }
@@ -253,7 +264,7 @@ export function TransactionForm({ initial, defaultName, defaultPaymentMethod, on
       </div>
       <div className="min-w-0 flex flex-col gap-1">
         <label htmlFor="transaction-amount" className="text-sm font-medium text-gray-700 dark:text-gray-300">
-          סכום (₪)
+          סכום
         </label>
         <div dir="ltr" className="flex min-w-0 items-stretch gap-2">
           <button
@@ -267,8 +278,8 @@ export function TransactionForm({ initial, defaultName, defaultPaymentMethod, on
           <input
             id="transaction-amount"
             name="amount"
-            type="number"
-            step="0.01"
+            type="text"
+            inputMode="decimal"
             value={form.amount}
             onChange={handleChange}
             placeholder="0.00"
@@ -292,6 +303,21 @@ export function TransactionForm({ initial, defaultName, defaultPaymentMethod, on
           </p>
         )}
       </div>
+      <CurrencySelector value={form.currency} onChange={currency => setForm(f => ({...f, currency}))} label="מטבע העסקה" disabled={submitting} />
+      {form.currency !== boardCurrency && <div className="min-w-0 space-y-2 rounded-xl bg-indigo-50 p-3 dark:bg-indigo-950/50">
+        <p className="text-sm">המרה ל-{boardCurrency} · {fxMode === 'manual' || (fxMode === 'preserve' && initial?.conversion?.source === 'manual') ? 'ידנית' : 'אוטומטית'}</p>
+        {initial?.conversion && fxMode === 'preserve' && <p className="text-xs" dir="ltr">{formatMoney(initial.conversion.convertedAmount, initial.conversion.targetCurrency)} · {initial.conversion.rate}{initial.conversion.rateDate ? ` · ${initial.conversion.rateDate}` : ''}</p>}
+        <p className="text-xs text-gray-500">שער אוטומטי: השער האחרון הזמין בזמן השמירה, ולא בהכרח מתאריך העסקה.</p>
+        <div className="flex flex-wrap gap-2">
+          <Button type="button" variant="secondary" size="sm" onClick={() => setFxMode('automatic')}>רענן שער אוטומטי</Button>
+          <Button type="button" variant="secondary" size="sm" onClick={() => setFxMode('manual')}>הזן שער ידני</Button>
+        </div>
+        {fxMode === 'automatic' && <p className="text-xs">שער אוטומטי חדש יתקבל בשמירה. אם השליפה תיכשל, השער הקיים יישמר.</p>}
+        {fxMode === 'manual' && <>
+          <Input label={`שער: 1 ${form.currency} = ${boardCurrency}`} value={manualRate} onChange={e => setManualRate(e.target.value)} inputMode="decimal" />
+          <ManualPreview amount={form.amount} currency={form.currency} rate={manualRate} target={boardCurrency} />
+        </>}
+      </div>}
       <Input
         label="תאריך עסקה (אופציונלי)"
         name="transactionDate"
@@ -347,4 +373,11 @@ export function TransactionForm({ initial, defaultName, defaultPaymentMethod, on
       )}
     </form>
   );
+}
+
+function ManualPreview({ amount, currency, rate, target }) {
+  let preview;
+  try { preview = formatMoney(convert(amount, currency, rate, target), target); }
+  catch { return null; }
+  return <p className="text-sm" dir="ltr">≈ {preview}</p>;
 }

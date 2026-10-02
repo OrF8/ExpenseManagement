@@ -36,181 +36,22 @@ service cloud.firestore {
         ).data.ownerUid == request.auth.uid;
     }
 
-    function baseTransactionKeys() {
-      return [
-        'name',
-        'cardLast4',
-        'essence',
-        'comment',
-        'amount',
-        'installmentCurrent',
-        'installmentTotal',
-        'type',
-        'transactionDate',
-        'createdByUid',
-        'createdAt',
-      ];
-    }
-
-    function allowedTransactionKeys() {
-      return [
-        'name',
-        'cardLast4',
-        'essence',
-        'comment',
-        'amount',
-        'installmentCurrent',
-        'installmentTotal',
-        'type',
-        'transactionDate',
-        'createdByUid',
-        'createdAt',
-        'updatedAt',
-        'duplicatedFrom',
-        'duplicatedByUid',
-        'duplicatedAt',
-      ];
-    }
-
-    function isValidTransactionType(type) {
-      return type in ['credit_card', 'cash', 'standing_order'];
-    }
-
-    function isValidTransactionDate(value) {
-      return value == null
-        || (
-          value is string
-          && value.size() == 10
-          && value.matches('^\\d{4}-\\d{2}-\\d{2}$')
-        );
-    }
-
-    function isValidInstallments(data) {
-      return data.type == 'credit_card'
-        ? (
-            data.cardLast4 is string
-            && data.cardLast4.size() == 4
-            && data.cardLast4.matches('^\\d{4}$')
-            && (
-              (data.installmentCurrent == null && data.installmentTotal == null)
-              || (
-                data.installmentCurrent is int
-                && data.installmentTotal is int
-                && data.installmentCurrent >= 1
-                && data.installmentTotal >= 1
-                && data.installmentCurrent <= data.installmentTotal
-              )
-            )
-          )
-        : (
-            data.cardLast4 == null
-            && data.installmentCurrent == null
-            && data.installmentTotal == null
-          );
-    }
-
-    function isValidTransactionFields(data) {
-      return data.name is string
-        && data.name.size() > 0
-        && data.name.size() <= 80
-        && data.essence is string
-        && data.essence.size() > 0
-        && data.essence.size() <= 300
-        && (data.comment == null || (data.comment is string && data.comment.size() <= 1000))
-        && data.amount is number
-        && data.amount != 0
-        && data.amount > -100000000
-        && data.amount < 100000000
-        && data.type is string
-        && isValidTransactionType(data.type)
-        && isValidTransactionDate(data.transactionDate)
-        && isValidInstallments(data);
-    }
-
-    function isValidTransactionMetadata(data) {
-      return (
-          !data.keys().hasAny(['updatedAt']) ||
-          data.updatedAt is timestamp
-        )
-        && (
-          !data.keys().hasAny(['duplicatedByUid']) ||
-          data.duplicatedByUid is string
-        )
-        && (
-          !data.keys().hasAny(['duplicatedAt']) ||
-          data.duplicatedAt is timestamp
-        )
-        && (
-          !data.keys().hasAny(['duplicatedFrom']) ||
-          (
-            data.duplicatedFrom is map
-            && data.duplicatedFrom.keys().hasOnly(['boardId', 'transactionId'])
-            && data.duplicatedFrom.keys().hasAll(['boardId', 'transactionId'])
-            && data.duplicatedFrom.boardId is string
-            && data.duplicatedFrom.transactionId is string
-          )
-        );
-    }
-
-    function isValidTransactionData(data) {
-      return data.keys().hasOnly(baseTransactionKeys())
-        && isValidTransactionFields(data);
-    }
-
-    function isValidTransactionDataWithMetadata(data) {
-      return data.keys().hasOnly(allowedTransactionKeys())
-        && isValidTransactionFields(data)
-        && isValidTransactionMetadata(data);
-    }
-
-    function preservesOptionalImmutableTransactionField(fieldName) {
-      return (
-          !resource.data.keys().hasAny([fieldName])
-          && !request.resource.data.keys().hasAny([fieldName])
-        )
-        || (
-          resource.data.keys().hasAny([fieldName])
-          && request.resource.data.keys().hasAny([fieldName])
-          && request.resource.data[fieldName] == resource.data[fieldName]
-        );
-    }
-
-    function preservesImmutableTransactionFields() {
-      return request.resource.data.createdByUid == resource.data.createdByUid
-        && request.resource.data.createdAt == resource.data.createdAt
-        && preservesOptionalImmutableTransactionField('updatedAt')
-        && preservesOptionalImmutableTransactionField('duplicatedFrom')
-        && preservesOptionalImmutableTransactionField('duplicatedByUid')
-        && preservesOptionalImmutableTransactionField('duplicatedAt');
-    }
-
     match /boards/{boardId} {
-      allow create: if signedIn()
-        && request.resource.data.ownerUid == request.auth.uid
-        && request.auth.uid in request.resource.data.memberUids;
+      // Creation and currency changes use validated callable functions.
+      allow create: if false;
 
       allow read: if isBoardMemberByDoc(resource.data);
 
-      allow update: if isBoardOwnerByDoc(resource.data);
+      allow update: if isBoardOwnerByDoc(resource.data)
+        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['currency', 'currencyRevision', 'moneyRevision']);
       allow delete: if isBoardOwnerByDoc(resource.data);
     }
 
     match /boards/{boardId}/transactions/{transactionId} {
       allow read: if isBoardMember(boardId);
 
-      allow create: if isBoardMember(boardId)
-        && request.resource.data.keys().hasAll(['createdByUid', 'createdAt'])
-        && isValidTransactionData(request.resource.data)
-        && request.resource.data.createdByUid is string
-        && request.resource.data.createdByUid == request.auth.uid
-        && request.resource.data.createdAt is timestamp
-        && request.resource.data.createdAt == request.time;
-
-      allow update: if isBoardMember(boardId)
-        && isValidTransactionDataWithMetadata(request.resource.data)
-        && preservesImmutableTransactionFields();
-
-      allow delete: if isBoardMember(boardId);
+      // All transaction mutations also serialize with board currency changes.
+      allow create, update, delete: if false;
     }
 
     match /boards/{boardId}/invites/{inviteId} {

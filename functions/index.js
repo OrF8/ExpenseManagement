@@ -53,11 +53,6 @@ admin.initializeApp();
 
 const db = admin.firestore();
 
-function userHasBoardAccess(boardData, uid) {
-  const memberUids = Array.isArray(boardData?.memberUids) ? boardData.memberUids : [];
-  return memberUids.includes(uid);
-}
-
 // ---------------------------------------------------------------------------
 // Internal helpers
 // ---------------------------------------------------------------------------
@@ -510,234 +505,25 @@ exports.declineBoardInvite = onCall(
     }
 );
 
-/**
- * moveTransaction
- *
- * Moves a single transaction document from one board to another in a single
- * Firestore transaction. Preserves the original transaction ID and data.
- */
-exports.moveTransaction = onCall(
-    {enforceAppCheck: true},
-    async (request) => {
-      if (!request.auth) {
-        throw new HttpsError('unauthenticated', 'עליך להתחבר כדי להעביר עסקה');
+// Currency-sensitive writes are centralized and protected by App Check and auth.
+const {createMoneyOperations, MoneyError} = require('./moneyOperations.mjs');
+const moneyOperations = createMoneyOperations({db, timestamp: () => admin.firestore.FieldValue.serverTimestamp()});
+for (const operation of ['createBoard', 'saveTransaction', 'deleteTransaction', 'changeBoardCurrency', 'moveTransaction', 'duplicateTransaction']) {
+  exports[operation] = onCall({enforceAppCheck: true}, async request => {
+    if (!request.auth) throw new HttpsError('unauthenticated', 'עליך להתחבר');
+    try {
+      if (operation === 'moveTransaction' || operation === 'duplicateTransaction') {
+        return await moneyOperations.transfer(request.auth.uid, request.data || {}, operation === 'duplicateTransaction');
       }
-
-      const uid = request.auth.uid;
-      const {sourceBoardId, destinationBoardId, transactionId} = request.data || {};
-      if (
-        typeof sourceBoardId !== 'string' || !sourceBoardId.trim() ||
-        typeof destinationBoardId !== 'string' || !destinationBoardId.trim() ||
-        typeof transactionId !== 'string' || !transactionId.trim()
-      ) {
-        throw new HttpsError('invalid-argument', 'sourceBoardId, destinationBoardId ו-transactionId נדרשים');
-      }
-
-      if (sourceBoardId === destinationBoardId) {
-        throw new HttpsError('failed-precondition', 'לא ניתן להעביר עסקה לאותו לוח');
-      }
-
-      const sourceBoardRef = db.collection('boards').doc(sourceBoardId);
-      const destinationBoardRef = db.collection('boards').doc(destinationBoardId);
-      const sourceTxRef = sourceBoardRef.collection('transactions').doc(transactionId);
-      const destinationTxRef = destinationBoardRef.collection('transactions').doc(transactionId);
-
-      await db.runTransaction(async (tx) => {
-        const [sourceBoardSnap, destinationBoardSnap, sourceTxSnap, destinationTxSnap] = await Promise.all([
-          tx.get(sourceBoardRef),
-          tx.get(destinationBoardRef),
-          tx.get(sourceTxRef),
-          tx.get(destinationTxRef),
-        ]);
-
-        if (!sourceBoardSnap.exists) throw new HttpsError('not-found', 'לוח המקור לא נמצא');
-        if (!destinationBoardSnap.exists) throw new HttpsError('not-found', 'לוח היעד לא נמצא');
-
-        const sourceBoard = sourceBoardSnap.data();
-        const destinationBoard = destinationBoardSnap.data();
-        const isSuperBoard = (board) => Array.isArray(board && board.subBoardIds);
-
-        if (isSuperBoard(sourceBoard)) {
-          throw new HttpsError('failed-precondition', 'לא ניתן להעביר עסקה מלוח-על');
-        }
-
-        if (isSuperBoard(destinationBoard)) {
-          throw new HttpsError('failed-precondition', 'לא ניתן להעביר עסקה ללוח-על');
-        }
-
-        if (!userHasBoardAccess(sourceBoard, uid) || !userHasBoardAccess(destinationBoard, uid)) {
-          throw new HttpsError('permission-denied', 'אין לך הרשאה להעביר עסקה לאחד הלוחות שנבחרו');
-        }
-
-        if (!sourceTxSnap.exists) {
-          throw new HttpsError('not-found', 'העסקה לא נמצאה. ייתכן שהיא נמחקה או הועברה כבר');
-        }
-
-        if (destinationTxSnap.exists) {
-          throw new HttpsError('already-exists', 'כבר קיימת עסקה עם אותו מזהה בלוח היעד');
-        }
-
-        const transactionData = sourceTxSnap.data();
-        tx.set(destinationTxRef, {
-          ...transactionData,
-          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-        });
-        tx.delete(sourceTxRef);
-      });
-
-      return {
-        success: true,
-        sourceBoardId,
-        destinationBoardId,
-        transactionId,
-      };
-    },
-);
-
-/**
- * duplicateTransaction
- *
- * Duplicates a single transaction document from one board to another in a
- * Firestore transaction. The source transaction is left unchanged and the
- * duplicate receives a new generated document ID.
- */
-exports.duplicateTransaction = onCall(
-    {enforceAppCheck: true},
-    async (request) => {
-      if (!request.auth) {
-        throw new HttpsError('unauthenticated', 'עליך להתחבר כדי לשכפל עסקה');
-      }
-
-      const uid = request.auth.uid;
-      const {
-        sourceBoardId,
-        destinationBoardId,
-        destinationBoardIds,
-        transactionId,
-      } = request.data || {};
-      const MAX_DESTINATION_BOARDS = 50;
-      const rawDestinationBoardIds = Array.isArray(destinationBoardIds) ?
-        destinationBoardIds :
-        typeof destinationBoardId === 'string' ? [destinationBoardId] : [];
-      const normalizedSourceBoardId = typeof sourceBoardId === 'string' ?
-        sourceBoardId.trim() :
-        sourceBoardId;
-      const normalizedTransactionId = typeof transactionId === 'string' ?
-        transactionId.trim() :
-        transactionId;
-      const normalizedDestinationBoardIds = rawDestinationBoardIds.map(
-          (boardId) => typeof boardId === 'string' ? boardId.trim() : boardId,
-      );
-
-      if (
-        typeof normalizedSourceBoardId !== 'string' || !normalizedSourceBoardId ||
-        typeof normalizedTransactionId !== 'string' || !normalizedTransactionId
-      ) {
-        throw new HttpsError('invalid-argument', 'sourceBoardId ו-transactionId נדרשים');
-      }
-
-      if (!normalizedDestinationBoardIds.length) {
-        throw new HttpsError('invalid-argument', 'יש לבחור לפחות לוח יעד אחד');
-      }
-
-      if (normalizedDestinationBoardIds.length > MAX_DESTINATION_BOARDS) {
-        throw new HttpsError(
-            'invalid-argument',
-            `ניתן לשכפל עד ${MAX_DESTINATION_BOARDS} לוחות בפעולה אחת`,
-        );
-      }
-
-      const hasInvalidDestinationBoardId = normalizedDestinationBoardIds.some(
-          (boardId) => typeof boardId !== 'string' || !boardId.trim(),
-      );
-      if (hasInvalidDestinationBoardId) {
-        throw new HttpsError('invalid-argument', 'כל לוחות היעד חייבים להיות מזהים תקינים');
-      }
-
-      if (normalizedDestinationBoardIds.includes(normalizedSourceBoardId)) {
-        throw new HttpsError('failed-precondition', 'לא ניתן לשכפל עסקה לאותו לוח');
-      }
-
-      if (new Set(normalizedDestinationBoardIds).size !== normalizedDestinationBoardIds.length) {
-        throw new HttpsError('invalid-argument', 'לא ניתן לבחור את אותו לוח יעד יותר מפעם אחת');
-      }
-
-      const sourceBoardRef = db.collection('boards').doc(normalizedSourceBoardId);
-      const sourceTxRef = sourceBoardRef.collection('transactions').doc(normalizedTransactionId);
-      const destinationBoardRefs = normalizedDestinationBoardIds.map(
-          (boardId) => db.collection('boards').doc(boardId),
-      );
-      const destinationTxRefs = destinationBoardRefs.map(
-          (boardRef) => boardRef.collection('transactions').doc(),
-      );
-      const duplicatedTransactions = destinationTxRefs.map((txRef, index) => ({
-        boardId: normalizedDestinationBoardIds[index],
-        transactionId: txRef.id,
-      }));
-
-      await db.runTransaction(async (tx) => {
-        const [sourceBoardSnap, sourceTxSnap, ...destinationBoardSnaps] = await Promise.all([
-          tx.get(sourceBoardRef),
-          tx.get(sourceTxRef),
-          ...destinationBoardRefs.map((boardRef) => tx.get(boardRef)),
-        ]);
-
-        if (!sourceBoardSnap.exists) throw new HttpsError('not-found', 'לוח המקור לא נמצא');
-
-        const missingDestinationIndex = destinationBoardSnaps.findIndex((snap) => !snap.exists);
-        if (missingDestinationIndex !== -1) {
-          throw new HttpsError('not-found', 'אחד מלוחות היעד לא נמצא');
-        }
-
-        const sourceBoard = sourceBoardSnap.data();
-        const destinationBoards = destinationBoardSnaps.map((snap) => snap.data());
-        const isSuperBoard = (board) => Array.isArray(board?.subBoardIds) && board.subBoardIds.length > 0;
-
-        if (isSuperBoard(sourceBoard)) {
-          throw new HttpsError('failed-precondition', 'לא ניתן לשכפל עסקה מלוח-על');
-        }
-
-        if (destinationBoards.some((board) => isSuperBoard(board))) {
-          throw new HttpsError('failed-precondition', 'לא ניתן לשכפל עסקה ללוח-על');
-        }
-
-        const hasDestinationAccess = destinationBoards.every(
-            (board) => userHasBoardAccess(board, uid),
-        );
-        if (!userHasBoardAccess(sourceBoard, uid) || !hasDestinationAccess) {
-          throw new HttpsError('permission-denied', 'אין לך הרשאה לשכפל עסקה לאחד הלוחות שנבחרו');
-        }
-
-        if (!sourceTxSnap.exists) {
-          throw new HttpsError('not-found', 'העסקה לא נמצאה. ייתכן שהיא נמחקה');
-        }
-
-        const transactionData = sourceTxSnap.data();
-        destinationTxRefs.forEach((destinationTxRef) => {
-          tx.set(destinationTxRef, {
-            ...transactionData,
-            createdAt: admin.firestore.FieldValue.serverTimestamp(),
-            createdByUid: uid,
-            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-            duplicatedFrom: {
-              boardId: normalizedSourceBoardId,
-              transactionId: normalizedTransactionId,
-            },
-            duplicatedByUid: uid,
-            duplicatedAt: admin.firestore.FieldValue.serverTimestamp(),
-          });
-        });
-      });
-
-      return {
-        success: true,
-        sourceBoardId: normalizedSourceBoardId,
-        destinationBoardIds: normalizedDestinationBoardIds,
-        sourceTransactionId: normalizedTransactionId,
-        duplicatedTransactions,
-      };
-    },
-);
+      return await moneyOperations[operation](request.auth.uid, request.data || {});
+    } catch (error) {
+      if (error instanceof MoneyError) throw new HttpsError(error.code, error.message);
+      if (error instanceof HttpsError) throw error;
+      if (error.code) { console.error('Monetary operation failed:', error); throw new HttpsError('internal', 'שמירת הנתונים נכשלה. נסו שוב.'); }
+      throw new HttpsError('invalid-argument', error.message || 'Invalid monetary data');
+    }
+  });
+}
 
 /**
  * removeBoardMember

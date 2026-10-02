@@ -1,3 +1,5 @@
+import { CurrencySelector } from '../components/CurrencySelector';
+import { CurrencyTotals } from '../components/CurrencyTotals';
 /**
  * Main boards listing page.
  *
@@ -26,16 +28,13 @@ import { Modal } from '../components/ui/Modal';
 import { ThemeToggle } from '../components/ui/ThemeToggle';
 import logoIcon from '../assets/logo-icon.png';
 
-function formatAmount(amount) {
-  return new Intl.NumberFormat('he-IL', { style: 'currency', currency: 'ILS' }).format(amount);
-}
-
 export function BoardsPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const { boards, loading, error, retryingSecureConnection } = useBoards();
   const { invites: incomingInvites } = useIncomingInvites();
   const [showCreate, setShowCreate] = useState(false);
+  const [newCurrency, setNewCurrency] = useState('ILS');
   const [newTitle, setNewTitle] = useState('');
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState(null);
@@ -273,7 +272,7 @@ export function BoardsPage() {
     setCreating(true);
     setCreateError(null);
     try {
-      await createBoard(title, user.uid);
+      await createBoard(title, user.uid, newCurrency);
       setNewTitle('');
       setShowCreate(false);
     } catch (err) {
@@ -569,7 +568,7 @@ export function BoardsPage() {
                         {board.memberUids.length} משתתפים
                       </p>
                       <span className="text-sm font-semibold text-indigo-700 dark:text-indigo-400 tabular-nums">
-                        {formatAmount(displayTotal)}
+                        <CurrencyTotals totals={displayTotal} />
                       </span>
                     </div>
                   </Link>
@@ -606,6 +605,7 @@ export function BoardsPage() {
         title="יצירת לוח חדש"
       >
         <form onSubmit={handleCreate} className="min-w-0 flex flex-col gap-4">
+          <CurrencySelector value={newCurrency} onChange={setNewCurrency} label="מטבע הלוח החדש" />
           <Input
             label="שם הלוח"
             value={newTitle}

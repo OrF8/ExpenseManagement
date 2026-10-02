@@ -1,42 +1,27 @@
-/**
- * Hook that one-shot fetches the grand-total of expenses for each board ID
- * in the provided array.  Re-fetches whenever the set of IDs changes.
- *
- * Returns:
- *   totals  – { [boardId]: number }   (starts as {}, fills in as fetches resolve)
- */
 import { useState, useEffect } from 'react';
 import { getBoardTotal } from '../firebase/transactions';
+import { subscribeToBoard } from '../firebase/boards';
 
+/** Refresh exact, currency-grouped totals whenever a board's money revision changes. */
 export function useBoardTotals(boardIds) {
-  const [totals, setTotals] = useState({});
-
-  // Serialize the IDs so the effect dependency is a stable primitive.
+  const [state, setState] = useState({ key: '', totals: {} });
   const idsKey = boardIds.join(',');
-
   useEffect(() => {
-    const ids = idsKey.split(',').filter(Boolean);
-    if (ids.length === 0) return;
-
     let cancelled = false;
-
-    Promise.all(ids.map((id) => getBoardTotal(id).then((total) => ({ id, total }))))
-      .then((results) => {
-        if (cancelled) return;
-        const map = {};
-        results.forEach(({ id, total }) => {
-          map[id] = total;
-        });
-        setTotals(map);
-      })
-      .catch((err) => {
-        if (!cancelled) console.error('Failed to fetch board totals:', err);
-      });
-
-    return () => {
-      cancelled = true;
-    };
+    const versions = {};
+    const publish = (id, total) => setState(prev => ({key: idsKey, totals: {...(prev.key === idsKey ? prev.totals : {}), [id]: total}}));
+    const unsubscribes = idsKey.split(',').filter(Boolean).map(id => subscribeToBoard(id, async () => {
+      const version = (versions[id] ?? 0) + 1; versions[id] = version;
+      publish(id, undefined);
+      try {
+        const total = await getBoardTotal(id);
+        if (!cancelled && versions[id] === version) publish(id, total);
+      } catch (error) {
+        if (!cancelled && versions[id] === version) publish(id, undefined);
+        console.error('Failed to fetch board total:', error);
+      }
+    }, () => { if (!cancelled) publish(id, undefined); }));
+    return () => { cancelled = true; unsubscribes.forEach(unsubscribe => unsubscribe()); };
   }, [idsKey]);
-
-  return { totals };
+  return { totals: state.key === idsKey ? state.totals : {} };
 }

@@ -1,3 +1,7 @@
+import { aggregateTransactions, currencyOf, mergeCurrencyTotals } from '../../functions/shared/money.mjs';
+import { CurrencyTotals } from '../components/CurrencyTotals';
+import { BoardCurrencySettings } from '../components/BoardCurrencySettings';
+import { CurrencySelector } from '../components/CurrencySelector';
 /**
  * Board detail page.
  *
@@ -50,16 +54,12 @@ import {
   filterTransactions,
 } from '../utils/transactionFilters';
 
-function formatAmount(amount) {
-  return new Intl.NumberFormat('he-IL', { style: 'currency', currency: 'ILS' }).format(amount);
-}
-
 export function BoardPage() {
   const { boardId } = useParams();
   const location = useLocation();
   const { user } = useAuth();
   const navigate = useNavigate();
-  const { transactions, loading, error, totals } = useTransactions(boardId);
+  const { transactions, loading, error } = useTransactions(boardId);
   const { boards: allBoards } = useBoards();
   const [boardState, setBoardState] = useState({
     boardId: null,
@@ -68,6 +68,7 @@ export function BoardPage() {
     error: null,
     retryingSecureConnection: false,
   });
+  const [childCurrency, setChildCurrency] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
   const [editTx, setEditTx] = useState(null);
   const [showCollabs, setShowCollabs] = useState(false);
@@ -177,7 +178,7 @@ export function BoardPage() {
   const { totals: subBoardTotals } = useBoardTotals(subBoardIds);
 
   const aggregateTotal = useMemo(
-    () => subBoardIds.reduce((sum, id) => sum + (subBoardTotals[id] ?? 0), 0),
+    () => subBoardIds.every(id => subBoardTotals[id]) ? mergeCurrencyTotals(subBoardIds.map(id => subBoardTotals[id])) : {},
     [subBoardIds, subBoardTotals],
   );
 
@@ -185,9 +186,14 @@ export function BoardPage() {
   // Board-scoped transaction filter helpers
   // ---------------------------------------------------------------------------
 
-  const visibleTransactions = useMemo(() => {
-    return filterTransactions(transactions, transactionFilters);
-  }, [transactions, transactionFilters]);
+  const filteredState = useMemo(() => {
+    try { return {transactions: filterTransactions(transactions, transactionFilters, currencyOf(board))}; } catch (error) { return {transactions: [], error: error.message}; }
+  }, [transactions, transactionFilters, board]);
+  const visibleTransactions = filteredState.transactions;
+  const totals = useMemo(() => {
+    try { return filteredState.error ? {error: filteredState.error} : aggregateTransactions(visibleTransactions, currencyOf(board)); }
+    catch (error) { return {error: error.message}; }
+  }, [visibleTransactions, board, filteredState.error]);
 
   function handleTransactionFiltersChange(filters) {
     setTransactionFilterState({boardId, routeKey: location.key, filters});
@@ -375,7 +381,7 @@ export function BoardPage() {
     setCreatingSubBoard(true);
     setCreateSubBoardError(null);
     try {
-      const newBoardRef = await createBoard(trimmed, user.uid);
+      const newBoardRef = await createBoard(trimmed, user.uid, childCurrency || currencyOf(board));
       await mergeBoardsIntoSuper(newBoardRef.id, boardId);
       setNewSubBoardTitle('');
       setShowAddSubBoard(false);
@@ -389,20 +395,20 @@ export function BoardPage() {
   // ---------------------------------------------------------------------------
   // Transaction handlers
   // ---------------------------------------------------------------------------
-  async function handleAdd(data) {
+  async function handleAdd(data, expectedCurrencyRevision) {
     setSubmitting(true);
     try {
-      await addTransaction(boardId, data, user.uid);
+      await addTransaction(boardId, data, expectedCurrencyRevision);
       setShowAddModal(false);
     } finally {
       setSubmitting(false);
     }
   }
 
-  async function handleEdit(data) {
+  async function handleEdit(data, expectedCurrencyRevision) {
     setSubmitting(true);
     try {
-      await updateTransaction(boardId, editTx.id, data);
+      await updateTransaction(boardId, editTx.id, data, expectedCurrencyRevision, editTx.revision ?? 0);
       setEditTx(null);
     } finally {
       setSubmitting(false);
@@ -445,7 +451,7 @@ export function BoardPage() {
     setMovingTransaction(true);
     setMoveTransactionError(null);
     try {
-      await moveTransaction(boardId, moveDestinationBoardId, moveTx.id);
+      await moveTransaction(boardId, moveDestinationBoardId, moveTx.id, moveTx._currencyRevision, moveTx.revision ?? 0);
       setMoveTx(null);
       setMoveDestinationBoardId('');
       setMoveSuccessMessage('העסקה הועברה בהצלחה.');
@@ -474,7 +480,7 @@ export function BoardPage() {
     setDuplicatingTransaction(true);
     setDuplicateTransactionError(null);
     try {
-      const result = await duplicateTransaction(boardId, duplicateDestinationBoardIds, duplicateTx.id);
+      const result = await duplicateTransaction(boardId, duplicateDestinationBoardIds, duplicateTx.id, duplicateTx._currencyRevision, duplicateTx.revision ?? 0);
       const duplicateCount = result?.duplicatedTransactions?.length || duplicateDestinationBoardIds.length;
       setDuplicateTx(null);
       setDuplicateDestinationBoardIds([]);
@@ -499,6 +505,7 @@ export function BoardPage() {
           (board.subBoardIds ?? []).map(async (subBoardId) => {
             const subBoard = allBoards.find((candidate) => candidate.id === subBoardId);
             return {
+              currency: currencyOf(subBoard),
               name: subBoard?.title || 'לוח',
               transactions: await getTransactionsForBoard(subBoardId),
             };
@@ -514,6 +521,7 @@ export function BoardPage() {
           boardName: board.title,
           worksheets: [
             {
+              currency: currencyOf(board),
               name: board.title || 'לוח',
               transactions,
             },
@@ -645,6 +653,7 @@ export function BoardPage() {
       </header>
 
       <main className="max-w-3xl mx-auto px-4 py-8 flex flex-col gap-6">
+        {board && <BoardCurrencySettings key={`${board.id}:${board.currencyRevision ?? 0}`} board={board} isOwner={isOwner} />}
         {exportError && (
           <div className="rounded-xl bg-red-50 dark:bg-red-900/30 border border-red-100 dark:border-red-800 px-4 py-3 text-sm text-red-600 dark:text-red-400">
             {exportError}
@@ -665,13 +674,14 @@ export function BoardPage() {
           /* Super board view: sub-board grid                                  */
           /* ---------------------------------------------------------------- */
           <>
-            {/* Aggregate total banner */}
+            
+        {/* Aggregate total banner */}
             <div className="rounded-2xl bg-linear-to-br from-indigo-50 to-white border border-indigo-100 p-5 dark:from-indigo-950/50 dark:to-gray-900 dark:border-indigo-900">
               <p className="text-sm font-semibold text-indigo-700 dark:text-indigo-400 uppercase tracking-wide mb-1">
                 סה"כ הוצאות
               </p>
               <p className="text-2xl font-bold text-indigo-700 dark:text-indigo-400 tabular-nums">
-                {formatAmount(aggregateTotal)}
+                <CurrencyTotals totals={aggregateTotal} />
               </p>
               <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
                 מצטבר מ-{subBoardIds.length} לוחות-משנה
@@ -733,7 +743,7 @@ export function BoardPage() {
                             {sub.memberUids?.length ?? 0} משתתפים
                           </p>
                           <span className="text-sm font-semibold text-indigo-700 dark:text-indigo-400 tabular-nums">
-                            {formatAmount(subBoardTotals[sub.id] ?? 0)}
+                            <CurrencyTotals totals={subBoardTotals[sub.id]} />
                           </span>
                         </div>
                       </button>
@@ -842,6 +852,8 @@ export function BoardPage() {
         title="עסקה חדשה"
       >
         <TransactionForm
+          boardCurrency={currencyOf(board)}
+          currencyRevision={board?.currencyRevision ?? 0}
           defaultName={userNickname}
           defaultPaymentMethod={paymentFilterToDefaultPaymentMethod(activePaymentFilterKey)}
           onSubmit={handleAdd}
@@ -857,6 +869,8 @@ export function BoardPage() {
         title="עריכת עסקה"
       >
         <TransactionForm
+          boardCurrency={currencyOf(board)}
+          currencyRevision={board?.currencyRevision ?? 0}
           initial={editTx}
           onSubmit={handleEdit}
           onCancel={() => setEditTx(null)}
@@ -988,6 +1002,7 @@ export function BoardPage() {
               יצירת לוח-משנה חדש
             </p>
             <form onSubmit={handleCreateSubBoard} className="min-w-0 flex flex-col gap-3">
+              <CurrencySelector value={childCurrency || currencyOf(board)} onChange={setChildCurrency} label="מטבע לוח המשנה" />
               <Input
                 label="שם הלוח החדש"
                 value={newSubBoardTitle}

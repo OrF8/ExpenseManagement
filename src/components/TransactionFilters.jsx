@@ -1,3 +1,4 @@
+import { minorUnits } from '../../functions/shared/money.mjs';
 import {useId, useMemo, useState} from 'react';
 import {TRANSACTION_TYPE_LABELS} from '../constants/transactionTypes';
 import {
@@ -28,7 +29,7 @@ export function TransactionFilters({filters, transactions, visibleCount, onChang
   const hasInvalidAmountRange =
     filters.minAmount !== '' &&
     filters.maxAmount !== '' &&
-    Number(filters.minAmount) > Number(filters.maxAmount);
+    compareAmounts(filters.minAmount, filters.maxAmount);
 
   const paymentOptions = useMemo(() => {
     const keys = new Set(transactions.map(getTransactionPaymentFilterKey));
@@ -110,18 +111,18 @@ export function TransactionFilters({filters, transactions, visibleCount, onChang
               </select>
             </div>
             <Input
-              label="סכום מינימלי"
+              label="סכום מינימלי (במטבע הלוח)"
               type="number"
-              step="0.01"
+              step="any"
               inputMode="decimal"
               value={filters.minAmount}
               onChange={(event) => setField('minAmount', event.target.value)}
               error={hasInvalidAmountRange ? 'הסכום המינימלי גבוה מהסכום המקסימלי' : undefined}
             />
             <Input
-              label="סכום מקסימלי"
+              label="סכום מקסימלי (במטבע הלוח)"
               type="number"
-              step="0.01"
+              step="any"
               inputMode="decimal"
               value={filters.maxAmount}
               onChange={(event) => setField('maxAmount', event.target.value)}
@@ -147,4 +148,8 @@ export function TransactionFilters({filters, transactions, visibleCount, onChang
       )}
     </section>
   );
+}
+
+function compareAmounts(min, max) {
+  try { return minorUnits(min, 'CLF', {legacy: true}) > minorUnits(max, 'CLF', {legacy: true}); } catch { return false; }
 }
