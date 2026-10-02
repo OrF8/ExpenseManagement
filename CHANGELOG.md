@@ -4,6 +4,20 @@ All notable changes to this project are documented in this file.
 
 The format is inspired by [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project follows [Semantic Versioning](https://semver.org/).
 
+## [1.6.0] — 2026-10-02
+
+### Added
+- Board and transaction currencies, searchable ISO-code/name selectors, original-currency context, and exact currency-aware filtered totals.
+- Shared decimal-string/BigInt money arithmetic with currency-specific precision and half-away-from-zero rounding.
+- Durable Frankfurter v2 reference-rate snapshots, manual overrides, and explicit automatic refresh on save.
+- Atomic board-currency changes (up to 400 transactions), stale-editor protection, and currency-safe move/multi-destination copy.
+- Currency-separated parent summaries and lossless Excel money/rate columns.
+
+### Changed
+- Sensitive monetary writes now require authenticated, App Check-protected Cloud Functions; direct client transaction writes and currency metadata changes are denied.
+- Legacy missing currencies resolve lazily to ILS; unrelated edits preserve legacy numeric amounts. No bulk migration is required.
+- Release metadata and supported-version policy now target 1.6.0.
+
 ## [1.5.1]
 
 ### Changed

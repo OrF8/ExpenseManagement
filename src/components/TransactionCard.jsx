@@ -1,16 +1,10 @@
+import { formatMoney, currencyOf } from '../../functions/shared/money.mjs';
 /**
  * Single transaction row/card with edit and delete actions.
  */
 import { useState } from 'react';
 import { Button } from './ui/Button';
 import { TRANSACTION_TYPE_LABELS } from '../constants/transactionTypes';
-
-function formatAmount(amount) {
-  return new Intl.NumberFormat('he-IL', {
-    style: 'currency',
-    currency: 'ILS',
-  }).format(amount);
-}
 
 function formatTransactionDate(dateStr) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return dateStr;
@@ -48,10 +42,10 @@ export function TransactionCard({ transaction, onEdit, onDelete, onMove, onDupli
 
   return (
     <div className="rounded-xl bg-white border border-gray-100 shadow-sm hover:shadow-md transition-shadow dark:bg-gray-800 dark:border-gray-700 dark:hover:shadow-black/30">
-      <div className="group flex items-start justify-between gap-4 p-4">
+      <div data-testid="transaction-card" className="group flex flex-col gap-3 p-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap mb-1">
-            <span className="font-semibold text-gray-900 dark:text-gray-100 text-sm">
+            <span data-testid="transaction-name" className="font-semibold text-gray-900 dark:text-gray-100 text-sm break-words min-w-0">
               {transaction.name}
             </span>
             {transaction.cardLast4 != null && (
@@ -81,9 +75,10 @@ export function TransactionCard({ transaction, onEdit, onDelete, onMove, onDupli
             </p>
           )}
         </div>
-        <div className="flex items-center gap-2 shrink-0">
-          <span className="text-base font-bold text-gray-900 dark:text-gray-100 tabular-nums">
-            {formatAmount(transaction.amount)}
+        <div className="flex w-full flex-wrap items-center justify-between gap-2 sm:w-auto sm:justify-end">
+          <span data-testid="transaction-amount" className="min-w-0 break-words text-base font-bold text-gray-900 dark:text-gray-100 tabular-nums">
+            <span dir="ltr">{formatMoney(transaction.amount, currencyOf(transaction))}</span>
+            {transaction.conversion && <span className="block text-xs font-normal text-gray-500" dir="ltr">≈ {formatMoney(transaction.conversion.convertedAmount, transaction.conversion.targetCurrency)}{transaction.conversion.source === 'manual' ? ' · ידני' : ''}</span>}
           </span>
           <div className="flex gap-1">
             <Button

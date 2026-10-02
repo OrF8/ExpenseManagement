@@ -34,3 +34,7 @@ functions/node_modules
 
 # Firebase local cache
 .firebase
+
+# Local test output
+playwright-report/
+test-results/

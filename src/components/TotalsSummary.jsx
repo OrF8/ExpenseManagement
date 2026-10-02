@@ -1,3 +1,5 @@
+import { formatMoney } from '../../functions/shared/money.mjs';
+import { CurrencyTotals } from './CurrencyTotals';
 /**
  * Displays per-type and grand total transaction summaries.
  * Keys in totals.perGroup use the format "card:XXXX" (credit-card) or
@@ -9,14 +11,9 @@
  */
 import { TRANSACTION_TYPE_LABELS } from '../constants/transactionTypes';
 
-function formatAmount(amount) {
-  return new Intl.NumberFormat('he-IL', {
-    style: 'currency',
-    currency: 'ILS',
-  }).format(amount);
-}
-
 export function TotalsSummary({ totals, activeFilterKey, onFilterChange }) {
+  if (totals.error) return <p role="status" className="text-sm text-amber-700">{totals.error}</p>;
+  const formatAmount = amount => formatMoney(amount, totals.currency);
   const groups = Object.entries(totals.perGroup);
   if (groups.length === 0) return null;
 
@@ -82,6 +79,7 @@ export function TotalsSummary({ totals, activeFilterKey, onFilterChange }) {
           );
         })}
       </div>
+      {Object.keys(totals.originals).some(c => c !== totals.currency) && <div className="text-xs text-gray-500 mb-3" data-testid="original-totals">הוצאות במטבע המקורי: <CurrencyTotals totals={totals.originals} /></div>}
       <div className="border-t border-indigo-100 dark:border-indigo-900 pt-3 flex items-center justify-between">
         <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">סה"כ</span>
         <span className="text-xl font-bold text-indigo-700 dark:text-indigo-400 tabular-nums">

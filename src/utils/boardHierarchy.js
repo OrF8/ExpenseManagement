@@ -1,3 +1,4 @@
+import { mergeCurrencyTotals } from '../../functions/shared/money.mjs';
 /**
  * Utility functions for board hierarchy operations.
  *
@@ -47,24 +48,22 @@ export function isMergeValid(childId, parentId, allBoards) {
  * The visited Set prevents double-counting if a cycle exists.
  *
  * @param {string}                boardId
- * @param {Object<string,number>} totalsMap  – { [boardId]: number }
+ * @param {Object<string,Record<string,string>>} totalsMap – exact totals by board and currency
  * @param {Array}                 allBoards
  * @param {Set}                   [visited]  – internal, do not pass
- * @returns {number}
+ * @returns {Record<string, string>} Exact totals grouped by currency
  */
 export function getAggregateTotalForBoard(boardId, totalsMap, allBoards, visited = new Set()) {
-  if (visited.has(boardId)) return 0;
+  if (visited.has(boardId)) return {};
   visited.add(boardId);
 
   const board = allBoards.find((b) => b.id === boardId);
   const subIds = board?.subBoardIds ?? [];
 
   if (subIds.length === 0) {
-    return totalsMap[boardId] ?? 0;
+    return totalsMap[boardId] ?? {};
   }
 
-  return subIds.reduce(
-    (sum, subId) => sum + getAggregateTotalForBoard(subId, totalsMap, allBoards, visited),
-    0,
-  );
+  if (subIds.some(id => !totalsMap[id])) return {};
+  return mergeCurrencyTotals(subIds.map(subId => getAggregateTotalForBoard(subId, totalsMap, allBoards, visited)));
 }

@@ -23,27 +23,6 @@ export function useTransactions(boardId) {
   const isFresh = state.forBoardId === boardId;
 
   /**
-   * Memoized totals: per-group and grand total.
-   * Groups credit-card transactions by cardLast4 (key: "card:XXXX"),
-   * and other types by transaction type (key: "type:cash" / "type:standing_order").
-   * { perGroup: { [key]: number }, grandTotal: number }
-   */
-  const totals = useMemo(() => {
-    const source = isFresh ? state.transactions : [];
-    const perGroup = {};
-    let grandTotal = 0;
-    for (const tx of source) {
-      const amt = Number(tx.amount) || 0;
-      const key = tx.type === 'credit_card'
-        ? `card:${tx.cardLast4 ?? ''}`
-        : `type:${tx.type ?? 'unknown'}`;
-      perGroup[key] = (perGroup[key] || 0) + amt;
-      grandTotal += amt;
-    }
-    return { perGroup, grandTotal };
-  }, [isFresh, state.transactions]);
-
-  /**
    * Sort transactions: dated ones first (newest first by transactionDate),
    * then undated ones (preserving their relative Firestore order).
    * transactionDate is stored as YYYY-MM-DD so string comparison is correct.
@@ -62,5 +41,5 @@ export function useTransactions(boardId) {
 
   const error = isFresh ? state.error : null;
 
-  return { transactions, loading, error, totals };
+  return { transactions, loading, error };
 }

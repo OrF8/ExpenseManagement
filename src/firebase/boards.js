@@ -23,13 +23,11 @@ import {
   collection,
   collectionGroup,
   doc,
-  addDoc,
   deleteDoc,
   getDoc,
   query,
   where,
   onSnapshot,
-  serverTimestamp,
   updateDoc,
   arrayUnion,
   arrayRemove,
@@ -45,14 +43,13 @@ const boardsRef = () => collection(db, 'boards');
  * @param {string} uid - Owner's UID
  * @returns {Promise<DocumentReference>}
  */
-export async function createBoard(title, uid) {
-  return addDoc(boardsRef(), {
-    title,
-    ownerUid: uid,
-    memberUids: [uid],
-    directMemberUids: [uid],
-    createdAt: serverTimestamp(),
-  });
+export async function createBoard(title, _uid, currency = 'ILS') {
+  const result = await httpsCallable(functions, 'createBoard')({title, currency});
+  return result.data;
+}
+
+export async function changeBoardCurrency(boardId, currency, expectedCurrencyRevision) {
+  return httpsCallable(functions, 'changeBoardCurrency')({boardId, currency, expectedCurrencyRevision, confirmReplaceConversions: true});
 }
 
 /**
