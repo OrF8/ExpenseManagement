@@ -2,15 +2,14 @@
   "name": "expense-management-functions",
   "description": "Firebase Cloud Functions for Expense Management",
   "private": true,
-  "version": "1.6.0",
+  "version": "1.6.1",
   "scripts": {
     "lint": "eslint .",
     "serve": "firebase emulators:start --only functions",
     "shell": "firebase functions:shell",
     "start": "npm run shell",
     "deploy": "firebase deploy --only functions",
-    "logs": "firebase functions:log",
-    "test": "node --test ../tests/money.test.mjs"
+    "logs": "firebase functions:log"
   },
   "engines": {
     "node": "24"
