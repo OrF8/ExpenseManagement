@@ -256,8 +256,3 @@ See [CHANGELOG.md](./CHANGELOG.md) for release notes.
 
 This project is licensed under the MIT license. For more information, see the [LICENSE](./LICENSE) file.
 
-### Multi-currency (1.6.0)
-
-Boards have a primary currency; transactions preserve original amounts and saved FX conversions.
-Automatic Frankfurter reference rates and manual overrides are supported. Existing records remain ILS.
-See [multi-currency behavior, limits, deployment and tests](docs/multi-currency.md).
