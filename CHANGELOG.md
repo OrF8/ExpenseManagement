@@ -12,7 +12,6 @@ The format is inspired by [Keep a Changelog](https://keepachangelog.com/en/1.1.0
 - Durable Frankfurter v2 reference-rate snapshots, manual overrides, and explicit automatic refresh on save.
 - Atomic board-currency changes (up to 400 transactions), stale-editor protection, and currency-safe move/multi-destination copy.
 - Currency-separated parent summaries and lossless Excel money/rate columns.
-- Unit, Firestore security/integration, browser tests, targeted strict money type checking, and CI.
 
 ### Changed
 - Sensitive monetary writes now require authenticated, App Check-protected Cloud Functions; direct client transaction writes and currency metadata changes are denied.
