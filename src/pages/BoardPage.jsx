@@ -674,8 +674,7 @@ export function BoardPage() {
           /* Super board view: sub-board grid                                  */
           /* ---------------------------------------------------------------- */
           <>
-            
-        {/* Aggregate total banner */}
+            {/* Aggregate total banner */}
             <div className="rounded-2xl bg-linear-to-br from-indigo-50 to-white border border-indigo-100 p-5 dark:from-indigo-950/50 dark:to-gray-900 dark:border-indigo-900">
               <p className="text-sm font-semibold text-indigo-700 dark:text-indigo-400 uppercase tracking-wide mb-1">
                 סה"כ הוצאות

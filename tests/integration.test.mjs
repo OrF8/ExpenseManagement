@@ -102,7 +102,7 @@ test('legacy numbers remain unchanged until intentional money edit',async()=>{
 });
 test('validation and rules block protected fields; membership still governs reads and writes',async()=>{
  const board=await create();const id=await save(board);
- for(const input of [{amount:'NaN'},{currency:'BTC'},{fxMode:'manual',manualRate:'0'},{conversion:{rate:'1'}},{convertedAmount:'10'},{name:''},{transactionDate:'2026-02-30'}]){
+ for(const input of [{amount:'NaN'},{amount:null},{amount:10},{currency:null},{currency:'BTC'},{fxMode:null},{fxMode:'forged'},{fxMode:'manual',manualRate:'0'},{conversion:{rate:'1'}},{convertedAmount:'10'},{name:''},{transactionDate:'2026-02-30'}]){
   await assert.rejects(ops.saveTransaction('owner',{boardId:board,transactionId:id,input,expectedCurrencyRevision:0,expectedRevision:1}));
  }
  await assert.rejects(ops.saveTransaction('outsider',{boardId:board,input:fields(),expectedCurrencyRevision:0}));

@@ -5,8 +5,14 @@ import { canonicalAmount, convert, currencyOf, currencyDigits, validateRate, boa
  */
 export async function resolveMoney({ previous, input = {}, targetCurrency, getRate, replaceTarget = false }) {
   currencyDigits(targetCurrency);
+  if (Object.hasOwn(input, 'amount') && typeof input.amount !== 'string') throw new Error('Amount must be a decimal string');
+  if (Object.hasOwn(input, 'currency') && typeof input.currency !== 'string') throw new Error('Currency must be an ISO code');
+  const mode = input.fxMode === undefined ? 'preserve' : input.fxMode;
+  if (!['preserve', 'automatic', 'manual'].includes(mode)) throw new Error('Invalid conversion source');
+  if (Object.hasOwn(input, 'manualRate')) validateRate(input.manualRate ?? '');
   const currency = input.currency ?? currencyOf(previous);
   currencyDigits(currency);
+  if (input.amount !== undefined) canonicalAmount(input.amount, currency);
   const raw = input.amount ?? previous?.amount;
   const changed = !previous || currency !== currencyOf(previous) || (input.amount !== undefined && String(input.amount) !== String(previous.amount));
   if (raw === undefined) throw new Error('Amount is required');
@@ -15,8 +21,6 @@ export async function resolveMoney({ previous, input = {}, targetCurrency, getRa
   const fields = changed ? { amount, currency, moneyVersion: 1 } : {};
   const old = previous?.conversion;
   if (currency === targetCurrency) return { ...fields, conversion: null };
-  const mode = input.fxMode ?? 'preserve';
-  if (!['preserve', 'automatic', 'manual'].includes(mode)) throw new Error('Invalid conversion source');
   if (mode === 'manual') {
     const rate = validateRate(input.manualRate ?? '');
     return { ...fields, conversion: { targetCurrency, rate, convertedAmount: convert(amount, currency, rate, targetCurrency), rateDate: null, source: 'manual', provider: null } };

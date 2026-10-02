@@ -57,6 +57,14 @@ test('board, snapshots, manual override, reload, filtering and atomic currency c
   await expect(page.locator('main')).not.toContainText('ידני');
   await expect(page.locator('main')).toContainText('EUR');
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBeTruthy();
+  for (const row of await page.getByTestId('transaction-card').all()) {
+    const name = await row.getByTestId('transaction-name').boundingBox();
+    const amount = await row.getByTestId('transaction-amount').boundingBox();
+    expect(name).not.toBeNull();
+    expect(amount).not.toBeNull();
+    expect(name.y + name.height <= amount.y || amount.y + amount.height <= name.y ||
+      name.x + name.width <= amount.x || amount.x + amount.width <= name.x).toBeTruthy();
+  }
   await mkdir('docs/screenshots',{recursive:true});
   await page.screenshot({path:'docs/screenshots/multi-currency-mobile.png',fullPage:true});
   await page.getByRole('button',{name:'עסקה חדשה',exact:true}).click();

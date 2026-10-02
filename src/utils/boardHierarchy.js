@@ -48,10 +48,10 @@ export function isMergeValid(childId, parentId, allBoards) {
  * The visited Set prevents double-counting if a cycle exists.
  *
  * @param {string}                boardId
- * @param {Object<string,number>} totalsMap  – { [boardId]: number }
+ * @param {Object<string,Record<string,string>>} totalsMap – exact totals by board and currency
  * @param {Array}                 allBoards
  * @param {Set}                   [visited]  – internal, do not pass
- * @returns {number}
+ * @returns {Record<string, string>} Exact totals grouped by currency
  */
 export function getAggregateTotalForBoard(boardId, totalsMap, allBoards, visited = new Set()) {
   if (visited.has(boardId)) return {};

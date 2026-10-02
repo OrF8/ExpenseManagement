@@ -41,7 +41,7 @@ export function subscribeToTransactions(boardId, onData, onError) {
  * Add a new transaction to a board.
  * @param {string} boardId
  * @param {object} data - Transaction fields
- * @param {string} uid - Creator's UID
+ * @param {number} expectedCurrencyRevision - Board revision captured by the editor
  */
 export async function addTransaction(boardId, input, expectedCurrencyRevision) {
   return httpsCallable(functions, 'saveTransaction')({boardId, input, expectedCurrencyRevision});
@@ -62,7 +62,7 @@ export async function getTransactionsForBoard(boardId) {
 /**
  * Compute the grand total of all transaction amounts for a board (one-shot read).
  * @param {string} boardId
- * @returns {Promise<number>}
+ * @returns {Promise<Record<string, string>>} Exact totals grouped by currency
  */
 export async function getBoardTotal(boardId) {
   // Double-read the revision around the query so a currency change cannot mix snapshots.

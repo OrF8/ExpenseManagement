@@ -17,7 +17,7 @@ export function currencyDigits(currency) {
 const pow = (n) => 10n ** BigInt(n);
 /** @param {string} value */
 export function decimal(value, maxDigits = 18) {
-  if (typeof value !== 'string' || value.length > 64 || !/^-?\d+(\.\d+)?$/.test(value)) throw new Error('Invalid decimal');
+  if (typeof value !== 'string' || value.length > Math.max(64, maxDigits + 20) || !/^-?\d+(\.\d+)?$/.test(value)) throw new Error('Invalid decimal');
   const [whole, fraction = ''] = value.split('.');
   if (fraction.length > maxDigits) throw new Error('Too many decimal places');
   return { units: BigInt(whole + fraction), scale: fraction.length };
@@ -33,7 +33,7 @@ export function roundRatio(numerator, denominator) {
 export function minorUnits(amount, currency = DEFAULT_CURRENCY, { legacy = false } = {}) {
   const digits = currencyDigits(currency);
   // Legacy numbers are interpreted from their decimal serialization, never arithmetically added.
-  const parsed = decimal(typeof amount === 'number' ? (legacy ? legacyDecimal(amount) : (() => { throw new Error('Amount must be a decimal string'); })()) : amount, legacy ? 64 : 18);
+  const parsed = decimal(typeof amount === 'number' ? (legacy ? legacyDecimal(amount) : (() => { throw new Error('Amount must be a decimal string'); })()) : amount, legacy ? 326 : 18);
   if (!legacy && parsed.scale > digits) throw new Error(`Currency supports ${digits} decimal places`);
   return roundRatio(parsed.units * pow(digits), pow(parsed.scale));
 }
@@ -60,7 +60,7 @@ export function validateRate(rate) {
 /** @param {string|number} amount @param {string} originalCurrency @param {string} rate @param {string} targetCurrency */
 export function convert(amount, originalCurrency, rate, targetCurrency) {
   currencyDigits(originalCurrency);
-  const a = decimal(typeof amount === 'number' ? legacyDecimal(amount) : amount, typeof amount === 'number' ? 64 : 18);
+  const a = decimal(typeof amount === 'number' ? legacyDecimal(amount) : amount, typeof amount === 'number' ? 326 : 18);
   const r = decimal(validateRate(rate));
   return fromMinor(roundRatio(a.units * r.units * pow(currencyDigits(targetCurrency)), pow(a.scale + r.scale)), targetCurrency);
 }

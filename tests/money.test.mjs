@@ -51,5 +51,6 @@ test('provider failure, size limit and timeout',async()=>{
 });
 test('legacy scientific-notation numbers read without rewriting or floating arithmetic',()=>{
  assert.equal(aggregateTransactions([{amount:1e-7}]).grandTotal,'0.00');
+ assert.equal(aggregateTransactions([{amount:5e-324}]).grandTotal,'0.00');
  assert.equal(convert(1e-7,'ILS','10000000','USD'),'1.00');
 });

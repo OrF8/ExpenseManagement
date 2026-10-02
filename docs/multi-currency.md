@@ -189,7 +189,10 @@ Browser tests use real Firebase Auth/Firestore demo emulators and the production
 callable handlers via a test-only HTTP adapter with mocked FX. They exercise board
 creation, same/foreign transactions, manual conversion, reload, filters, board
 currency change, desktop and a 390px mobile viewport. **Live authentication and
-App Check middleware are not exercised**. Test emulator mode is restricted to Vite
+App Check middleware are not exercised**. In the Work environment, the normal
+Playwright Chromium download was unavailable; verification used packaged Chromium
+153 via the optional `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` override. CI uses the
+normal Playwright browser installation. Test emulator mode is restricted to Vite
 DEV builds, the explicit emulator flag, and a `demo-` project ID. The adapter is
 under tests and is not uploaded with functions or bundled into production.
 
