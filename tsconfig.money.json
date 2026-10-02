@@ -1,7 +1,0 @@
-{
-  "compilerOptions": {
-    "allowJs": true, "checkJs": true, "noEmit": true, "strict": true,
-    "module": "nodenext", "target": "es2022", "resolveJsonModule": true, "skipLibCheck": true
-  },
-  "include": ["functions/shared/money.mjs", "functions/fx.mjs", "functions/conversion.mjs"]
-}
