@@ -1,0 +1,32 @@
+name: Multi-currency checks
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [feature/multi-currency]
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            functions/package-lock.json
+      - run: npm ci
+      - run: npm --prefix functions ci
+      - run: npm test
+      - run: npm --prefix functions test
+      - run: npm run lint
+      - run: npm --prefix functions run lint
+      - run: npm run typecheck:money
+      - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - name: Firestore, authorization and browser tests (demo project only)
+        run: npx --yes firebase-tools@13.35.1 emulators:exec --only auth,firestore --project demo-expense-currency --config firebase.test.json "npm run test:integration && npm run test:e2e"

@@ -1,0 +1,121 @@
+import test, { after } from 'node:test';
+import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
+import { createRequire } from 'node:module';
+import { initializeTestEnvironment, assertFails, assertSucceeds } from '@firebase/rules-unit-testing';
+import { doc, setDoc, updateDoc, deleteDoc, getDoc } from 'firebase/firestore';
+import { createMoneyOperations } from '../functions/moneyOperations.mjs';
+import { aggregateTransactions } from '../functions/shared/money.mjs';
+const require = createRequire(new URL('../functions/index.js', import.meta.url));
+const admin = require('firebase-admin');
+process.env.FIRESTORE_EMULATOR_HOST = '127.0.0.1:8080';
+const projectId = 'demo-expense-currency';
+const app = admin.initializeApp({ projectId }, 'integration');
+const db = app.firestore();
+let rate = '117'; let offline = false;
+const ops = createMoneyOperations({ db, timestamp: () => admin.firestore.FieldValue.serverTimestamp(), getRate: async () => {
+ if (offline) throw Error('offline');
+ return {rate, source:'automatic', provider:'frankfurter', rateDate:'2026-10-01'};
+}});
+const fields = (amount='10',currency='EUR') => ({amount,currency,name:'Owner',essence:'Hotel',comment:null,type:'cash',cardLast4:null,installmentCurrent:null,installmentTotal:null,transactionDate:null});
+const create = async (currency='RSD') => (await ops.createBoard('owner',{title:'Board',currency})).id;
+const read = async (board,id) => (await db.doc(`boards/${board}/transactions/${id}`).get()).data();
+const save = async (board,input=fields()) => (await ops.saveTransaction('owner',{boardId:board,input,expectedCurrencyRevision:0})).id;
+const rules = await initializeTestEnvironment({projectId,firestore:{host:'127.0.0.1',port:8080,rules:await readFile(new URL('../firestore.rules',import.meta.url),'utf8')}});
+after(async()=>{await rules.cleanup();await app.delete();});
+test('snapshots persist, unrelated edits preserve them, stale editors fail, and manual edits survive',async()=>{
+ rate='117'; const board=await create();const id=await save(board);const original=await read(board,id);
+ rate='130';assert.equal((await read(board,id)).conversion.convertedAmount,'1170.00');
+ await ops.saveTransaction('owner',{boardId:board,transactionId:id,input:{essence:'Dinner',transactionDate:'2025-01-01'},expectedCurrencyRevision:0,expectedRevision:1});
+ assert.deepEqual((await read(board,id)).conversion,original.conversion);
+ await assert.rejects(ops.saveTransaction('owner',{boardId:board,transactionId:id,input:{amount:'11'},expectedCurrencyRevision:0,expectedRevision:1}),/העסקה השתנה/);
+ await ops.saveTransaction('owner',{boardId:board,transactionId:id,input:{amount:'20'},expectedCurrencyRevision:0,expectedRevision:2});
+ assert.equal((await read(board,id)).conversion.convertedAmount,'2600.00');
+ await ops.saveTransaction('owner',{boardId:board,transactionId:id,input:{fxMode:'manual',manualRate:'120'},expectedCurrencyRevision:0,expectedRevision:3});
+ await ops.saveTransaction('owner',{boardId:board,transactionId:id,input:{amount:'30'},expectedCurrencyRevision:0,expectedRevision:4});
+ assert.equal((await read(board,id)).conversion.convertedAmount,'3600.00');
+ offline=true;const before=await read(board,id);
+ await assert.rejects(ops.saveTransaction('owner',{boardId:board,transactionId:id,input:{fxMode:'automatic'},expectedCurrencyRevision:0,expectedRevision:5}),/שער/);
+ assert.deepEqual(await read(board,id),before);
+ offline=false;
+ await ops.saveTransaction('owner',{boardId:board,transactionId:id,input:{fxMode:'automatic'},expectedCurrencyRevision:0,expectedRevision:5});
+ assert.equal((await read(board,id)).conversion.source,'automatic');
+});
+test('foreign create fails atomically offline and manual entry recovers',async()=>{
+ const board=await create();offline=true;
+ await assert.rejects(save(board));
+ assert.equal((await db.collection(`boards/${board}/transactions`).get()).size,0);
+ const id=await save(board,{...fields(),fxMode:'manual',manualRate:'118'});
+ assert.equal((await read(board,id)).conversion.convertedAmount,'1180.00');offline=false;
+});
+test('atomic board changes preserve originals and children, replace manual rates, reject stale revisions',async()=>{
+ rate='2'; const board=await create();const child=await create('THB');
+ const id=await save(board,{...fields(),fxMode:'manual',manualRate:'120'});
+ await db.doc(`boards/${board}`).update({subBoardIds:[child]});
+ const old=await read(board,id);offline=true;
+ await assert.rejects(ops.changeBoardCurrency('owner',{boardId:board,currency:'USD',expectedCurrencyRevision:0,confirmReplaceConversions:true}));
+ assert.equal((await db.doc(`boards/${board}`).get()).data().currency,'RSD');assert.deepEqual(await read(board,id),old);offline=false;
+ await assert.rejects(ops.changeBoardCurrency('owner',{boardId:board,currency:'USD',expectedCurrencyRevision:0}),/לאשר/);
+ await ops.changeBoardCurrency('owner',{boardId:board,currency:'USD',expectedCurrencyRevision:0,confirmReplaceConversions:true});
+ const updated=await read(board,id);assert.equal(updated.amount,old.amount);assert.equal(updated.currency,'EUR');assert.equal(updated.conversion.convertedAmount,'20.00');assert.equal(updated.conversion.source,'automatic');
+ assert.equal((await db.doc(`boards/${child}`).get()).data().currency,'THB');
+ await assert.rejects(ops.changeBoardCurrency('owner',{boardId:board,currency:'ILS',expectedCurrencyRevision:0,confirmReplaceConversions:true}));
+ await assert.rejects(ops.changeBoardCurrency('outsider',{boardId:board,currency:'ILS',expectedCurrencyRevision:1,confirmReplaceConversions:true}),/הרשאה/);
+});
+test('400 supported, 401 fails without any mutation',async()=>{
+ const board=await create('ILS');const batch=db.batch();
+ for(let i=0;i<401;i++)batch.set(db.doc(`boards/${board}/transactions/t${i}`),{...fields('1','ILS'),createdByUid:'owner',createdAt:admin.firestore.Timestamp.now()});
+ await batch.commit();const args={boardId:board,currency:'EUR',expectedCurrencyRevision:0,confirmReplaceConversions:true};
+ await assert.rejects(ops.changeBoardCurrency('owner',args),/400/);
+ assert.equal((await db.doc(`boards/${board}`).get()).data().currency,'ILS');
+ await db.doc(`boards/${board}/transactions/t400`).delete();
+ await ops.changeBoardCurrency('owner',args);
+ const rows=await db.collection(`boards/${board}/transactions`).get();assert.equal(rows.size,400);assert.ok(rows.docs.every(d=>d.data().conversion.targetCurrency==='EUR'));
+});
+test('concurrent currency changes have exactly one winner',async()=>{
+ const board=await create();await save(board);
+ const results=await Promise.allSettled(['EUR','USD'].map(currency=>ops.changeBoardCurrency('owner',{boardId:board,currency,expectedCurrencyRevision:0,confirmReplaceConversions:true})));
+ assert.equal(results.filter(x=>x.status==='fulfilled').length,1);assert.equal(results.filter(x=>x.status==='rejected').length,1);
+});
+test('move/copy preserve originals, reuse valid snapshots, plan all destinations before writes',async()=>{
+ rate='117';const source=await create();const same=await create();const foreign=await create('USD');const originalCurrency=await create('EUR');const id=await save(source,{...fields(),fxMode:'manual',manualRate:'120'});
+ const args={sourceBoardId:source,transactionId:id,expectedCurrencyRevision:0,expectedRevision:1};
+ offline=true;
+ await assert.rejects(ops.transfer('owner',{...args,destinationBoardIds:[same,foreign]},true));
+ assert.equal((await db.collection(`boards/${same}/transactions`).get()).size,0);
+ offline=false;
+ const copied=await ops.transfer('owner',{...args,destinationBoardIds:[same,foreign,originalCurrency]},true);
+ const copies=await Promise.all(copied.duplicatedTransactions.map(x=>read(x.boardId,x.transactionId)));
+ assert.equal(copies[0].conversion.rate,'120');assert.equal(copies[1].conversion.rate,'117');assert.equal(copies[2].conversion,null);assert.ok(copies.every(x=>x.amount==='10.00'&&x.currency==='EUR'));
+ await ops.transfer('owner',{...args,destinationBoardId:foreign});assert.equal(await read(source,id),undefined);assert.equal((await read(foreign,id)).amount,'10.00');
+ await assert.rejects(ops.transfer('outsider',{...args,destinationBoardId:same}));
+});
+test('legacy numbers remain unchanged until intentional money edit',async()=>{
+ const board=await create('ILS');await db.doc(`boards/${board}`).update({currency:admin.firestore.FieldValue.delete()});
+ const ref=db.doc(`boards/${board}/transactions/legacy`);const data=fields();delete data.currency;data.amount=1.234;
+ await ref.set({...data,createdAt:admin.firestore.Timestamp.now(),createdByUid:'owner'});
+ assert.equal(aggregateTransactions([(await ref.get()).data()]).grandTotal,'1.23');
+ await ops.saveTransaction('owner',{boardId:board,transactionId:'legacy',input:{comment:'Changed'},expectedCurrencyRevision:0,expectedRevision:0});
+ assert.equal((await ref.get()).data().amount,1.234);assert.equal((await ref.get()).data().currency,undefined);
+ await ops.saveTransaction('owner',{boardId:board,transactionId:'legacy',input:{amount:'2.34'},expectedCurrencyRevision:0,expectedRevision:1});
+ assert.equal((await ref.get()).data().amount,'2.34');assert.equal((await ref.get()).data().currency,'ILS');
+});
+test('validation and rules block protected fields; membership still governs reads and writes',async()=>{
+ const board=await create();const id=await save(board);
+ for(const input of [{amount:'NaN'},{currency:'BTC'},{fxMode:'manual',manualRate:'0'},{conversion:{rate:'1'}},{convertedAmount:'10'},{name:''},{transactionDate:'2026-02-30'}]){
+  await assert.rejects(ops.saveTransaction('owner',{boardId:board,transactionId:id,input,expectedCurrencyRevision:0,expectedRevision:1}));
+ }
+ await assert.rejects(ops.saveTransaction('outsider',{boardId:board,input:fields(),expectedCurrencyRevision:0}));
+ const owner=rules.authenticatedContext('owner').firestore();const outsider=rules.authenticatedContext('outsider').firestore();
+ await assertSucceeds(getDoc(doc(owner,`boards/${board}/transactions/${id}`)));
+ await assertFails(getDoc(doc(outsider,`boards/${board}/transactions/${id}`)));
+ await assertSucceeds(updateDoc(doc(owner,`boards/${board}`),{title:'Renamed'}));
+ for(const changes of [{currency:'USD'},{currencyRevision:10},{moneyRevision:100}])await assertFails(updateDoc(doc(owner,`boards/${board}`),changes));
+ await assertFails(setDoc(doc(owner,`boards/direct`),{ownerUid:'owner',memberUids:['owner'],currency:'BAD'}));
+ await assertFails(updateDoc(doc(owner,`boards/${board}/transactions/${id}`),{conversion:{targetCurrency:'USD',rate:'2',convertedAmount:'20'}}));
+ await assertFails(deleteDoc(doc(owner,`boards/${board}/transactions/${id}`)));
+ await db.doc(`boards/${board}`).update({memberUids:['owner','member']});
+ const memberId=(await ops.saveTransaction('member',{boardId:board,input:fields('1','RSD'),expectedCurrencyRevision:0})).id;
+ await ops.saveTransaction('member',{boardId:board,transactionId:memberId,input:{amount:'2'},expectedCurrencyRevision:0,expectedRevision:1});
+ await assert.rejects(ops.changeBoardCurrency('member',{boardId:board,currency:'EUR',expectedCurrencyRevision:0,confirmReplaceConversions:true}));
+});

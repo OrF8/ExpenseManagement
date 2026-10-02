@@ -49,3 +49,7 @@ test('provider failure, size limit and timeout',async()=>{
  await assert.rejects(latestRate('EUR','RSD',{timeoutMs:5,fetchImpl:(_url,{signal})=>new Promise((_,reject)=>signal.addEventListener('abort',()=>reject(Error('timeout'))))}));
  assert.equal((await latestRate('EUR','RSD',{fetchImpl:async()=>new Response('date,base,quote,rate\n2026-10-01,EUR,RSD,117')})).rate,'117');
 });
+test('legacy scientific-notation numbers read without rewriting or floating arithmetic',()=>{
+ assert.equal(aggregateTransactions([{amount:1e-7}]).grandTotal,'0.00');
+ assert.equal(convert(1e-7,'ILS','10000000','USD'),'1.00');
+});

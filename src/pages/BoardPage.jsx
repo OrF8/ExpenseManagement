@@ -441,7 +441,7 @@ export function BoardPage() {
   );
 
   function openMoveModal(transaction) {
-    setMoveTx(transaction);
+    setMoveTx({...transaction, _currencyRevision: board.currencyRevision ?? 0});
     setMoveDestinationBoardId('');
     setMoveTransactionError(null);
   }
@@ -464,7 +464,7 @@ export function BoardPage() {
   }
 
   function openDuplicateModal(transaction) {
-    setDuplicateTx(transaction);
+    setDuplicateTx({...transaction, _currencyRevision: board.currencyRevision ?? 0});
     setDuplicateDestinationBoardIds([]);
     setDuplicateTransactionError(null);
   }
@@ -567,7 +567,7 @@ export function BoardPage() {
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
       {/* Header */}
       <header className="bg-white dark:bg-gray-900 border-b border-gray-100 dark:border-gray-800 sticky top-0 z-10">
-        <div className="max-w-3xl mx-auto px-4 py-4 flex items-center justify-between">
+        <div className="max-w-3xl mx-auto px-4 py-4 flex flex-wrap items-center justify-between">
           <div className="flex items-center gap-3">
             <button
               onClick={() => window.history.length > 1 ? navigate(-1) : navigate('/boards')}
@@ -578,7 +578,7 @@ export function BoardPage() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
               </svg>
             </button>
-            <div className="flex items-center gap-2">
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
               <h1 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{board?.title}</h1>
               {isOwner && (
                 <button
@@ -604,7 +604,7 @@ export function BoardPage() {
               )}
             </div>
           </div>
-          <div className="flex gap-2 items-center">
+          <div className="flex min-w-0 flex-wrap gap-2 items-center">
             <ThemeToggle />
             <Button
               variant="secondary"
@@ -652,7 +652,7 @@ export function BoardPage() {
         </div>
       </header>
 
-      <main className="max-w-3xl mx-auto px-4 py-8 flex flex-col gap-6">
+      <main className="w-full min-w-0 max-w-3xl mx-auto px-4 py-8 flex flex-col gap-6">
         {board && <BoardCurrencySettings key={`${board.id}:${board.currencyRevision ?? 0}`} board={board} isOwner={isOwner} />}
         {exportError && (
           <div className="rounded-xl bg-red-50 dark:bg-red-900/30 border border-red-100 dark:border-red-800 px-4 py-3 text-sm text-red-600 dark:text-red-400">

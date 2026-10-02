@@ -8,7 +8,7 @@ It supports shared boards, one-level board hierarchies ("super boards" with sub-
 <p align="center">
   <img src="https://img.shields.io/badge/License-MIT-yellow.svg?logo=opensourceinitiative" alt="License: MIT">
   <img src="https://img.shields.io/github/languages/top/OrF8/ExpenseManagement?style=default&logo=javascript&color=F7DF1E" alt="top-language">
-  <img src="https://img.shields.io/badge/Release-v1.5.1-4c1?style=flat" alt="Release v1.5.1">
+  <img src="https://img.shields.io/badge/Release-v1.6.0-4c1?style=flat" alt="Release v1.6.0">
 </p>
 <p align="center">
   <img src="https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=white" alt="react">
@@ -248,10 +248,16 @@ For vulnerability reporting, see [SECURITY.md](./SECURITY.md).
 
 ## Release Status
 
-Current release target: **v1.5.1**.
+Current release target: **v1.6.0**.
 
 See [CHANGELOG.md](./CHANGELOG.md) for release notes.
 
 ## License
 
 This project is licensed under the MIT license. For more information, see the [LICENSE](./LICENSE) file.
+
+### Multi-currency (1.6.0)
+
+Boards have a primary currency; transactions preserve original amounts and saved FX conversions.
+Automatic Frankfurter reference rates and manual overrides are supported. Existing records remain ILS.
+See [multi-currency behavior, limits, deployment and tests](docs/multi-currency.md).

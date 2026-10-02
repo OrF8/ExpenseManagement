@@ -1,20 +1,24 @@
 import { canonicalAmount, convert, currencyOf, currencyDigits, validateRate, boardAmount } from './shared/money.mjs';
 
-/** Only trusted provider output or validated manual input may create snapshots. */
+/** Only trusted provider output or validated manual input may create snapshots.
+ * @param {{previous?: import('./shared/money.mjs').Transaction, input?: {amount?: string, currency?: string, fxMode?: string, manualRate?: string}, targetCurrency: string, getRate: (base: string, quote: string) => Promise<{rate: string, rateDate: string, source: string, provider: string}>, replaceTarget?: boolean}} options
+ */
 export async function resolveMoney({ previous, input = {}, targetCurrency, getRate, replaceTarget = false }) {
   currencyDigits(targetCurrency);
   const currency = input.currency ?? currencyOf(previous);
   currencyDigits(currency);
   const raw = input.amount ?? previous?.amount;
   const changed = !previous || currency !== currencyOf(previous) || (input.amount !== undefined && String(input.amount) !== String(previous.amount));
-  const amount = changed ? canonicalAmount(raw, currency) : previous.amount;
+  if (raw === undefined) throw new Error('Amount is required');
+  if (changed && typeof raw !== 'string') throw new Error('New amounts must be decimal strings');
+  const amount = changed ? canonicalAmount(/** @type {string} */ (raw), currency) : raw;
   const fields = changed ? { amount, currency, moneyVersion: 1 } : {};
   const old = previous?.conversion;
   if (currency === targetCurrency) return { ...fields, conversion: null };
   const mode = input.fxMode ?? 'preserve';
   if (!['preserve', 'automatic', 'manual'].includes(mode)) throw new Error('Invalid conversion source');
   if (mode === 'manual') {
-    const rate = validateRate(input.manualRate);
+    const rate = validateRate(input.manualRate ?? '');
     return { ...fields, conversion: { targetCurrency, rate, convertedAmount: convert(amount, currency, rate, targetCurrency), rateDate: null, source: 'manual', provider: null } };
   }
   const reusable = !replaceTarget && old?.targetCurrency === targetCurrency && currency === currencyOf(previous);
