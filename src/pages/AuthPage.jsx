@@ -7,6 +7,7 @@ import { signIn, signUp, signInWithGoogle, resetPassword } from '../firebase/aut
 import { Input } from '../components/ui/Input';
 import { Button } from '../components/ui/Button';
 import { Modal } from '../components/ui/Modal';
+import { PublicRoute } from '../components/PublicRoute';
 import logoHorizontal from '../assets/logo-horizontal-filled.png';
 
 function getHebrewError(code) {
@@ -34,13 +35,16 @@ function getHebrewResetError(code) {
 
 export function AuthPage() {
   const passwordInputId = useId();
+  const rememberMeInputId = useId();
   const [tab, setTab] = useState('signin');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [nickname, setNickname] = useState('');
+  const [rememberMe, setRememberMe] = useState(true);
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
+  const authPending = loading || googleLoading;
   const [error, setError] = useState(null);
   const navigate = useNavigate();
 
@@ -85,18 +89,19 @@ export function AuthPage() {
 
   async function handleSubmit(e) {
     e.preventDefault();
+    if (authPending) return;
     setError(null);
     setLoading(true);
     try {
       if (tab === 'signin') {
-        await signIn(email, password);
+        await signIn(email, password, rememberMe);
       } else {
         if (!nickname.trim()) {
           setError('יש להזין כינוי');
           setLoading(false);
           return;
         }
-        await signUp(email, password, nickname.trim());
+        await signUp(email, password, nickname.trim(), rememberMe);
       }
       navigate('/boards');
     } catch (err) {
@@ -107,10 +112,11 @@ export function AuthPage() {
   }
 
   async function handleGoogle() {
+    if (authPending) return;
     setError(null);
     setGoogleLoading(true);
     try {
-      await signInWithGoogle();
+      await signInWithGoogle(rememberMe);
       navigate('/boards');
     } catch (err) {
       setError(getHebrewError(err.code));
@@ -119,7 +125,7 @@ export function AuthPage() {
     }
   }
 
-  return (
+  const content = (
     <div className="min-h-screen flex items-center justify-center bg-linear-to-br from-slate-50 via-white to-indigo-50 dark:from-gray-950 dark:via-gray-900 dark:to-slate-900 px-4">
       <div className="w-full max-w-sm">
         <div className="mb-8 text-center">
@@ -140,6 +146,7 @@ export function AuthPage() {
             ].map((t) => (
               <button
                 key={t.id}
+                disabled={authPending}
                 onClick={() => {
                   setTab(t.id);
                   setError(null);
@@ -249,7 +256,21 @@ export function AuthPage() {
                 </button>
               </div>
             )}
-            <Button type="submit" loading={loading} className="w-full mt-1">
+            <label
+              htmlFor={rememberMeInputId}
+              className="flex min-h-10 items-center gap-2 text-sm text-gray-700 dark:text-gray-200"
+            >
+              <input
+                id={rememberMeInputId}
+                type="checkbox"
+                checked={rememberMe}
+                onChange={(e) => setRememberMe(e.target.checked)}
+                disabled={authPending}
+                className="h-4 w-4 rounded accent-indigo-600 focus:ring-2 focus:ring-indigo-500 dark:accent-indigo-400"
+              />
+              Remember me
+            </label>
+            <Button type="submit" loading={loading} disabled={authPending} className="w-full mt-1">
               {tab === 'signin' ? 'התחבר' : 'הירשם'}
             </Button>
           </form>
@@ -268,6 +289,7 @@ export function AuthPage() {
             className="w-full"
             onClick={handleGoogle}
             loading={googleLoading}
+            disabled={authPending}
           >
             <svg className="h-4 w-4" viewBox="0 0 24 24">
               <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
@@ -316,4 +338,8 @@ export function AuthPage() {
       </Modal>
     </div>
   );
+
+  // Firebase may notify AuthContext before the helper finishes profile creation.
+  // Keep the form mounted until completion, including any error it must display.
+  return <PublicRoute deferRedirect={authPending || !!error}>{content}</PublicRoute>;
 }

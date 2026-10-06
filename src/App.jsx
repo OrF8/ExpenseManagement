@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
 import { PrivateRoute } from './components/PrivateRoute';
+import { PublicRoute } from './components/PublicRoute';
 import { AppFooter } from './components/AppFooter';
 import { LandingPage } from './pages/LandingPage';
 import { AuthPage } from './pages/AuthPage';
@@ -17,7 +18,7 @@ export default function App() {
         <BrowserRouter>
           <div className="flex flex-col min-h-screen">
             <Routes>
-              <Route path="/" element={<LandingPage />} />
+              <Route path="/" element={<PublicRoute><LandingPage /></PublicRoute>} />
               <Route path="/auth" element={<AuthPage />} />
               <Route
                 path="/boards"
