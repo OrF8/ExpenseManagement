@@ -7,25 +7,36 @@ import {
   signInWithPopup,
   signOut,
   sendPasswordResetEmail,
+  setPersistence,
+  browserLocalPersistence,
+  browserSessionPersistence,
 } from 'firebase/auth';
 import { httpsCallable } from 'firebase/functions';
 import { auth, googleProvider, functions } from './config';
 import { createUserProfile, getUserProfile } from './users';
 
+/** Apply the selected persistence before starting any authentication operation. */
+function setAuthPersistence(rememberMe) {
+  return setPersistence(auth, rememberMe ? browserLocalPersistence : browserSessionPersistence);
+}
+
 /** Sign up with email, password, and a display nickname */
-export async function signUp(email, password, nickname) {
+export async function signUp(email, password, nickname, rememberMe = true) {
+  await setAuthPersistence(rememberMe);
   const credential = await createUserWithEmailAndPassword(auth, email, password);
   await createUserProfile(credential.user.uid, email, nickname);
   return credential;
 }
 
 /** Sign in with email and password */
-export async function signIn(email, password) {
+export async function signIn(email, password, rememberMe = true) {
+  await setAuthPersistence(rememberMe);
   return signInWithEmailAndPassword(auth, email, password);
 }
 
 /** Sign in with Google popup, creating a Firestore profile if one does not yet exist */
-export async function signInWithGoogle() {
+export async function signInWithGoogle(rememberMe = true) {
+  await setAuthPersistence(rememberMe);
   const credential = await signInWithPopup(auth, googleProvider);
   const { user } = credential;
 
@@ -68,13 +79,14 @@ export async function resetPassword(email) {
  *   - Deletes the user's Firestore profile document
  *   - Deletes the Firebase Auth user record
  *
- * After this call succeeds the auth session is invalidated; the caller should
- * redirect to the sign-in / landing screen and clear any local state.
+ * After the server confirms deletion, clear the local Firebase Auth session
+ * before returning so route guards cannot observe a stale deleted user.
  *
  * @returns {Promise<{ success: boolean }>}
  */
 export async function deleteMyAccount() {
   const fn = httpsCallable(functions, 'deleteMyAccount');
   const result = await fn();
+  await signOut(auth);
   return result.data;
 }
