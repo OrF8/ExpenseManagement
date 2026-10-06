@@ -79,13 +79,14 @@ export async function resetPassword(email) {
  *   - Deletes the user's Firestore profile document
  *   - Deletes the Firebase Auth user record
  *
- * After this call succeeds the auth session is invalidated; the caller should
- * redirect to the sign-in / landing screen and clear any local state.
+ * After the server confirms deletion, clear the local Firebase Auth session
+ * before returning so route guards cannot observe a stale deleted user.
  *
  * @returns {Promise<{ success: boolean }>}
  */
 export async function deleteMyAccount() {
   const fn = httpsCallable(functions, 'deleteMyAccount');
   const result = await fn();
+  await signOut(auth);
   return result.data;
 }

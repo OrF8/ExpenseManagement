@@ -3,9 +3,10 @@ import {
   browserLocalPersistence, browserSessionPersistence, setPersistence,
   createUserWithEmailAndPassword, signInWithEmailAndPassword, signInWithPopup, signOut,
 } from 'firebase/auth';
-import { auth, googleProvider } from '../src/firebase/config';
+import { httpsCallable } from 'firebase/functions';
+import { auth, googleProvider, functions } from '../src/firebase/config';
 import { createUserProfile, getUserProfile } from '../src/firebase/users';
-import { logOut, signIn, signUp, signInWithGoogle } from '../src/firebase/auth';
+import { deleteMyAccount, logOut, signIn, signUp, signInWithGoogle } from '../src/firebase/auth';
 
 vi.mock('firebase/auth', () => ({
   browserLocalPersistence: { type: 'LOCAL' },
@@ -17,6 +18,7 @@ vi.mock('firebase/auth', () => ({
   signOut: vi.fn(),
   sendPasswordResetEmail: vi.fn(),
 }));
+vi.mock('firebase/functions', () => ({ httpsCallable: vi.fn() }));
 vi.mock('../src/firebase/config', () => ({ auth: {}, googleProvider: {}, functions: {} }));
 vi.mock('../src/firebase/users', () => ({ createUserProfile: vi.fn(), getUserProfile: vi.fn() }));
 
@@ -75,4 +77,26 @@ it.each([true, false])('explicit logout signs out after either persistence selec
   await logOut();
   expect(signOut).toHaveBeenCalledExactlyOnceWith(auth);
   expect(setPersistence).not.toHaveBeenCalled();
+});
+
+
+it('clears the local auth session after server-side account deletion succeeds', async () => {
+  const callable = vi.fn().mockResolvedValue({ data: { success: true } });
+  httpsCallable.mockReturnValue(callable);
+
+  await expect(deleteMyAccount()).resolves.toEqual({ success: true });
+
+  expect(httpsCallable).toHaveBeenCalledExactlyOnceWith(functions, 'deleteMyAccount');
+  expect(callable).toHaveBeenCalledOnce();
+  expect(signOut).toHaveBeenCalledExactlyOnceWith(auth);
+});
+
+it('does not sign out locally when server-side account deletion fails', async () => {
+  const error = new Error('Deletion failed');
+  const callable = vi.fn().mockRejectedValue(error);
+  httpsCallable.mockReturnValue(callable);
+
+  await expect(deleteMyAccount()).rejects.toBe(error);
+
+  expect(signOut).not.toHaveBeenCalled();
 });
