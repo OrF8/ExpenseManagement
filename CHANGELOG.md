@@ -4,6 +4,9 @@ All notable changes to this project are documented in this file.
 
 The format is inspired by [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project follows [Semantic Versioning](https://semver.org/).
 
+## [1.6.3] — 2026-10-06
+- Added persistence for sign ins – signed in users now stay signed in
+
 ## [1.6.2] — 2026-10-02
 
 ### Fixed
