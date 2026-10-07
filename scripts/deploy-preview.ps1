@@ -78,8 +78,8 @@ firebase deploy --only functions `
 Write-Host ""
 Write-Host "Raw Firebase functions output saved to: $jsonFunctionsOutputPath"
 
-Write-Host "Deploying Firestore rules..."
-firebase deploy --only firestore:rules `
+Write-Host "Deploying Firestore..."
+firebase deploy --only firestore `
     --project $env:FIREBASE_PROJECT_ID
 
 Write-Host "Deploying Firebase preview channel: $channelId"
