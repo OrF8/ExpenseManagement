@@ -11,15 +11,15 @@ import { CurrencyTotals } from '../components/CurrencyTotals';
  */
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { useBoards } from '../hooks/useBoards';
+import { useRootBoards } from '../hooks/useRootBoards';
 import { useBoardTotals } from '../hooks/useBoardTotals';
 import { useIncomingInvites } from '../hooks/useIncomingInvites';
 import { useAuth } from '../context/AuthContext';
-import { createBoard, deleteBoard, mergeBoardsIntoSuper, removeSubBoardFromSuper } from '../firebase/boards';
+import { createBoard, deleteBoard, mergeBoardsIntoSuper } from '../firebase/boards';
 import { acceptBoardInvite, declineBoardInvite } from '../firebase/invites';
 import { logOut, deleteMyAccount } from '../firebase/auth';
 import { getUserProfile, updateNickname } from '../firebase/users';
-import { isMergeValid, getAggregateTotalForBoard } from '../utils/boardHierarchy';
+import { isMergeValid } from '../utils/boardHierarchy';
 import { Button } from '../components/ui/Button';
 import { Spinner } from '../components/ui/Spinner';
 import { EmptyState } from '../components/ui/EmptyState';
@@ -31,7 +31,7 @@ import logoIcon from '../assets/logo-icon.png';
 export function BoardsPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const { boards, loading, error, retryingSecureConnection } = useBoards();
+  const { boards, loading, error, retryingSecureConnection } = useRootBoards();
   const { invites: incomingInvites } = useIncomingInvites();
   const [showCreate, setShowCreate] = useState(false);
   const [newCurrency, setNewCurrency] = useState('ILS');
@@ -88,11 +88,11 @@ export function BoardsPage() {
     [boards],
   );
 
-  const allBoardIds = useMemo(() => boards.map((b) => b.id), [boards]);
+  const allBoardIds = useMemo(() => topLevelBoards.map((b) => b.id), [topLevelBoards]);
   const { totals: boardTotals } = useBoardTotals(allBoardIds);
 
   function getDisplayTotal(boardId) {
-    return getAggregateTotalForBoard(boardId, boardTotals, boards);
+    return boardTotals[boardId];
   }
 
   // ---------------------------------------------------------------------------
@@ -107,10 +107,7 @@ export function BoardsPage() {
 
   function handleDragStart(e, boardId) {
     const board = boards.find((b) => b.id === boardId);
-    // Only regular top-level boards owned by the current user can be dragged.
-    // Sub-boards (parentBoardId set) and super boards (subBoardIds non-empty) are excluded.
-    if (board?.parentBoardId) { e.preventDefault(); return; }
-    if ((board?.subBoardIds?.length ?? 0) > 0) { e.preventDefault(); return; }
+    // Ownership is also enforced by the re-parent callable.
     if (board?.ownerUid !== user?.uid) { e.preventDefault(); return; }
     setDraggingId(boardId);
     setMergeError(null);
@@ -323,23 +320,15 @@ export function BoardsPage() {
   const [deleteError, setDeleteError] = useState(null);
 
   async function handleDeleteBoard(boardId) {
-    const board = boards.find((b) => b.id === boardId);
-    const subCount = board?.subBoardIds?.length ?? 0;
-    const message =
-      subCount > 0
-        ? `הלוח מכיל ${subCount} לוחות-משנה. לוחות-המשנה יהפכו ללוחות עצמאיים.\nהאם אתה בטוח שברצונך למחוק את הלוח? פעולה זו אינה ניתנת לביטול.`
-        : 'האם אתה בטוח שברצונך למחוק את הלוח? פעולה זו אינה ניתנת לביטול.';
-    if (!window.confirm(message)) return;
+    if ((boards.find(b => b.id === boardId)?.childCount ?? 0) > 0) {
+      setDeleteError('יש להעביר או למחוק את לוחות המשנה לפני מחיקת הלוח');
+      return;
+    }
+    if (!window.confirm('למחוק את הלוח ואת כל העסקאות שלו? פעולה זו אינה ניתנת לביטול.')) return;
 
     setDeletingBoardId(boardId);
     setDeleteError(null);
     try {
-      // Detach sub-boards first so they become independent top-level boards
-      if (subCount > 0 && board.subBoardIds) {
-        await Promise.all(
-          board.subBoardIds.map((subId) => removeSubBoardFromSuper(boardId, subId)),
-        );
-      }
       await deleteBoard(boardId);
     } catch (err) {
       setDeleteError(err.message || 'שגיאה במחיקת הלוח. נסה שוב.');
@@ -502,11 +491,12 @@ export function BoardsPage() {
         ) : (
           <div className="grid gap-3 sm:grid-cols-2">
             {topLevelBoards.map((board) => {
-              const isSuperBoard = (board.subBoardIds?.length ?? 0) > 0;
-              const isSubBoard = !!board.parentBoardId;
+              const childCount = board.childCount ?? 0;
+              const isSuperBoard = childCount > 0;
+
               const isOwner = board.ownerUid === user?.uid;
-              // Only regular top-level owned boards can initiate a drag
-              const isDraggable = !isSuperBoard && !isSubBoard && isOwner;
+              // Owned subtrees can be moved from the root catalog
+              const isDraggable = isOwner;
               const isDragging = draggingId === board.id;
               const isValidDropTarget =
                 !!draggingId &&
@@ -546,7 +536,7 @@ export function BoardsPage() {
                         </h3>
                         {isSuperBoard && (
                           <span className="rounded-full bg-indigo-50 dark:bg-indigo-900/50 px-2 py-0.5 text-xs font-medium text-indigo-600 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-800">
-                            לוח-על · {board.subBoardIds.length}
+                            לוח-על · {childCount}
                           </span>
                         )}
                       </div>
@@ -568,7 +558,7 @@ export function BoardsPage() {
                         {board.memberUids.length} משתתפים
                       </p>
                       <span className="text-sm font-semibold text-indigo-700 dark:text-indigo-400 tabular-nums">
-                        <CurrencyTotals totals={displayTotal} />
+                        <span className="text-xs text-gray-500">ישיר · </span><CurrencyTotals totals={displayTotal} />
                       </span>
                     </div>
                   </Link>

@@ -1,69 +1,12 @@
 import { mergeCurrencyTotals } from '../../functions/shared/money.mjs';
-/**
- * Utility functions for board hierarchy operations.
- *
- * Board hierarchy shape (fields added to each board document):
- *   parentBoardId : string | null   – ID of the super board, or null for top-level
- *   subBoardIds   : string[]        – ordered list of direct child board IDs
- */
-/**
- * Return true when making childId a sub-board of parentId is allowed.
- *
- * One-level hierarchy rules (depth > 1 is not allowed):
- *   • childId and parentId must be different boards
- *   • child must NOT already have a parent (cannot nest a sub-board further)
- *   • child must NOT already have sub-boards (cannot nest a super board)
- *   • parent must NOT already have a parent (cannot attach under a sub-board)
- *   • child is not already a direct sub-board of parent (no duplicates)
- *
- * @param {string} childId   – board to be nested (the "dragged" board)
- * @param {string} parentId  – board to nest under (the "target" board)
- * @param {Array}  allBoards
- * @returns {boolean}
- */
-export function isMergeValid(childId, parentId, allBoards) {
-  if (childId === parentId) return false;
-
-  const child = allBoards.find((b) => b.id === childId);
-  const parent = allBoards.find((b) => b.id === parentId);
-
-  // One-level: child cannot already be a sub-board (has a parent)
-  if (child?.parentBoardId) return false;
-
-  // One-level: child cannot already be a super board (has children)
-  if ((child?.subBoardIds?.length ?? 0) > 0) return false;
-
-  // One-level: parent cannot already be a sub-board (cannot nest under a sub-board)
-  if (parent?.parentBoardId) return false;
-
-  // No duplicates: child is not already a direct sub-board of parent
-  return !parent?.subBoardIds?.includes(childId);
-}
-
-/**
- * Recursively compute the aggregate total expenses for a board.
- *   • Regular board (no subBoardIds): returns its own total from totalsMap.
- *   • Super board: returns the sum of its children's aggregate totals.
- *
- * The visited Set prevents double-counting if a cycle exists.
- *
- * @param {string}                boardId
- * @param {Object<string,Record<string,string>>} totalsMap – exact totals by board and currency
- * @param {Array}                 allBoards
- * @param {Set}                   [visited]  – internal, do not pass
- * @returns {Record<string, string>} Exact totals grouped by currency
- */
-export function getAggregateTotalForBoard(boardId, totalsMap, allBoards, visited = new Set()) {
-  if (visited.has(boardId)) return {};
-  visited.add(boardId);
-
-  const board = allBoards.find((b) => b.id === boardId);
-  const subIds = board?.subBoardIds ?? [];
-
-  if (subIds.length === 0) {
-    return totalsMap[boardId] ?? {};
-  }
-
-  if (subIds.some(id => !totalsMap[id])) return {};
-  return mergeCurrencyTotals(subIds.map(subId => getAggregateTotalForBoard(subId, totalsMap, allBoards, visited)));
+import { canReparent, subtreeBoards } from '../../functions/shared/hierarchy.mjs';
+export { ancestorPath, boardPathLabel } from '../../functions/shared/hierarchy.mjs';
+export const isMergeValid = (childId, parentId, boards) =>
+  (boards.find(b => b.id === childId)?.parentBoardId ?? null) !== parentId && canReparent(childId, parentId, boards);
+/** Includes direct transactions at every level; incomplete/corrupt totals stay unavailable. */
+export function getAggregateTotalForBoard(boardId, totalsMap, allBoards) {
+  try {
+    const nodes = subtreeBoards(boardId, allBoards);
+    return nodes.every(b => totalsMap[b.id]) ? mergeCurrencyTotals(nodes.map(b => totalsMap[b.id])) : undefined;
+  } catch { return undefined; }
 }

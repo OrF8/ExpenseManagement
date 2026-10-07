@@ -14,6 +14,7 @@ function authorize(snap, uid, owner = false) {
   if (!snap.exists) fail('not-found', 'הלוח לא נמצא');
   const board = snap.data();
   if (owner ? board.ownerUid !== uid : !board.memberUids?.includes(uid)) fail('permission-denied', 'אין הרשאה ללוח זה');
+  if (board.deleting) fail('failed-precondition', 'הלוח בתהליך מחיקה');
   return board;
 }
 function revision(actual, expected, label) {
@@ -50,20 +51,12 @@ export function createMoneyOperations({ db, timestamp, getRate = latestRate }) {
     };
   };
   return {
-    async createBoard(uid, { title, currency = 'ILS' }) {
-      if (typeof title !== 'string' || !title.trim() || title.length > 200) fail('invalid-argument','Invalid board title');
-      currencyDigits(currency);
-      const ref = db.collection('boards').doc();
-      await ref.set({ title: title.trim(), currency, currencyRevision: 0, moneyRevision: 0, ownerUid: uid, memberUids: [uid], directMemberUids: [uid], createdAt: timestamp() });
-      return { id: ref.id };
-    },
     async saveTransaction(uid, { boardId, transactionId, input, expectedCurrencyRevision, expectedRevision }) {
       const br = boardRef(boardId); const tr = transactionId ? br.collection('transactions').doc(id(transactionId)) : br.collection('transactions').doc();
       const rate = rateCache();
       await db.runTransaction(async tx => {
         const bs = await tx.get(br); const board = authorize(bs, uid);
         revision(board.currencyRevision, expectedCurrencyRevision, 'מטבע הלוח');
-        if (board.subBoardIds?.length) fail('failed-precondition','יש להוסיף עסקאות ללוח משנה');
         const old = transactionId ? await tx.get(tr) : null;
         if (transactionId && !old.exists) fail('not-found','העסקה לא נמצאה');
         const previous = old?.data();
@@ -112,7 +105,6 @@ export function createMoneyOperations({ db, timestamp, getRate = latestRate }) {
         const snap = await tx.get(original); if (!snap.exists) fail('not-found','העסקה לא נמצאה');
         const previous = snap.data(); revision(previous.revision, expectedRevision, 'העסקה');
         const boards = await Promise.all(destinations.map(async ref => authorize(await tx.get(ref), uid)));
-        if (sourceBoard.subBoardIds?.length || boards.some(b => b.subBoardIds?.length)) fail('failed-precondition','יש לבחור לוחות רגילים');
         if (!copy && (await tx.get(targets[0])).exists) fail('already-exists','העסקה כבר קיימת בלוח היעד');
         const plans = await Promise.all(boards.map(board => resolveMoney({ previous, targetCurrency: currencyOf(board), getRate: rate })));
         targets.forEach((ref, i) => {
