@@ -167,15 +167,26 @@ export function createHierarchyOperations({ db, timestamp }) {
       return db.runTransaction(async tx => {
         const root = await read(tx, boardId, uid);
         const nodes = await subtree(tx, root, uid);
-        const groups = [], worksheets = [];
+        const totalsByBoard = new Map(), worksheets = [];
         for (const b of nodes) {
           const rows = await tx.get(ref(b.id).collection('transactions'));
           const transactions = rows.docs.map(d => ({...d.data(), id: d.id}));
           const currency = currencyOf(b);
-          groups.push({[currency]: aggregateTransactions(transactions, currency).grandTotal});
+          totalsByBoard.set(b.id, {[currency]: aggregateTransactions(transactions, currency).grandTotal});
           if (includeTransactions) worksheets.push({id: b.id, parentBoardId: b.parentBoardId ?? null, name: b.title, title: b.title, currency, transactions});
         }
-        return {totals: mergeCurrencyTotals(groups), boardCount: nodes.length, worksheets};
+        const directTotals = totalsByBoard.get(root.id);
+        // subtree() returns parents before children. Roll up saved board-currency
+        // amounts bottom-up exactly once, without converting between board currencies.
+        for (let i = nodes.length - 1; i > 0; i--) {
+          const b = nodes[i];
+          totalsByBoard.set(b.parentBoardId, mergeCurrencyTotals([
+            totalsByBoard.get(b.parentBoardId), totalsByBoard.get(b.id),
+          ]));
+        }
+        const children = nodes.filter(b => b.parentBoardId === root.id)
+          .map(b => ({id: b.id, title: b.title, totals: totalsByBoard.get(b.id)}));
+        return {totals: totalsByBoard.get(root.id), directTotals, children, boardCount: nodes.length, worksheets};
       });
     },
   };

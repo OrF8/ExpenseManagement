@@ -553,12 +553,12 @@ export function BoardsPage() {
                       </div>
                     </div>
 
-                    <div className="flex items-center justify-between mt-3">
+                    <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
                       <p className="text-xs text-gray-400 dark:text-gray-500">
                         {board.memberUids.length} משתתפים
                       </p>
-                      <span className="text-sm font-semibold text-indigo-700 dark:text-indigo-400 tabular-nums">
-                        <span className="text-xs text-gray-500">ישיר · </span><CurrencyTotals totals={displayTotal} />
+                      <span className="min-w-0 text-sm font-semibold text-indigo-700 dark:text-indigo-400 tabular-nums">
+                        <span className="block text-xs text-gray-500">כולל לוחות משנה</span><CurrencyTotals totals={displayTotal} />
                       </span>
                     </div>
                   </Link>

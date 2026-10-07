@@ -7,6 +7,8 @@ import {useEffect, useMemo, useState} from 'react';
 import {useLocation, useNavigate, useParams} from 'react-router-dom';
 import {useTransactions} from '../hooks/useTransactions';
 import {useBoards} from '../hooks/useBoards';
+import {useBoardTotals} from '../hooks/useBoardTotals';
+import {BoardMovePicker} from '../components/BoardMovePicker';
 import {useBoardNavigation} from '../hooks/useBoardNavigation';
 import {BoardBreadcrumbs} from '../components/BoardBreadcrumbs';
 import {useAuth} from '../context/AuthContext';
@@ -161,10 +163,9 @@ function BoardDetail() {
   const isSubBoard = !!board?.parentBoardId;
   const isOwner = board?.ownerUid === user?.uid;
   const allBoards = useMemo(() => [...new Map([...navigation.path, ...subBoards, ...(board ? [board] : []), ...selectorBoards].map(b => [b.id, b])).values()], [navigation.path, subBoards, board, selectorBoards]);
-  const [includeSubBoards, setIncludeSubBoards] = useState(false);
-  const [summary, setSummary] = useState(null);
-  const [summaryError, setSummaryError] = useState(null);
-  const [summaryLoading, setSummaryLoading] = useState(false);
+  const {entries: summaryEntries, refresh: refreshSummary} = useBoardTotals(board ? [boardId] : []);
+  const {summary, error: summaryError, loading: summaryLoading = true} = summaryEntries[boardId] ?? {};
+  const childTotals = new Map((summary?.children ?? []).map(child => [child.id, child.totals]));
   const [deletingBoard, setDeletingBoard] = useState(false);
   const [deleteBoardError, setDeleteBoardError] = useState(null);
   async function handleDeleteBoard() {
@@ -175,17 +176,6 @@ function BoardDetail() {
     catch (err) { setDeleteBoardError(err.message); }
     finally { setDeletingBoard(false); }
   }
-  async function refreshSummary() {
-    setSummaryLoading(true); setSummaryError(null); setSummary(null);
-    try { setSummary(await getHierarchySummary(boardId)); }
-    catch (err) { setSummaryError(err.message); }
-    finally { setSummaryLoading(false); }
-  }
-  function toggleSummary(checked) {
-    setIncludeSubBoards(checked);
-    if (checked) refreshSummary();
-  }
-
   // ---------------------------------------------------------------------------
   // Board-scoped transaction filter helpers
   // ---------------------------------------------------------------------------
@@ -294,16 +284,6 @@ function BoardDetail() {
   const [showMoveUnder, setShowMoveUnder] = useState(false);
   const [movingUnder, setMovingUnder] = useState(false);
   const [moveUnderError, setMoveUnderError] = useState(null);
-
-  const parentCandidates = useMemo(() => {
-    if (!isOwner || !board) return [];
-    return allBoards.filter(
-      (b) =>
-        b.ownerUid === user?.uid &&
-        b.id !== boardId &&
-        isMergeValid(boardId, b.id, allBoards),
-    );
-  }, [isOwner, board, allBoards, boardId, user?.uid]);
 
   async function handleMoveUnder(parentId) {
     const parent = allBoards.find((b) => b.id === parentId);
@@ -502,8 +482,8 @@ function BoardDetail() {
     setExportingExcel(true);
     setExportError(null);
     try {
-      if (includeSubBoards) {
-        const result = await getHierarchySummary(boardId, true);
+      const result = await getHierarchySummary(boardId, true);
+      if (result.boardCount > 1) {
         await exportBoardToExcel({boardName: board.title, includeSummarySheet: true,
           worksheets: result.worksheets.map(sheet => ({...sheet, name: boardPathLabel(sheet.id, result.worksheets)}))});
       } else {
@@ -643,15 +623,29 @@ function BoardDetail() {
         {board?.deleting && <p role="status" className="text-amber-600">מחיקת הלוח החלה. אם המחיקה נכשלה, ניתן ללחוץ שוב על מחק לוח להשלמתה.</p>}
         {deleteBoardError && <p role="alert" className="text-red-600">{deleteBoardError}</p>}
         <section className="rounded-xl border border-indigo-100 bg-white p-4 dark:bg-gray-900 dark:border-gray-700">
-          <label className="flex items-center gap-2 text-sm dark:text-gray-200"><input type="checkbox" checked={includeSubBoards} onChange={e => toggleSummary(e.target.checked)} />כלול לוחות-משנה בסיכום ובייצוא</label>
-          <p className="mt-2 text-xs text-gray-500">העסקאות והמסננים למטה שייכים ללוח הנוכחי בלבד. ייצוא כולל את כל העסקאות בהיקף שנבחר, ללא סינון.</p>
-          {includeSubBoards && <div className="mt-3 space-y-2">
-            <p className="text-sm dark:text-gray-200">סיכום הלוח וכל צאצאיו · לפי מטבע הלוח של כל עסקה</p>
-            <p className="text-xs text-gray-500">המרות שמורות ושערים ידניים נשמרים. מטבעות שונים מוצגים בנפרד. הסיכום נכון לזמן הרענון.</p>
-            {summaryLoading ? <Spinner /> : summary && <CurrencyTotals totals={summary.totals} />}
-            {summaryError && <p role="alert" className="text-red-600">{summaryError}</p>}
-            <Button variant="secondary" size="sm" onClick={refreshSummary} disabled={summaryLoading}>רענן סיכום</Button>
-          </div>}
+          <h2 className="font-semibold dark:text-gray-100">סיכום הלוח וכל לוחות המשנה</h2>
+          <p className="mt-2 text-xs text-gray-500">הסיכום והייצוא כוללים תמיד את כל העסקאות בלוח ובכל לוחות המשנה, ללא סינון. העסקאות והמסננים למטה שייכים ללוח הנוכחי בלבד.</p>
+          <p className="mt-2 text-xs text-gray-500">המרות שמורות ושערים ידניים נשמרים לפי מטבע הלוח של כל עסקה. מטבעות שונים מוצגים בנפרד. הסיכום נכון לזמן הרענון.</p>
+          {summary ? <div className="mt-4 space-y-3">
+            {summary.children?.length > 0 && <ul className="divide-y divide-gray-100 dark:divide-gray-800">
+              <li className="flex flex-wrap items-center justify-between gap-2 py-3 text-sm dark:text-gray-200">
+                <span>עסקאות בלוח זה בלבד</span>
+                <CurrencyTotals totals={summary.directTotals} />
+              </li>
+              {summary.children.map(child => <li key={child.id} className="py-3">
+                <button type="button" onClick={() => navigate(`/board/${child.id}`)}
+                  className="flex w-full flex-wrap items-center justify-between gap-2 text-start text-sm text-indigo-700 dark:text-indigo-300">
+                  <span className="min-w-0 break-words">{child.title}<span className="block text-xs text-gray-500">כולל כל לוחות המשנה</span></span>
+                  <CurrencyTotals totals={child.totals} />
+                </button>
+              </li>)}
+            </ul>}
+            <div className="flex flex-wrap items-center justify-between gap-2 font-semibold dark:text-gray-100">
+              <span>סך הכול</span><CurrencyTotals totals={summary.totals} />
+            </div>
+          </div> : summaryLoading && <Spinner />}
+          {summaryError && <p role="alert" className="mt-3 text-red-600">{summaryError}</p>}
+          <Button className="mt-3" variant="secondary" size="sm" onClick={refreshSummary} disabled={summaryLoading}>רענן סיכום</Button>
         </section>
         {board && <BoardCurrencySettings key={`${board.id}:${board.currencyRevision ?? 0}`} board={board} isOwner={isOwner} />}
         {exportError && (
@@ -724,13 +718,14 @@ function BoardDetail() {
                             </svg>
                           </div>
                         </div>
-                        <div className="flex items-center justify-between">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
                           <p className="text-xs text-gray-400 dark:text-gray-500">
                             {sub.memberUids?.length ?? 0} משתתפים
                           </p>
-                          <span className="text-sm font-semibold text-indigo-700 dark:text-indigo-400 tabular-nums">
-                            פתח לוח
-                          </span>
+                          <div className="text-sm font-semibold text-indigo-700 dark:text-indigo-400 tabular-nums">
+                            <span className="block text-xs font-normal text-gray-500">כולל כל לוחות המשנה</span>
+                            <CurrencyTotals totals={childTotals.get(sub.id)} />
+                          </div>
                         </div>
                       </button>
                       {isOwner && (
@@ -1076,49 +1071,13 @@ function BoardDetail() {
       <Modal
         isOpen={showMoveUnder}
         onClose={() => setShowMoveUnder(false)}
-        title="העבר תחת לוח"
+        title={`העבר את ״${board?.title}״`}
       >
         <div className="min-w-0 flex flex-col gap-4">
-          {selectorsLoading && <Spinner />}
-          {selectorError && <p role="alert" className="text-red-600">{selectorError}</p>}
-          {isSubBoard && <Button variant="secondary" loading={movingUnder} onClick={() => handleMoveUnder(null)}>העבר לרמה הראשית</Button>}
           <p className="text-sm text-gray-500">העברה משנה גם את הגישה המורשת של משתתפים בכל לוחות המשנה. הזמנות ישירות נשמרות.</p>
-          {moveUnderError && (
-            <p className="text-sm text-red-500 dark:text-red-400">{moveUnderError}</p>
-          )}
-          {parentCandidates.length === 0 ? (
-            <p className="text-sm text-gray-500 dark:text-gray-400">
-              אין לוחות זמינים. ניתן להעביר רק תחת לוחות שבבעלותך שאינם גורמים למעגלים.
-            </p>
-          ) : (
-            <>
-              <p className="text-sm text-gray-600 dark:text-gray-400">
-                בחר לוח-על שתחתיו יוצב לוח זה:
-              </p>
-              <div className="flex flex-col gap-2">
-                {parentCandidates.map((parent) => (
-                  <div
-                    key={parent.id}
-                    className="flex items-center justify-between rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 px-4 py-3"
-                  >
-                    <div>
-                      <p className="font-medium text-gray-900 dark:text-gray-100 text-sm">
-                        {boardPathLabel(parent.id, allBoards)}
-                      </p>
-                    </div>
-                    <Button
-                      size="sm"
-                      loading={movingUnder}
-                      disabled={movingUnder}
-                      onClick={() => handleMoveUnder(parent.id)}
-                    >
-                      העבר
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            </>
-          )}
+          {moveUnderError && <p role="alert" className="text-sm text-red-500 dark:text-red-400">{moveUnderError}</p>}
+          {showMoveUnder && <BoardMovePicker board={board} boards={selectorBoards} uid={user?.uid}
+            loading={selectorsLoading} error={selectorError} moving={movingUnder} onMove={handleMoveUnder} />}
           <div className="flex justify-end">
             <Button variant="secondary" onClick={() => setShowMoveUnder(false)}>
               סגור
