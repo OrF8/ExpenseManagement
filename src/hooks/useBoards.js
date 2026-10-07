@@ -3,9 +3,9 @@ import { subscribeToBoards } from '../firebase/boards';
 import { useAuth } from '../context/AuthContext';
 import { subscribeWithAppCheckRetry } from '../utils/appCheckRetry';
 
-export function useBoards() {
+export function useBoards(enabled = true) {
   const { user } = useAuth();
-  const uid = user?.uid ?? null;
+  const uid = enabled ? user?.uid ?? null : null;
   const [state, setState] = useState({
     boards: [],
     error: null,

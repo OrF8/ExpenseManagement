@@ -1,38 +1,35 @@
-import { aggregateTransactions, currencyOf, mergeCurrencyTotals } from '../../functions/shared/money.mjs';
+import { aggregateTransactions, currencyOf } from '../../functions/shared/money.mjs';
 import { CurrencyTotals } from '../components/CurrencyTotals';
 import { BoardCurrencySettings } from '../components/BoardCurrencySettings';
 import { CurrencySelector } from '../components/CurrencySelector';
-/**
- * Board detail page.
- *
- * Behavior:
- *  - Regular board: shows transactions and totals (existing behavior).
- *  - Super board (board.subBoardIds?.length > 0): shows sub-board grid with
- *    aggregate total and affordances to remove or add sub-boards.
- */
+/** Every board supports direct transactions and immediate child boards. */
 import {useEffect, useMemo, useState} from 'react';
 import {useLocation, useNavigate, useParams} from 'react-router-dom';
 import {useTransactions} from '../hooks/useTransactions';
 import {useBoards} from '../hooks/useBoards';
 import {useBoardTotals} from '../hooks/useBoardTotals';
+import {BoardMovePicker} from '../components/BoardMovePicker';
+import {useBoardNavigation} from '../hooks/useBoardNavigation';
+import {BoardBreadcrumbs} from '../components/BoardBreadcrumbs';
 import {useAuth} from '../context/AuthContext';
 import {
   addTransaction,
   deleteTransaction,
   duplicateTransaction,
-  getTransactionsForBoard,
   moveTransaction,
   updateTransaction
 } from '../firebase/transactions';
 import {
   createBoard,
+  deleteBoard,
+  getHierarchySummary,
   mergeBoardsIntoSuper,
   removeSubBoardFromSuper,
   renameBoard,
   subscribeToBoard
 } from '../firebase/boards';
 import {getUserProfile} from '../firebase/users';
-import {isMergeValid} from '../utils/boardHierarchy';
+import {isMergeValid, boardPathLabel} from '../utils/boardHierarchy';
 import {Button} from '../components/ui/Button';
 import {Spinner} from '../components/ui/Spinner';
 import {Input} from '../components/ui/Input';
@@ -55,12 +52,18 @@ import {
 } from '../utils/transactionFilters';
 
 export function BoardPage() {
+  const {boardId} = useParams();
+  return <BoardDetail key={boardId} />;
+}
+
+function BoardDetail() {
   const { boardId } = useParams();
   const location = useLocation();
   const { user } = useAuth();
   const navigate = useNavigate();
   const { transactions, loading, error } = useTransactions(boardId);
-  const { boards: allBoards } = useBoards();
+  const [selectorsRequested, setSelectorsRequested] = useState(false);
+  const { boards: selectorBoards, loading: selectorsLoading, error: selectorError } = useBoards(selectorsRequested);
   const [boardState, setBoardState] = useState({
     boardId: null,
     board: null,
@@ -154,34 +157,25 @@ export function BoardPage() {
     );
   }, [boardId, user, navigate]);
 
-  // ---------------------------------------------------------------------------
-  // Board type helpers
-  // One-level hierarchy rules:
-  //   isSuperBoard : has sub-boards (no parent allowed)
-  //   isSubBoard   : has a parent (no children allowed)
-  //   regular      : neither (can become either)
-  // ---------------------------------------------------------------------------
-  const isSuperBoard = (board?.subBoardIds?.length ?? 0) > 0;
+  const navigation = useBoardNavigation(board, user?.uid);
+  const subBoards = navigation.children;
+  const isSuperBoard = subBoards.length > 0;
   const isSubBoard = !!board?.parentBoardId;
   const isOwner = board?.ownerUid === user?.uid;
-
-  const subBoardIds = useMemo(
-    () => (board?.subBoardIds ?? []),
-    [board?.subBoardIds],
-  );
-  const subBoards = useMemo(() => {
-    if (!isSuperBoard) return [];
-    return subBoardIds
-      .map((id) => allBoards.find((b) => b.id === id))
-      .filter(Boolean);
-  }, [isSuperBoard, subBoardIds, allBoards]);
-  const { totals: subBoardTotals } = useBoardTotals(subBoardIds);
-
-  const aggregateTotal = useMemo(
-    () => subBoardIds.every(id => subBoardTotals[id]) ? mergeCurrencyTotals(subBoardIds.map(id => subBoardTotals[id])) : {},
-    [subBoardIds, subBoardTotals],
-  );
-
+  const allBoards = useMemo(() => [...new Map([...navigation.path, ...subBoards, ...(board ? [board] : []), ...selectorBoards].map(b => [b.id, b])).values()], [navigation.path, subBoards, board, selectorBoards]);
+  const {entries: summaryEntries, refresh: refreshSummary} = useBoardTotals(board ? [boardId] : []);
+  const {summary, error: summaryError, loading: summaryLoading = true} = summaryEntries[boardId] ?? {};
+  const childTotals = new Map((summary?.children ?? []).map(child => [child.id, child.totals]));
+  const [deletingBoard, setDeletingBoard] = useState(false);
+  const [deleteBoardError, setDeleteBoardError] = useState(null);
+  async function handleDeleteBoard() {
+    if (subBoards.length) { setDeleteBoardError('יש להעביר או למחוק את לוחות המשנה לפני מחיקת הלוח'); return; }
+    if (!window.confirm('למחוק את הלוח ואת כל העסקאות שלו? פעולה זו אינה ניתנת לביטול.')) return;
+    setDeletingBoard(true); setDeleteBoardError(null);
+    try { await deleteBoard(boardId); navigate(board.parentBoardId ? `/board/${board.parentBoardId}` : '/boards'); }
+    catch (err) { setDeleteBoardError(err.message); }
+    finally { setDeletingBoard(false); }
+  }
   // ---------------------------------------------------------------------------
   // Board-scoped transaction filter helpers
   // ---------------------------------------------------------------------------
@@ -254,24 +248,22 @@ export function BoardPage() {
 
   // ---------------------------------------------------------------------------
   // "Add sub-board" modal
-  // Available for: super boards (add more sub-boards) and regular top-level boards
-  // (become a super board). NOT available for sub-boards (one-level limit).
+  // Available at every depth to owners.
   // ---------------------------------------------------------------------------
   const [showAddSubBoard, setShowAddSubBoard] = useState(false);
   const [attachingSubBoardId, setAttachingSubBoardId] = useState(null);
   const [attachSubBoardError, setAttachSubBoardError] = useState(null);
 
-  // Boards that can be attached: owned, top-level regular boards (no parent, no children)
-  // isMergeValid enforces all one-level rules, so this filter is already sufficient.
+  // Owned boards that do not introduce a cycle.
   const attachableCandidates = useMemo(() => {
-    if (!isOwner || !board || isSubBoard) return [];
+    if (!isOwner || !board) return [];
     return allBoards.filter(
       (b) =>
         b.ownerUid === user?.uid &&
         b.id !== boardId &&
         isMergeValid(b.id, boardId, allBoards),
     );
-  }, [isOwner, board, isSubBoard, allBoards, boardId, user?.uid]);
+  }, [isOwner, board, allBoards, boardId, user?.uid]);
 
   async function handleAttachSubBoard(candidateId) {
     setAttachingSubBoardId(candidateId);
@@ -287,29 +279,16 @@ export function BoardPage() {
   }
 
   // ---------------------------------------------------------------------------
-  // "Move under board" modal (regular top-level board view only)
-  // NOT available for sub-boards (already nested) or super boards (one-level limit).
+  // Move a board and its descendants, or detach to root.
   // ---------------------------------------------------------------------------
   const [showMoveUnder, setShowMoveUnder] = useState(false);
   const [movingUnder, setMovingUnder] = useState(false);
   const [moveUnderError, setMoveUnderError] = useState(null);
 
-  // Boards that can be a parent: owned top-level boards that pass one-level checks
-  // isMergeValid now rejects targets that already have a parent (sub-boards).
-  const parentCandidates = useMemo(() => {
-    if (!isOwner || !board || isSuperBoard || isSubBoard) return [];
-    return allBoards.filter(
-      (b) =>
-        b.ownerUid === user?.uid &&
-        b.id !== boardId &&
-        isMergeValid(boardId, b.id, allBoards),
-    );
-  }, [isOwner, board, isSuperBoard, isSubBoard, allBoards, boardId, user?.uid]);
-
   async function handleMoveUnder(parentId) {
     const parent = allBoards.find((b) => b.id === parentId);
     const confirmed = window.confirm(
-      `להעביר את "${board?.title}" תחת "${parent?.title ?? parentId}"?`,
+      `להעביר את "${board?.title}" תחת "${parent?.title ?? "הלוחות שלי"}"?`,
     );
     if (!confirmed) return;
 
@@ -317,8 +296,8 @@ export function BoardPage() {
     setMoveUnderError(null);
     try {
       await mergeBoardsIntoSuper(boardId, parentId);
-      // After attachment, navigate to the parent super board
-      navigate(`/board/${parentId}`);
+      setShowMoveUnder(false);
+      setMovingUnder(false);
     } catch (err) {
       setMoveUnderError(err.message || 'שגיאה בהעברת הלוח. נסה שוב.');
       setMovingUnder(false);
@@ -326,6 +305,7 @@ export function BoardPage() {
   }
 
   function openAddSubBoardModal() {
+    setSelectorsRequested(true);
     setAttachSubBoardError(null);
     setNewSubBoardTitle('');
     setCreateSubBoardError(null);
@@ -333,6 +313,7 @@ export function BoardPage() {
   }
 
   function openMoveUnderModal() {
+    setSelectorsRequested(true);
     setMoveUnderError(null);
     setShowMoveUnder(true);
   }
@@ -381,10 +362,10 @@ export function BoardPage() {
     setCreatingSubBoard(true);
     setCreateSubBoardError(null);
     try {
-      const newBoardRef = await createBoard(trimmed, user.uid, childCurrency || currencyOf(board));
-      await mergeBoardsIntoSuper(newBoardRef.id, boardId);
+      const newBoardRef = await createBoard(trimmed, user.uid, childCurrency || currencyOf(board), boardId);
       setNewSubBoardTitle('');
       setShowAddSubBoard(false);
+      navigate(`/board/${newBoardRef.id}`);
     } catch (err) {
       setCreateSubBoardError(err.message || 'שגיאה ביצירת לוח-המשנה. נסה שוב.');
     } finally {
@@ -428,7 +409,6 @@ export function BoardPage() {
   const [duplicatingTransaction, setDuplicatingTransaction] = useState(false);
   const [duplicateTransactionError, setDuplicateTransactionError] = useState(null);
 
-  const isBoardSuperBoard = (candidate) => (candidate?.subBoardIds?.length ?? 0) > 0;
 
   const destinationBoards = useMemo(
     () => allBoards.filter((candidate) => candidate.id !== boardId),
@@ -436,11 +416,12 @@ export function BoardPage() {
   );
 
   const duplicateDestinationBoards = useMemo(
-    () => allBoards.filter((candidate) => candidate.id !== boardId && !isBoardSuperBoard(candidate)),
+    () => allBoards.filter((candidate) => candidate.id !== boardId),
     [allBoards, boardId],
   );
 
   function openMoveModal(transaction) {
+    setSelectorsRequested(true);
     setMoveTx({...transaction, _currencyRevision: board.currencyRevision ?? 0});
     setMoveDestinationBoardId('');
     setMoveTransactionError(null);
@@ -464,6 +445,7 @@ export function BoardPage() {
   }
 
   function openDuplicateModal(transaction) {
+    setSelectorsRequested(true);
     setDuplicateTx({...transaction, _currencyRevision: board.currencyRevision ?? 0});
     setDuplicateDestinationBoardIds([]);
     setDuplicateTransactionError(null);
@@ -500,33 +482,12 @@ export function BoardPage() {
     setExportingExcel(true);
     setExportError(null);
     try {
-      if (isSuperBoard) {
-        const subBoardSheets = await Promise.all(
-          (board.subBoardIds ?? []).map(async (subBoardId) => {
-            const subBoard = allBoards.find((candidate) => candidate.id === subBoardId);
-            return {
-              currency: currencyOf(subBoard),
-              name: subBoard?.title || 'לוח',
-              transactions: await getTransactionsForBoard(subBoardId),
-            };
-          }),
-        );
-        await exportBoardToExcel({
-          boardName: board.title,
-          worksheets: subBoardSheets,
-          includeSummarySheet: true,
-        });
+      const result = await getHierarchySummary(boardId, true);
+      if (result.boardCount > 1) {
+        await exportBoardToExcel({boardName: board.title, includeSummarySheet: true,
+          worksheets: result.worksheets.map(sheet => ({...sheet, name: boardPathLabel(sheet.id, result.worksheets)}))});
       } else {
-        await exportBoardToExcel({
-          boardName: board.title,
-          worksheets: [
-            {
-              currency: currencyOf(board),
-              name: board.title || 'לוח',
-              transactions,
-            },
-          ],
-        });
+        await exportBoardToExcel({boardName: board.title, worksheets: [{currency: currencyOf(board), name: board.title, transactions}]});
       }
     } catch (err) {
       setExportError(err.message || 'שגיאה בייצוא לאקסל. נסה שוב.');
@@ -620,16 +581,16 @@ export function BoardPage() {
             {/* Board hierarchy actions – merged into a single dropdown menu */}
             {(isOwner || isSuperBoard) && (
               <BoardHierarchyActionsMenu
-                canAddSubBoard={isOwner && !isSubBoard}
-                canMoveUnder={isOwner && !isSuperBoard && !isSubBoard}
-                canExport={isSuperBoard}
+                canAddSubBoard={isOwner}
+                canMoveUnder={isOwner}
+                canExport={false}
                 onAddSubBoard={openAddSubBoardModal}
                 onMoveUnder={openMoveUnderModal}
                 onExport={handleExportExcel}
                 exporting={exportingExcel}
               />
             )}
-            {!isSuperBoard && (
+            {(
               <Button
                 variant="secondary"
                 size="sm"
@@ -640,7 +601,7 @@ export function BoardPage() {
                 ייצוא לאקסל
               </Button>
             )}
-            {!isSuperBoard && (
+            {(
               <Button size="sm" onClick={() => setShowAddModal(true)}>
                 <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -653,6 +614,39 @@ export function BoardPage() {
       </header>
 
       <main className="w-full min-w-0 max-w-3xl mx-auto px-4 py-8 flex flex-col gap-6">
+        <BoardBreadcrumbs board={board} path={navigation.path} incomplete={navigation.incomplete} />
+        {navigation.error && <p role="alert" className="text-red-600">{navigation.error}</p>}
+        {isOwner && <div className="flex flex-wrap gap-2">
+          <Button variant="secondary" onClick={openAddSubBoardModal} disabled={board?.deleting}>הוסף לוח-משנה</Button>
+          <Button variant="danger" onClick={handleDeleteBoard} loading={deletingBoard}>מחק לוח</Button>
+        </div>}
+        {board?.deleting && <p role="status" className="text-amber-600">מחיקת הלוח החלה. אם המחיקה נכשלה, ניתן ללחוץ שוב על מחק לוח להשלמתה.</p>}
+        {deleteBoardError && <p role="alert" className="text-red-600">{deleteBoardError}</p>}
+        <section className="rounded-xl border border-indigo-100 bg-white p-4 dark:bg-gray-900 dark:border-gray-700">
+          <h2 className="font-semibold dark:text-gray-100">סיכום הלוח וכל לוחות המשנה</h2>
+          <p className="mt-2 text-xs text-gray-500">הסיכום והייצוא כוללים תמיד את כל העסקאות בלוח ובכל לוחות המשנה, ללא סינון. העסקאות והמסננים למטה שייכים ללוח הנוכחי בלבד.</p>
+          <p className="mt-2 text-xs text-gray-500">המרות שמורות ושערים ידניים נשמרים לפי מטבע הלוח של כל עסקה. מטבעות שונים מוצגים בנפרד. הסיכום נכון לזמן הרענון.</p>
+          {summary ? <div className="mt-4 space-y-3">
+            {summary.children?.length > 0 && <ul className="divide-y divide-gray-100 dark:divide-gray-800">
+              <li className="flex flex-wrap items-center justify-between gap-2 py-3 text-sm dark:text-gray-200">
+                <span>עסקאות בלוח זה בלבד</span>
+                <CurrencyTotals totals={summary.directTotals} />
+              </li>
+              {summary.children.map(child => <li key={child.id} className="py-3">
+                <button type="button" onClick={() => navigate(`/board/${child.id}`)}
+                  className="flex w-full flex-wrap items-center justify-between gap-2 text-start text-sm text-indigo-700 dark:text-indigo-300">
+                  <span className="min-w-0 break-words">{child.title}<span className="block text-xs text-gray-500">כולל כל לוחות המשנה</span></span>
+                  <CurrencyTotals totals={child.totals} />
+                </button>
+              </li>)}
+            </ul>}
+            <div className="flex flex-wrap items-center justify-between gap-2 font-semibold dark:text-gray-100">
+              <span>סך הכול</span><CurrencyTotals totals={summary.totals} />
+            </div>
+          </div> : summaryLoading && <Spinner />}
+          {summaryError && <p role="alert" className="mt-3 text-red-600">{summaryError}</p>}
+          <Button className="mt-3" variant="secondary" size="sm" onClick={refreshSummary} disabled={summaryLoading}>רענן סיכום</Button>
+        </section>
         {board && <BoardCurrencySettings key={`${board.id}:${board.currencyRevision ?? 0}`} board={board} isOwner={isOwner} />}
         {exportError && (
           <div className="rounded-xl bg-red-50 dark:bg-red-900/30 border border-red-100 dark:border-red-800 px-4 py-3 text-sm text-red-600 dark:text-red-400">
@@ -669,24 +663,11 @@ export function BoardPage() {
             {duplicateSuccessMessage}
           </div>
         )}
-        {isSuperBoard ? (
+        {isSuperBoard && (
           /* ---------------------------------------------------------------- */
           /* Super board view: sub-board grid                                  */
           /* ---------------------------------------------------------------- */
           <>
-            {/* Aggregate total banner */}
-            <div className="rounded-2xl bg-linear-to-br from-indigo-50 to-white border border-indigo-100 p-5 dark:from-indigo-950/50 dark:to-gray-900 dark:border-indigo-900">
-              <p className="text-sm font-semibold text-indigo-700 dark:text-indigo-400 uppercase tracking-wide mb-1">
-                סה"כ הוצאות
-              </p>
-              <p className="text-2xl font-bold text-indigo-700 dark:text-indigo-400 tabular-nums">
-                <CurrencyTotals totals={aggregateTotal} />
-              </p>
-              <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
-                מצטבר מ-{subBoardIds.length} לוחות-משנה
-              </p>
-            </div>
-
             {removeSubBoardError && (
               <div className="rounded-xl bg-red-50 dark:bg-red-900/30 border border-red-100 dark:border-red-800 px-4 py-3 text-sm text-red-600 dark:text-red-400">
                 {removeSubBoardError}
@@ -737,13 +718,14 @@ export function BoardPage() {
                             </svg>
                           </div>
                         </div>
-                        <div className="flex items-center justify-between">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
                           <p className="text-xs text-gray-400 dark:text-gray-500">
                             {sub.memberUids?.length ?? 0} משתתפים
                           </p>
-                          <span className="text-sm font-semibold text-indigo-700 dark:text-indigo-400 tabular-nums">
-                            <CurrencyTotals totals={subBoardTotals[sub.id]} />
-                          </span>
+                          <div className="text-sm font-semibold text-indigo-700 dark:text-indigo-400 tabular-nums">
+                            <span className="block text-xs font-normal text-gray-500">כולל כל לוחות המשנה</span>
+                            <CurrencyTotals totals={childTotals.get(sub.id)} />
+                          </div>
                         </div>
                       </button>
                       {isOwner && (
@@ -765,11 +747,13 @@ export function BoardPage() {
               )}
             </div>
           </>
-        ) : (
+        )}
+        {(
           /* ---------------------------------------------------------------- */
-          /* Regular board view: transactions                                  */
+          /* Direct board view: transactions                                  */
           /* ---------------------------------------------------------------- */
           <>
+            <h2 className="text-sm font-semibold dark:text-gray-200">עסקאות וסיכום ישיר · בלוח זה בלבד</h2>
             {/* Totals */}
             <TotalsSummary
               totals={totals}
@@ -884,6 +868,8 @@ export function BoardPage() {
       >
         <div className="min-w-0 space-y-4">
           <p className="text-sm text-gray-600 dark:text-gray-300">בחר לוח יעד שאליו העסקה תועבר.</p>
+          {selectorsLoading && <Spinner />}
+          {selectorError && <p role="alert" className="text-red-600">{selectorError}</p>}
           {destinationBoards.length === 0 ? (
             <p className="text-sm text-gray-500 dark:text-gray-400">
               אין לוחות אחרים שניתן להעביר אליהם את העסקה.
@@ -899,7 +885,7 @@ export function BoardPage() {
               >
                 <option value="">בחר...</option>
                 {destinationBoards.map((candidate) => (
-                  <option key={candidate.id} value={candidate.id}>{candidate.title}</option>
+                  <option key={candidate.id} value={candidate.id}>{boardPathLabel(candidate.id, allBoards)}</option>
                 ))}
               </select>
             </label>
@@ -931,6 +917,8 @@ export function BoardPage() {
       >
         <div className="min-w-0 space-y-4">
           <p className="text-sm text-gray-600 dark:text-gray-300">בחר לוח יעד אחד או יותר שאליהם העסקה תשוכפל.</p>
+          {selectorsLoading && <Spinner />}
+          {selectorError && <p role="alert" className="text-red-600">{selectorError}</p>}
           {duplicateDestinationBoards.length === 0 ? (
             <p className="text-sm text-gray-500 dark:text-gray-400">
               אין לוחות אחרים שניתן לשכפל אליהם את העסקה.
@@ -951,7 +939,7 @@ export function BoardPage() {
                       onChange={() => toggleDuplicateDestinationBoard(candidate.id)}
                       disabled={duplicatingTransaction}
                     />
-                    <span className="min-w-0 break-words">{candidate.title}</span>
+                    <span className="min-w-0 break-words">{boardPathLabel(candidate.id, allBoards)}</span>
                   </label>
                 ))}
               </div>
@@ -988,13 +976,15 @@ export function BoardPage() {
         {board && <CollaboratorManager board={board} />}
       </Modal>
 
-      {/* Add Sub-Board Modal (super board / regular top-level board, owner only) */}
+      {/* Reused child creation/attachment dialog, available at any depth. */}
       <Modal
         isOpen={showAddSubBoard}
         onClose={() => setShowAddSubBoard(false)}
         title="הוסף לוח-משנה"
       >
         <div className="min-w-0 flex flex-col gap-5">
+          {selectorsLoading && <Spinner />}
+          {selectorError && <p role="alert" className="text-red-600">{selectorError}</p>}
           {/* Section 1: Create a brand-new sub-board */}
           <div>
             <p className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
@@ -1018,7 +1008,7 @@ export function BoardPage() {
                 loading={creatingSubBoard}
                 disabled={!newSubBoardTitle.trim() || !!attachingSubBoardId}
               >
-                צור וצרף
+                צור ופתח
               </Button>
             </form>
           </div>
@@ -1049,7 +1039,7 @@ export function BoardPage() {
                   >
                     <div>
                       <p className="font-medium text-gray-900 dark:text-gray-100 text-sm">
-                        {candidate.title}
+                        {boardPathLabel(candidate.id, allBoards)}
                       </p>
                       <p className="text-xs text-gray-400 dark:text-gray-500">
                         {candidate.memberUids?.length ?? 0} משתתפים
@@ -1081,50 +1071,13 @@ export function BoardPage() {
       <Modal
         isOpen={showMoveUnder}
         onClose={() => setShowMoveUnder(false)}
-        title="העבר תחת לוח"
+        title={`העבר את ״${board?.title}״`}
       >
         <div className="min-w-0 flex flex-col gap-4">
-          {moveUnderError && (
-            <p className="text-sm text-red-500 dark:text-red-400">{moveUnderError}</p>
-          )}
-          {parentCandidates.length === 0 ? (
-            <p className="text-sm text-gray-500 dark:text-gray-400">
-              אין לוחות זמינים. ניתן להעביר רק תחת לוחות שבבעלותך שאינם גורמים למעגלים.
-            </p>
-          ) : (
-            <>
-              <p className="text-sm text-gray-600 dark:text-gray-400">
-                בחר לוח-על שתחתיו יוצב לוח זה:
-              </p>
-              <div className="flex flex-col gap-2">
-                {parentCandidates.map((parent) => (
-                  <div
-                    key={parent.id}
-                    className="flex items-center justify-between rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 px-4 py-3"
-                  >
-                    <div>
-                      <p className="font-medium text-gray-900 dark:text-gray-100 text-sm">
-                        {parent.title}
-                      </p>
-                      {(parent.subBoardIds?.length ?? 0) > 0 && (
-                        <p className="text-xs text-indigo-500 dark:text-indigo-400">
-                          לוח-על · {parent.subBoardIds.length} לוחות-משנה
-                        </p>
-                      )}
-                    </div>
-                    <Button
-                      size="sm"
-                      loading={movingUnder}
-                      disabled={movingUnder}
-                      onClick={() => handleMoveUnder(parent.id)}
-                    >
-                      העבר
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            </>
-          )}
+          <p className="text-sm text-gray-500">העברה משנה גם את הגישה המורשת של משתתפים בכל לוחות המשנה. הזמנות ישירות נשמרות.</p>
+          {moveUnderError && <p role="alert" className="text-sm text-red-500 dark:text-red-400">{moveUnderError}</p>}
+          {showMoveUnder && <BoardMovePicker board={board} boards={selectorBoards} uid={user?.uid}
+            loading={selectorsLoading} error={selectorError} moving={movingUnder} onMove={handleMoveUnder} />}
           <div className="flex justify-end">
             <Button variant="secondary" onClick={() => setShowMoveUnder(false)}>
               סגור

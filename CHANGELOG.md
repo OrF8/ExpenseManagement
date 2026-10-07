@@ -4,6 +4,19 @@ All notable changes to this project are documented in this file.
 
 The format is inspired by [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project follows [Semantic Versioning](https://semver.org/).
 
+## [1.7.0] — 2026-10-07
+
+### Added
+- Arbitrarily nested sub-boards containing both direct transactions and child boards, with compact breadcrumb navigation on desktop and mobile.
+- Explicit recursive summary/export scope, including direct transactions at every level and preserving saved multi-currency conversions, manual overrides, and exact rounding.
+- Full-path board selectors for nested transaction move/copy destinations.
+- Server-validated hierarchy moves, cycle prevention, and atomic inherited-sharing updates.
+
+### Changed
+- Non-leaf deletion is blocked until children are moved/deleted; leaf cleanup is guarded and retryable.
+- Board navigation queries immediate children; account-wide destination metadata loads only when needed. Home cards show clearly labeled direct totals.
+- Hierarchy and membership writes require protected Cloud Functions; legacy missing parent references remain roots without migration.
+
 ## [1.6.3] — 2026-10-06
 - Added persistence for sign ins – signed in users now stay signed in
 

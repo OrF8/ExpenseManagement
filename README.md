@@ -1,14 +1,14 @@
 # Expense Management
 
 Expense Management is a Firebase + React web app for collaborative expense tracking, with a Hebrew RTL UI.
-It supports shared boards, one-level board hierarchies ("super boards" with sub-boards), invites, and Excel export.
+It supports shared boards, arbitrarily nested sub-boards, invites, and Excel export.
 
 🌐 **Live app:** https://of8-expense-management.web.app/
 
 <p align="center">
   <img src="https://img.shields.io/badge/License-MIT-yellow.svg?logo=opensourceinitiative" alt="License: MIT">
   <img src="https://img.shields.io/github/languages/top/OrF8/ExpenseManagement?style=default&logo=javascript&color=F7DF1E" alt="top-language">
-  <img src="https://img.shields.io/badge/Release-v1.6.3-4c1?style=flat" alt="Release v1.6.3">
+  <img src="https://img.shields.io/badge/Release-v1.7.0-4c1?style=flat" alt="Release v1.7.0">
 </p>
 <p align="center">
   <img src="https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=white" alt="react">
@@ -25,7 +25,7 @@ It supports shared boards, one-level board hierarchies ("super boards" with sub-
 
 - [Overview](#overview)
 - [Features](#Features)
-- [Boards vs. Super Boards](#boards-vs-super-boards)
+- [Nested Boards](#nested-boards)
 - [Access Model (Direct vs. Inherited)](#access-model-direct-vs-inherited)
 - [Invitation Flow](#invitation-flow)
 - [Architecture](#architecture)
@@ -47,29 +47,44 @@ Data is stored in Firestore and updates in real time.
 
 - **Authentication:** Email/password and Google sign-in.
 - **Boards:** Create, rename, delete, and view shared boards.
-- **Super boards:** Group regular boards under one parent board (one-level hierarchy).
+- **Nested boards:** Create sub-boards at any depth, navigate through compact breadcrumbs, and move entire branches safely.
 - **Invitations:** Board owners can invite by email; invitees can accept or decline.
 - **Membership model:**
   - `directMemberUids`: explicitly invited to a board.
   - `memberUids`: effective access (direct + inherited from parent board).
 - **Inherited access:** Membership flows **down** from a super board to its sub-boards.
-- **Transactions:** Create, edit, transfer, and delete transactions on regular boards.
+- **Transactions:** Create, edit, transfer, and delete transactions on any board.
 - **Amounts:** Positive and negative amounts are supported (useful for refunds/credits).
 - **Future dates:** Optional `transactionDate` accepts valid `YYYY-MM-DD` dates, including future dates.
 - **Excel export:**
-  - Regular board: single worksheet export.
-  - Super board: multi-sheet export (one sheet per sub-board) + optional summary sheet.
+  - Direct scope: one worksheet for the current board.
+  - Include sub-boards: one worksheet per board at every depth plus a currency-aware summary.
 - **Account management:** Update nickname, sign out, and delete account (with server-side cleanup).
 
-## Boards vs. Super Boards
+## Nested Boards
 
-- **Regular board:** A board without `subBoardIds`; it contains transactions directly.
-- **Super board:** A board with one or more `subBoardIds`; it aggregates totals from sub-boards and does not show a transaction-entry view.
-- **Sub-board:** A board with `parentBoardId` set.
+Every board can contain both transactions and sub-boards, with no fixed nesting depth.
+Use **Add sub-board** inside any owned board to create and enter a child board. Breadcrumbs
+link to accessible ancestors; long paths collapse into an expandable list on mobile.
+Existing boards continue to work without a migration.
 
-Hierarchy is intentionally **one level**:
-- A board can be top-level, or a child of one parent board.
-- A sub-board cannot itself have sub-boards.
+Transaction lists, filters, and direct totals always refer to the current board. Turn on
+**Include sub-boards in summary and export** to see a recursive summary or export the
+whole branch. Summaries use saved conversions in each transaction's own board currency,
+with different board currencies shown separately. Manual rates and provider snapshots
+are preserved; there is no new conversion between parent and child currencies. Use
+**Refresh summary** for an updated snapshot. Exports contain all transactions in the chosen
+scope, independent of transaction filters.
+
+**Move under board** moves a board together with its descendants, or returns it to the
+root level. Sharing inherited from the old parent is replaced by sharing from the new
+parent; direct invitations remain. Cycles and cross-owner moves are rejected by the server.
+Move/copy transaction destinations show full board paths. A board with children cannot be
+deleted until those children are moved or deleted explicitly.
+
+The home screen shows direct totals and refreshes the root catalog on local changes,
+focus, and every 30 seconds. Board details and direct transactions remain live.
+See [hierarchy architecture and deployment notes](docs/nested-boards.md) for operational details.
 
 ## Access Model (Direct vs. Inherited)
 
@@ -248,7 +263,7 @@ For vulnerability reporting, see [SECURITY.md](./SECURITY.md).
 
 ## Release Status
 
-Current release target: **v1.6.3**.
+Current release target: **v1.7.0**.
 
 See [CHANGELOG.md](./CHANGELOG.md) for release notes.
 

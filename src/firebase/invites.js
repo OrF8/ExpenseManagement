@@ -20,6 +20,7 @@ import { functions } from './config';
 export async function acceptBoardInvite(boardId, inviteId) {
   const fn = httpsCallable(functions, 'acceptBoardInvite');
   const result = await fn({ boardId, inviteId });
+  window.dispatchEvent(new Event('boards-changed'));
   return result.data;
 }
 
@@ -34,5 +35,6 @@ export async function acceptBoardInvite(boardId, inviteId) {
 export async function declineBoardInvite(boardId, inviteId) {
   const fn = httpsCallable(functions, 'declineBoardInvite');
   const result = await fn({ boardId, inviteId });
+  window.dispatchEvent(new Event('boards-changed'));
   return result.data;
 }

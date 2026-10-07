@@ -16,7 +16,7 @@
  *   - deleteBoard        : allows the board owner to fully delete a board and all its subcollections (invites, transactions)
  *   - deleteMyAccount    : permanently deletes the authenticated user's account and all data they own, including:
  *                          - all boards where they are owner (ownerUid == callerUid), including every board in their
- *                            hierarchy (descendants reachable via subBoardIds)
+ *                            hierarchy (descendants with the same ownerUid)
  *                          - membership cleanup: the caller's UID is removed from memberUids and directMemberUids on
  *                            every board they do NOT own
  *                          - user profile document at users/{uid}
@@ -43,11 +43,7 @@ const admin = require('firebase-admin');
 const {
     isAlreadyDirectMember,
     hasActiveInvite,
-    promoteToDirectMember,
 } = require('./inviteMembership');
-const {
-  buildEffectiveMembershipPlan,
-} = require('./membershipCascade');
 
 admin.initializeApp();
 
@@ -56,128 +52,6 @@ const db = admin.firestore();
 // ---------------------------------------------------------------------------
 // Internal helpers
 // ---------------------------------------------------------------------------
-
-/**
- * Collect all descendant board IDs starting from the given board, depth-first.
- * Follows the subBoardIds field on each board document.
- * Cycle-safe via a visited Set.
- *
- * @param {string} boardId
- * @returns {Promise<string[]>}
- */
-async function getDescendantBoardIds(boardId) {
-  const visited = new Set();
-  const result = [];
-
-  async function traverse(id) {
-    if (visited.has(id)) return;
-    visited.add(id);
-    const snap = await db.collection('boards').doc(id).get();
-    if (!snap.exists) return;
-    const subIds = snap.data().subBoardIds || [];
-    for (const subId of subIds) {
-      result.push(subId);
-      await traverse(subId);
-    }
-  }
-
-  await traverse(boardId);
-  return result;
-}
-
-/**
- * Traverse the subtree rooted at boardId and return a map of boardId → board
- * data for every descendant (excluding the root itself).  Each board document
- * is fetched exactly once.  Cycle-safe via a visited Set.
- *
- * @param {string} boardId
- * @returns {Promise<Record<string, object>>}
- */
-async function getDescendantBoardsData(boardId) {
-  const visited = new Set();
-  const result = {};
-
-  async function traverse(id) {
-    if (visited.has(id)) return;
-    visited.add(id);
-    const snap = await db.collection('boards').doc(id).get();
-    if (!snap.exists) return;
-    const data = snap.data();
-    if (id !== boardId) {
-      result[id] = data;
-    }
-    const subIds = data.subBoardIds || [];
-    await Promise.all(subIds.map((subId) => traverse(subId)));
-  }
-
-  await traverse(boardId);
-  return result;
-}
-
-/**
- * Returns true when the user still has effective membership on any ancestor of
- * the provided board. Effective membership is read from ancestor memberUids.
- *
- * @param {string|null|undefined} parentBoardId
- * @param {string} uid
- * @returns {Promise<boolean>}
- */
-async function hasAncestorEffectiveAccess(parentBoardId, uid) {
-  let currentParentId = parentBoardId || null;
-  while (currentParentId) {
-    const parentSnap = await db.collection('boards').doc(currentParentId).get();
-    if (!parentSnap.exists) break;
-    const parentData = parentSnap.data();
-    const parentMembers = parentData.memberUids || [];
-    if (parentMembers.includes(uid)) {
-      return true;
-    }
-    currentParentId = parentData.parentBoardId || null;
-  }
-  return false;
-}
-
-/**
- * Recomputes effective memberUids for a board subtree after direct removal on
- * the root board, preserving inherited access from remaining ancestor paths.
- *
- * @param {string} rootBoardId
- * @param {string} uid
- * @param {object} rootBoard
- * @returns {Promise<void>}
- */
-async function recalculateEffectiveMembershipAfterDirectRemoval(rootBoardId, uid, rootBoard) {
-  const descendantData = await getDescendantBoardsData(rootBoardId);
-  const nodesById = {[rootBoardId]: rootBoard, ...descendantData};
-
-  const rootInheritedAccess = await hasAncestorEffectiveAccess(rootBoard.parentBoardId, uid);
-  const plan = buildEffectiveMembershipPlan({
-    nodesById,
-    rootBoardId,
-    uid,
-    rootInheritedAccess,
-  });
-
-  const updates = plan
-      .filter((item) => item.shouldHaveEffective !== item.currentlyHasEffective)
-      .map((item) => db.collection('boards').doc(item.id).update({
-        memberUids: item.shouldHaveEffective ?
-          admin.firestore.FieldValue.arrayUnion(uid) :
-          admin.firestore.FieldValue.arrayRemove(uid),
-      }));
-
-  if (updates.length > 0) {
-    const results = await Promise.allSettled(updates);
-    results.forEach((r, i) => {
-      if (r.status === 'rejected') {
-        console.error(
-            `recalculateEffectiveMembershipAfterDirectRemoval: failed update ${i} for ${rootBoardId}:`,
-            r.reason,
-        );
-      }
-    });
-  }
-}
 
 /**
  * createBoardInvite
@@ -236,6 +110,7 @@ exports.createBoardInvite = onCall(
             }
 
             const board = boardSnap.data();
+            if (board.deleting) throw new HttpsError('failed-precondition', 'הלוח בתהליך מחיקה');
             if (board.ownerUid !== callerUid) {
                 throw new HttpsError('permission-denied', 'רק בעל הלוח יכול להזמין משתתפים');
             }
@@ -349,109 +224,6 @@ exports.getBoardCollaboratorProfiles = onCall(
 );
 
 /**
- * acceptBoardInvite
- *
- * Callable function that allows an authenticated user to accept a board invite
- * addressed to their email.  The operation is performed inside a Firestore
- * transaction so that the invite deletion and the memberUids array-union
- * are always atomic.
- *
- * After the transaction, the caller's UID is also added to the memberUids of
- * every descendant board (inherited access), WITHOUT updating directMemberUids
- * on those descendants — access flows down from the parent.
- *
- * @param {object} request.data
- * @param {string} request.data.boardId  - ID of the board document
- * @param {string} request.data.inviteId - ID of the invite document
- */
-exports.acceptBoardInvite = onCall(
-    { enforceAppCheck: true },
-    async (request) => {
-      // 1. Require authentication
-      if (!request.auth) {
-        throw new HttpsError('unauthenticated', 'עליך להיות מחובר כדי לקבל הזמנה');
-      }
-
-      const uid = request.auth.uid;
-      const callerEmail = (request.auth.token.email || '').toLowerCase();
-
-      const {boardId, inviteId} = request.data || {};
-      if (!boardId || !inviteId) {
-        throw new HttpsError('invalid-argument', 'boardId ו-inviteId נדרשים');
-      }
-
-      const inviteRef = db.collection('boards').doc(boardId).collection('invites').doc(inviteId);
-      const boardRef = db.collection('boards').doc(boardId);
-
-      await db.runTransaction(async (tx) => {
-        // 2. Load and verify the invite document
-        const inviteSnap = await tx.get(inviteRef);
-        if (!inviteSnap.exists) {
-          throw new HttpsError('not-found', 'ההזמנה לא נמצאה');
-        }
-
-        const invite = inviteSnap.data();
-
-        // 3. Verify invite has not expired.
-        // Legacy documents without expiresAt are treated as active for backward compatibility.
-        if (invite.expiresAt && invite.expiresAt.toMillis() <= Date.now()) {
-          throw new HttpsError('failed-precondition', 'פג תוקף ההזמנה');
-        }
-
-        // 4. Verify caller email matches the invite
-        if ((invite.invitedEmailLower || '') !== callerEmail) {
-          throw new HttpsError('permission-denied', 'אין לך הרשאה לקבל הזמנה זו');
-        }
-
-        // 5. Load the board document inside the same transaction
-        const boardSnap = await tx.get(boardRef);
-        if (!boardSnap.exists) {
-          throw new HttpsError('not-found', 'הלוח לא נמצא');
-        }
-
-        const board = boardSnap.data();
-
-        // 6. Atomically delete the invite document and add UID to board (no duplication)
-        tx.delete(inviteRef);
-
-        if (Array.isArray(board.directMemberUids)) {
-            // Modern schema: idempotently promote/keep direct membership.
-            tx.update(boardRef, {
-                memberUids: admin.firestore.FieldValue.arrayUnion(uid),
-                directMemberUids: admin.firestore.FieldValue.arrayUnion(uid),
-            });
-        } else {
-            // Legacy schema: directMemberUids missing means all memberUids are direct.
-            // Initialize directMemberUids from current members to preserve legacy semantics.
-            const promoted = promoteToDirectMember(board, uid);
-            tx.update(boardRef, promoted);
-        }
-      });
-
-      // 7. Cascade inherited access to all descendant boards (outside the transaction
-      //    for scalability).  Only memberUids is updated on descendants — NOT
-      //    directMemberUids — because the user is a direct member of this board only.
-      const descendantIds = await getDescendantBoardIds(boardId);
-      if (descendantIds.length > 0) {
-        const results = await Promise.allSettled(
-            descendantIds.map((descId) =>
-                db.collection('boards').doc(descId).update({
-                  memberUids: admin.firestore.FieldValue.arrayUnion(uid),
-                })
-            )
-        );
-        results.forEach((r, i) => {
-          if (r.status === 'rejected') {
-            console.error(`acceptBoardInvite: failed to cascade memberUids to descendant ${descendantIds[i]}:`, r.reason);
-          }
-        });
-      }
-
-      return {success: true};
-    }
-);
-
-/**
  * declineBoardInvite
  *
  * Callable function that allows an authenticated user to decline a board invite
@@ -507,8 +279,24 @@ exports.declineBoardInvite = onCall(
 
 // Currency-sensitive writes are centralized and protected by App Check and auth.
 const {createMoneyOperations, MoneyError} = require('./moneyOperations.mjs');
+const {createHierarchyOperations} = require('./hierarchyOperations.mjs');
+const hierarchyOperations = createHierarchyOperations({db, timestamp: () => admin.firestore.FieldValue.serverTimestamp()});
+for (const operation of ['createBoard', 'reparentBoard', 'deleteBoard', 'getHierarchySummary', 'listBoardRoots', 'acceptBoardInvite', 'removeBoardMember', 'leaveBoard']) {
+  exports[operation] = onCall({enforceAppCheck: true}, async request => {
+    if (!request.auth) throw new HttpsError('unauthenticated', 'עליך להתחבר');
+    try {
+      const mode = {acceptBoardInvite: 'accept', removeBoardMember: 'remove', leaveBoard: 'leave'}[operation];
+      if (mode) return await hierarchyOperations.changeMembership(request.auth.uid, request.data || {}, mode, (request.auth.token.email || '').toLowerCase());
+      return await hierarchyOperations[operation](request.auth.uid, request.data || {});
+    } catch (error) {
+      if (error instanceof MoneyError) throw new HttpsError(error.code, error.message);
+      console.error('Hierarchy operation failed:', error);
+      throw new HttpsError('internal', 'הפעולה נכשלה. יש לרענן ולנסות שוב.');
+    }
+  });
+}
 const moneyOperations = createMoneyOperations({db, timestamp: () => admin.firestore.FieldValue.serverTimestamp()});
-for (const operation of ['createBoard', 'saveTransaction', 'deleteTransaction', 'changeBoardCurrency', 'moveTransaction', 'duplicateTransaction']) {
+for (const operation of ['saveTransaction', 'deleteTransaction', 'changeBoardCurrency', 'moveTransaction', 'duplicateTransaction']) {
   exports[operation] = onCall({enforceAppCheck: true}, async request => {
     if (!request.auth) throw new HttpsError('unauthenticated', 'עליך להתחבר');
     try {
@@ -525,135 +313,6 @@ for (const operation of ['createBoard', 'saveTransaction', 'deleteTransaction', 
   });
 }
 
-/**
- * removeBoardMember
- *
- * Callable function that allows the board owner to remove a non-owner member
- * from the board.  The caller must be authenticated and must be the board owner.
- * The target member must currently be in board.memberUids and must not be the owner.
- *
- * After removing the member from this board, inherited access is cascaded:
- * the member is also removed from every descendant board's memberUids, UNLESS
- * they have direct membership (directMemberUids) on that descendant.
- *
- * @param {object} request.data
- * @param {string} request.data.boardId   - ID of the board document
- * @param {string} request.data.memberUid - UID of the member to remove
- */
-exports.removeBoardMember = onCall(
-    { enforceAppCheck: true },
-    async (request) => {
-      // 1. Require authentication
-      if (!request.auth) {
-        throw new HttpsError('unauthenticated', 'עליך להיות מחובר כדי להסיר חבר');
-      }
-
-      const callerUid = request.auth.uid;
-
-      const {boardId, memberUid} = request.data || {};
-      if (!boardId || !memberUid) {
-        throw new HttpsError('invalid-argument', 'boardId ו-memberUid נדרשים');
-      }
-
-      const boardRef = db.collection('boards').doc(boardId);
-
-      // 2. Load the board document
-      const boardSnap = await boardRef.get();
-      if (!boardSnap.exists) {
-        throw new HttpsError('not-found', 'הלוח לא נמצא');
-      }
-
-      const board = boardSnap.data();
-
-      // 3. Verify caller is the board owner
-      if (board.ownerUid !== callerUid) {
-        throw new HttpsError('permission-denied', 'רק בעל הלוח יכול להסיר חברים');
-      }
-
-      // 4. Reject if trying to remove the owner
-      if (memberUid === board.ownerUid) {
-        throw new HttpsError('invalid-argument', 'לא ניתן להסיר את בעל הלוח');
-      }
-
-      // 5. Verify the target member is currently on the board
-      const memberUids = board.memberUids || [];
-      if (!memberUids.includes(memberUid)) {
-        throw new HttpsError('not-found', 'המשתמש אינו חבר בלוח');
-      }
-
-      // 6. Always remove direct membership from this board.
-      await boardRef.update({
-        directMemberUids: admin.firestore.FieldValue.arrayRemove(memberUid),
-      });
-      // 7. Recompute effective membership on this board and descendants.
-      await recalculateEffectiveMembershipAfterDirectRemoval(boardId, memberUid, board);
-
-      return {success: true};
-    }
-);
-
-/**
- * leaveBoard
- *
- * Callable function that allows a non-owner member to remove themselves from a
- * board.  The caller must be authenticated, must be a member of the board, and
- * must not be the board owner.
- *
- * After leaving, the caller's inherited access is cascaded: they are also removed
- * from every descendant board's memberUids, UNLESS they have direct membership
- * (directMemberUids) on that descendant.
- *
- * @param {object} request.data
- * @param {string} request.data.boardId - ID of the board document
- */
-exports.leaveBoard = onCall(
-    { enforceAppCheck: true },
-    async (request) => {
-      // 1. Require authentication
-      if (!request.auth) {
-        throw new HttpsError('unauthenticated', 'עליך להיות מחובר כדי לעזוב לוח');
-      }
-
-      const callerUid = request.auth.uid;
-
-      const {boardId} = request.data || {};
-      if (!boardId) {
-        throw new HttpsError('invalid-argument', 'boardId נדרש');
-      }
-
-      const boardRef = db.collection('boards').doc(boardId);
-
-      // 2. Load the board document
-      const boardSnap = await boardRef.get();
-      if (!boardSnap.exists) {
-        throw new HttpsError('not-found', 'הלוח לא נמצא');
-      }
-
-      const board = boardSnap.data();
-
-      // 3. Reject if the caller is the board owner
-      if (board.ownerUid === callerUid) {
-        throw new HttpsError('permission-denied', 'בעל הלוח אינו יכול לעזוב את הלוח');
-      }
-
-      // 4. Verify the caller is currently a member of the board
-      const memberUids = board.memberUids || [];
-      if (!memberUids.includes(callerUid)) {
-        throw new HttpsError('not-found', 'אינך חבר בלוח זה');
-      }
-
-      // 5. Always remove direct membership from this board.
-      await boardRef.update({
-        directMemberUids: admin.firestore.FieldValue.arrayRemove(callerUid),
-      });
-      // 6. Recompute effective membership on this board and descendants.
-      await recalculateEffectiveMembershipAfterDirectRemoval(boardId, callerUid, board);
-
-      return {success: true};
-    }
-);
-
-// ---------------------------------------------------------------------------
 // Shared board-deletion helper
 // ---------------------------------------------------------------------------
 
@@ -685,58 +344,6 @@ async function deleteBoardData(boardId) {
 }
 
 /**
- * deleteBoard
- *
- * Callable function that allows the board owner to fully delete a board.
- * Deletes all documents in every known subcollection (invites, transactions)
- * and then deletes the board document itself.  The caller must be
- * authenticated and must be the board owner.
- *
- * Firestore does NOT automatically delete subcollections when a document is
- * deleted.  All subcollections must be cleared explicitly before the board
- * document is removed to avoid orphaned data.
- *
- * @param {object} request.data
- * @param {string} request.data.boardId - ID of the board document
- */
-exports.deleteBoard = onCall(
-    { enforceAppCheck: true },
-    async (request) => {
-      // 1. Require authentication
-      if (!request.auth) {
-        throw new HttpsError('unauthenticated', 'עליך להיות מחובר כדי למחוק לוח');
-      }
-
-      const callerUid = request.auth.uid;
-
-      const {boardId} = request.data || {};
-      if (!boardId) {
-        throw new HttpsError('invalid-argument', 'boardId נדרש');
-      }
-
-      const boardRef = db.collection('boards').doc(boardId);
-
-      // 2. Load the board document
-      const boardSnap = await boardRef.get();
-      if (!boardSnap.exists) {
-        throw new HttpsError('not-found', 'הלוח לא נמצא');
-      }
-
-      const board = boardSnap.data();
-
-      // 3. Verify caller is the board owner
-      if (board.ownerUid !== callerUid) {
-        throw new HttpsError('permission-denied', 'רק בעל הלוח יכול למחוק אותו');
-      }
-
-      // 4. Delegate to shared helper
-      await deleteBoardData(boardId);
-
-      return {success: true};
-    }
-);
-
-/**
  * deleteMyAccount
  *
  * Callable function that permanently deletes the authenticated user's account
@@ -746,13 +353,12 @@ exports.deleteBoard = onCall(
  * ## Deletion order
  *
  * 1. All boards owned by the caller (ownerUid == callerUid), including every
- *    board in their hierarchy (descendants reachable via subBoardIds).
+ *    board in their hierarchy (descendants with the same ownerUid).
  *    For each board: invites subcollection → transactions subcollection →
  *    board document.
  *
  *    Ownership invariant: all boards in a hierarchy share the same ownerUid.
- *    The UI enforces this by requiring the caller to own both the dragged
- *    board and the drop target when merging into a super-board. Therefore,
+ *    Authoritative hierarchy operations enforce common ownership. Therefore,
  *    querying ownerUid == callerUid already captures all boards in every
  *    hierarchy the user created, without needing to traverse parents.
  *
@@ -776,6 +382,12 @@ exports.deleteMyAccount = onCall(
       const uid = request.auth.uid;
       console.log(`deleteMyAccount: starting deletion for uid=${uid}`);
 
+      await db.runTransaction(async tx => {
+        const lockRef = db.collection('hierarchyLocks').doc(uid);
+        await tx.get(lockRef);
+        tx.set(lockRef, {deletingAccount: true});
+      });
+
       // 2. Find all boards owned by the user
       const ownedBoardsSnap = await db.collection('boards')
           .where('ownerUid', '==', uid)
@@ -788,8 +400,7 @@ exports.deleteMyAccount = onCall(
       const boardIdsToDelete = new Set();
       for (const boardDoc of ownedBoardsSnap.docs) {
         boardIdsToDelete.add(boardDoc.id);
-        const descendantIds = await getDescendantBoardIds(boardDoc.id);
-        descendantIds.forEach((id) => boardIdsToDelete.add(id));
+
       }
 
       console.log(`deleteMyAccount: will delete ${boardIdsToDelete.size} board(s) in total (including descendants)`);
@@ -801,6 +412,7 @@ exports.deleteMyAccount = onCall(
       //    be removed; partial cleanup is not acceptable.
       const boardIdsArray = [...boardIdsToDelete];
       try {
+        await Promise.all(ownedBoardsSnap.docs.map(d => d.ref.update({deleting: true})));
         await Promise.all(boardIdsArray.map((boardId) => deleteBoardData(boardId)));
       } catch (err) {
         console.error('deleteMyAccount: failed to delete owned board data, aborting account deletion:', err);
@@ -825,14 +437,20 @@ exports.deleteMyAccount = onCall(
       });
 
       try {
-        await Promise.all(
-            nonOwnedBoards.map((d) =>
-                d.ref.update({
-                  memberUids: admin.firestore.FieldValue.arrayRemove(uid),
-                  directMemberUids: admin.firestore.FieldValue.arrayRemove(uid),
-                })
-            )
-        );
+        for (const ownerUid of new Set(nonOwnedBoards.map(d => d.data().ownerUid))) {
+          await db.runTransaction(async tx => {
+            const lockRef = db.collection('hierarchyLocks').doc(ownerUid);
+            const lockSnap = await tx.get(lockRef);
+            const snap = await tx.get(db.collection('boards').where('ownerUid', '==', ownerUid));
+            const affected = snap.docs.filter(d => d.data().memberUids?.includes(uid) || d.data().directMemberUids?.includes(uid));
+            if (affected.length > 450) throw new HttpsError('resource-exhausted', 'נדרש ניקוי שיתוף לפני מחיקת החשבון');
+            for (const d of affected) tx.update(d.ref, {
+              memberUids: admin.firestore.FieldValue.arrayRemove(uid),
+              directMemberUids: (d.data().directMemberUids ?? d.data().memberUids ?? []).filter(member => member !== uid),
+            });
+            tx.set(lockRef, {...lockSnap.data(), revision:(lockSnap.data()?.revision ?? 0)+1});
+          });
+        }
       } catch (err) {
         console.error('deleteMyAccount: failed to clean up board membership, aborting account deletion:', err);
         throw new HttpsError(

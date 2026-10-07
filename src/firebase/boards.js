@@ -24,13 +24,10 @@ import {
   collectionGroup,
   doc,
   deleteDoc,
-  getDoc,
   query,
   where,
   onSnapshot,
   updateDoc,
-  arrayUnion,
-  arrayRemove,
 } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { db, functions } from './config';
@@ -43,8 +40,9 @@ const boardsRef = () => collection(db, 'boards');
  * @param {string} uid - Owner's UID
  * @returns {Promise<DocumentReference>}
  */
-export async function createBoard(title, _uid, currency = 'ILS') {
-  const result = await httpsCallable(functions, 'createBoard')({title, currency});
+export async function createBoard(title, _uid, currency = 'ILS', parentBoardId = null) {
+  const result = await httpsCallable(functions, 'createBoard')({title, currency, parentBoardId});
+  window.dispatchEvent(new Event('boards-changed'));
   return result.data;
 }
 
@@ -85,6 +83,7 @@ export function subscribeToBoards(uid, onData, onError) {
 export async function deleteBoard(boardId) {
   const fn = httpsCallable(functions, 'deleteBoard');
   const result = await fn({ boardId });
+  window.dispatchEvent(new Event('boards-changed'));
   return result.data;
 }
 
@@ -239,6 +238,7 @@ export async function deleteBoardInvite(boardId, inviteId) {
 export async function removeBoardMember(boardId, memberUid) {
   const fn = httpsCallable(functions, 'removeBoardMember');
   const result = await fn({ boardId, memberUid });
+  window.dispatchEvent(new Event('boards-changed'));
   return result.data;
 }
 
@@ -253,6 +253,7 @@ export async function removeBoardMember(boardId, memberUid) {
 export async function leaveBoard(boardId) {
   const fn = httpsCallable(functions, 'leaveBoard');
   const result = await fn({ boardId });
+  window.dispatchEvent(new Event('boards-changed'));
   return result.data;
 }
 
@@ -261,7 +262,7 @@ export async function leaveBoard(boardId) {
 //
 // Extended board document shape (new optional fields):
 //   parentBoardId    : string | null  – ID of the containing super board, or null
-//   subBoardIds      : string[]       – ordered list of direct child board IDs
+//   subBoardIds      : legacy cache; ignored (parentBoardId is authoritative)
 //   directMemberUids : string[]       – users explicitly invited to this board
 //
 // Access model: membership flows DOWN the hierarchy (parent → descendants).
@@ -296,77 +297,20 @@ export async function renameBoard(boardId, newTitle) {
   return updateBoard(boardId, { title: trimmed });
 }
 
-/**
- * Attach childId as a sub-board of parentId, cascading inherited membership.
- *
- * - Adds childId to parentId's subBoardIds.
- * - Sets parentBoardId on the child board.
- * - Adds all current members of the parent to the child's memberUids (inherited
- *   access flows DOWN only: parent → child).
- * - Does NOT update directMemberUids of the child — that reflects only explicit
- *   invitations, not inherited access.
- * - Does NOT add the child's members to the parent (access does not flow UP).
- *
- * Callers must validate that the merge is safe (no cycles, correct ownership)
- * before calling this function.  Both boards must be owned by the same user.
- *
- * @param {string} childId
- * @param {string} parentId
- * @returns {Promise<void>}
- */
+/** Authoritative atomic re-parenting; null moves a subtree to root. */
 export async function mergeBoardsIntoSuper(childId, parentId) {
-  const childRef = doc(db, 'boards', childId);
-  const parentRef = doc(db, 'boards', parentId);
-
-  // Read current member list of the parent so we can cascade inherited access
-  const parentSnap = await getDoc(parentRef);
-  const parentMembers = parentSnap.data()?.memberUids ?? [];
-
-  await Promise.all([
-    updateDoc(parentRef, {
-      subBoardIds: arrayUnion(childId),
-    }),
-    updateDoc(childRef, {
-      parentBoardId: parentId,
-      // Cascade parent members → child memberUids (inherited access, not direct)
-      ...(parentMembers.length > 0 ? { memberUids: arrayUnion(...parentMembers) } : {}),
-    }),
-  ]);
+  const result = await httpsCallable(functions, 'reparentBoard')({boardId: childId, parentBoardId: parentId});
+  window.dispatchEvent(new Event('boards-changed'));
+  return result;
 }
-
-/**
- * Detach a sub-board from its super board, making it a top-level board again.
- *
- * Implements Option B: collaborators who had only inherited access
- * (in memberUids but NOT in directMemberUids) lose that access when the board
- * is detached — their access came from the parent and disappears with it.
- * Only users with direct membership (directMemberUids) remain on the board.
- *
- * Does NOT delete the sub-board or any of its data.
- *
- * @param {string} superBoardId
- * @param {string} subBoardId
- * @returns {Promise<void>}
- */
-export async function removeSubBoardFromSuper(superBoardId, subBoardId) {
-  const superRef = doc(db, 'boards', superBoardId);
-  const subRef = doc(db, 'boards', subBoardId);
-
-  // Read the sub-board to identify inherited-only members
-  const subSnap = await getDoc(subRef);
-  const subData = subSnap.data() ?? {};
-  const allMembers = subData.memberUids ?? [];
-  // Backward compat: if directMemberUids is absent treat everyone as direct
-  const directMembers = subData.directMemberUids ?? allMembers;
-  const inheritedOnly = allMembers.filter((uid) => !directMembers.includes(uid));
-
-  await Promise.all([
-    updateDoc(superRef, { subBoardIds: arrayRemove(subBoardId) }),
-    updateDoc(subRef, {
-      parentBoardId: null,
-      // Remove inherited-only members from memberUids: their access was via the
-      // parent board and should disappear when the board is detached.
-      ...(inheritedOnly.length > 0 ? { memberUids: arrayRemove(...inheritedOnly) } : {}),
-    }),
-  ]);
+export async function removeSubBoardFromSuper(_superBoardId, subBoardId) {
+  return mergeBoardsIntoSuper(subBoardId, null);
+}
+export async function getHierarchySummary(boardId, includeTransactions = false) {
+  const result = await httpsCallable(functions, 'getHierarchySummary')({boardId, includeTransactions});
+  return result.data;
+}
+export function subscribeToChildBoards(boardId, uid, onData, onError) {
+  return onSnapshot(query(boardsRef(), where('parentBoardId', '==', boardId), where('memberUids', 'array-contains', uid)),
+    snap => onData(snap.docs.map(d => ({...d.data(), id: d.id}))), onError);
 }
