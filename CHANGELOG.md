@@ -4,6 +4,18 @@ All notable changes to this project are documented in this file.
 
 The format is inspired by [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project follows [Semantic Versioning](https://semver.org/).
 
+## [1.8.0] — 2026-10-07
+
+### Added
+- Every effective board member can create sub-boards, including members with inherited access.
+- Direct parent members create children under the parent's ownership; inherited-only creators own their new child and retain direct access.
+
+### Changed
+- Mixed-owner hierarchies support navigation, recursive summaries/exports, and atomic inherited-membership updates with deterministically ordered owner locks.
+- Parent owners can detach immediate children without transferring ownership or deleting child data. Existing-board attachment and other owner powers remain restricted.
+- Account deletion preserves foreign-owned children by detaching them and recomputing inherited access before removing owned boards.
+- Legacy direct-membership fallback remains supported without migration.
+
 ## [1.7.1] — 2026-10-07
 - Fixed invitee not seeing the invitation problem.
 

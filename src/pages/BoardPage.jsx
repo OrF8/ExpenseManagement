@@ -162,6 +162,7 @@ function BoardDetail() {
   const isSuperBoard = subBoards.length > 0;
   const isSubBoard = !!board?.parentBoardId;
   const isOwner = board?.ownerUid === user?.uid;
+  const canCreateSubBoard = !!user?.uid && !!board?.memberUids?.includes(user.uid) && !board.deleting;
   const allBoards = useMemo(() => [...new Map([...navigation.path, ...subBoards, ...(board ? [board] : []), ...selectorBoards].map(b => [b.id, b])).values()], [navigation.path, subBoards, board, selectorBoards]);
   const {entries: summaryEntries, refresh: refreshSummary} = useBoardTotals(board ? [boardId] : []);
   const {summary, error: summaryError, loading: summaryLoading = true} = summaryEntries[boardId] ?? {};
@@ -248,7 +249,7 @@ function BoardDetail() {
 
   // ---------------------------------------------------------------------------
   // "Add sub-board" modal
-  // Available at every depth to owners.
+  // Creation is available to effective members; attaching remains owner-only.
   // ---------------------------------------------------------------------------
   const [showAddSubBoard, setShowAddSubBoard] = useState(false);
   const [attachingSubBoardId, setAttachingSubBoardId] = useState(null);
@@ -266,6 +267,7 @@ function BoardDetail() {
   }, [isOwner, board, allBoards, boardId, user?.uid]);
 
   async function handleAttachSubBoard(candidateId) {
+    if (!isOwner || board?.deleting) return;
     setAttachingSubBoardId(candidateId);
     setAttachSubBoardError(null);
     try {
@@ -305,7 +307,8 @@ function BoardDetail() {
   }
 
   function openAddSubBoardModal() {
-    setSelectorsRequested(true);
+    if (!canCreateSubBoard) return;
+    if (isOwner) setSelectorsRequested(true);
     setAttachSubBoardError(null);
     setNewSubBoardTitle('');
     setCreateSubBoardError(null);
@@ -358,7 +361,7 @@ function BoardDetail() {
   async function handleCreateSubBoard(e) {
     e.preventDefault();
     const trimmed = newSubBoardTitle.trim();
-    if (!trimmed) return;
+    if (!trimmed || !canCreateSubBoard) return;
     setCreatingSubBoard(true);
     setCreateSubBoardError(null);
     try {
@@ -579,9 +582,9 @@ function BoardDetail() {
               שיתוף
             </Button>
             {/* Board hierarchy actions – merged into a single dropdown menu */}
-            {(isOwner || isSuperBoard) && (
+            {(isOwner || canCreateSubBoard) && (
               <BoardHierarchyActionsMenu
-                canAddSubBoard={isOwner}
+                canAddSubBoard={canCreateSubBoard}
                 canMoveUnder={isOwner}
                 canExport={false}
                 onAddSubBoard={openAddSubBoardModal}
@@ -616,9 +619,9 @@ function BoardDetail() {
       <main className="w-full min-w-0 max-w-3xl mx-auto px-4 py-8 flex flex-col gap-6">
         <BoardBreadcrumbs board={board} path={navigation.path} incomplete={navigation.incomplete} />
         {navigation.error && <p role="alert" className="text-red-600">{navigation.error}</p>}
-        {isOwner && <div className="flex flex-wrap gap-2">
-          <Button variant="secondary" onClick={openAddSubBoardModal} disabled={board?.deleting}>הוסף לוח-משנה</Button>
-          <Button variant="danger" onClick={handleDeleteBoard} loading={deletingBoard}>מחק לוח</Button>
+        {(canCreateSubBoard || isOwner) && <div className="flex flex-wrap gap-2">
+          {canCreateSubBoard && <Button variant="secondary" onClick={openAddSubBoardModal}>הוסף לוח-משנה</Button>}
+          {isOwner && <Button variant="danger" onClick={handleDeleteBoard} loading={deletingBoard}>מחק לוח</Button>}
         </div>}
         {board?.deleting && <p role="status" className="text-amber-600">מחיקת הלוח החלה. אם המחיקה נכשלה, ניתן ללחוץ שוב על מחק לוח להשלמתה.</p>}
         {deleteBoardError && <p role="alert" className="text-red-600">{deleteBoardError}</p>}
@@ -690,7 +693,7 @@ function BoardDetail() {
                   title="אין לוחות-משנה"
                   description="גרור לוחות מרשימת הלוחות כדי לשלב אותם כאן, או לחץ 'הוסף לוח-משנה'"
                   action={
-                    isOwner ? (
+                    canCreateSubBoard ? (
                       <Button variant="secondary" onClick={openAddSubBoardModal}>
                         הוסף לוח-משנה
                       </Button>
@@ -983,8 +986,8 @@ function BoardDetail() {
         title="הוסף לוח-משנה"
       >
         <div className="min-w-0 flex flex-col gap-5">
-          {selectorsLoading && <Spinner />}
-          {selectorError && <p role="alert" className="text-red-600">{selectorError}</p>}
+          {isOwner && selectorsLoading && <Spinner />}
+          {isOwner && selectorError && <p role="alert" className="text-red-600">{selectorError}</p>}
           {/* Section 1: Create a brand-new sub-board */}
           <div>
             <p className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
@@ -1006,7 +1009,7 @@ function BoardDetail() {
                 type="submit"
                 size="sm"
                 loading={creatingSubBoard}
-                disabled={!newSubBoardTitle.trim() || !!attachingSubBoardId}
+                disabled={!canCreateSubBoard || !newSubBoardTitle.trim() || !!attachingSubBoardId}
               >
                 צור ופתח
               </Button>
@@ -1014,7 +1017,7 @@ function BoardDetail() {
           </div>
 
           {/* Divider */}
-          {attachableCandidates.length > 0 && (
+          {isOwner && attachableCandidates.length > 0 && (
             <div className="flex items-center gap-3">
               <div className="flex-1 h-px bg-gray-200 dark:bg-gray-700" />
               <span className="text-xs text-gray-400 dark:text-gray-500">או</span>
@@ -1023,7 +1026,7 @@ function BoardDetail() {
           )}
 
           {/* Section 2: Attach an existing board */}
-          {attachableCandidates.length > 0 && (
+          {isOwner && attachableCandidates.length > 0 && (
             <div>
               <p className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
                 צירוף לוח קיים

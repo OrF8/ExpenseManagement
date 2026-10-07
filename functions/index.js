@@ -15,8 +15,8 @@
  *                          cascades removal from descendants unless user has direct access there
  *   - deleteBoard        : allows the board owner to fully delete a board and all its subcollections (invites, transactions)
  *   - deleteMyAccount    : permanently deletes the authenticated user's account and all data they own, including:
- *                          - all boards where they are owner (ownerUid == callerUid), including every board in their
- *                            hierarchy (descendants with the same ownerUid)
+ *                          - all boards where they are owner (ownerUid == callerUid); foreign-owned children
+ *                            are detached safely and retained
  *                          - membership cleanup: the caller's UID is removed from memberUids and directMemberUids on
  *                            every board they do NOT own
  *                          - user profile document at users/{uid}
@@ -352,15 +352,10 @@ async function deleteBoardData(boardId) {
  *
  * ## Deletion order
  *
- * 1. All boards owned by the caller (ownerUid == callerUid), including every
- *    board in their hierarchy (descendants with the same ownerUid).
- *    For each board: invites subcollection → transactions subcollection →
- *    board document.
- *
- *    Ownership invariant: all boards in a hierarchy share the same ownerUid.
- *    Authoritative hierarchy operations enforce common ownership. Therefore,
- *    querying ownerUid == callerUid already captures all boards in every
- *    hierarchy the user created, without needing to traverse parents.
+ * 1. Atomically detach foreign-owned immediate children of owned boards,
+ *    recompute memberships, and tombstone only boards owned by the caller.
+ *    Delete owned boards: invites → transactions → board document.
+ *    Foreign-owned descendants and their data are retained.
  *
  * 2. Membership cleanup: the caller's UID is removed from memberUids and
  *    directMemberUids on every board they do NOT own (i.e. boards where they
@@ -382,80 +377,25 @@ exports.deleteMyAccount = onCall(
       const uid = request.auth.uid;
       console.log(`deleteMyAccount: starting deletion for uid=${uid}`);
 
-      await db.runTransaction(async tx => {
-        const lockRef = db.collection('hierarchyLocks').doc(uid);
-        await tx.get(lockRef);
-        tx.set(lockRef, {deletingAccount: true});
-      });
-
-      // 2. Find all boards owned by the user
-      const ownedBoardsSnap = await db.collection('boards')
-          .where('ownerUid', '==', uid)
-          .get();
-
-      console.log(`deleteMyAccount: found ${ownedBoardsSnap.size} owned board(s)`);
-
-      // 3. Collect all board IDs to delete (owned boards + all their descendants).
-      //    A Set is used to deduplicate in case a board appears in multiple traversals.
-      const boardIdsToDelete = new Set();
-      for (const boardDoc of ownedBoardsSnap.docs) {
-        boardIdsToDelete.add(boardDoc.id);
-
-      }
-
-      console.log(`deleteMyAccount: will delete ${boardIdsToDelete.size} board(s) in total (including descendants)`);
-
-      // 4. Delete each board and its subcollections (invites, transactions).
-      //    Use Promise.all (not allSettled) so that any board deletion failure throws
-      //    immediately and prevents the account from being finalized as deleted while
-      //    data still exists.  The product rule is: everything owned by the user must
-      //    be removed; partial cleanup is not acceptable.
-      const boardIdsArray = [...boardIdsToDelete];
+      // Serialize with every affected owner before deleting any board data.
+      // Preparation is atomic and retryable; it also removes the caller's direct
+      // grants and inherited access on surviving mixed-owner branches.
+      let boardIdsArray;
       try {
-        await Promise.all(ownedBoardsSnap.docs.map(d => d.ref.update({deleting: true})));
+        boardIdsArray = await hierarchyOperations.prepareAccountDeletion(uid);
+      } catch (err) {
+        if (err instanceof MoneyError) throw new HttpsError(err.code, err.message);
+        throw err;
+      }
+      console.log(`deleteMyAccount: will delete ${boardIdsArray.length} owned board(s)`);
+
+      try {
         await Promise.all(boardIdsArray.map((boardId) => deleteBoardData(boardId)));
       } catch (err) {
         console.error('deleteMyAccount: failed to delete owned board data, aborting account deletion:', err);
         throw new HttpsError(
             'internal',
             'שגיאה במחיקת נתוני הלוחות. החשבון לא נמחק. נסה שוב.',
-        );
-      }
-
-      // 5. Remove the user from memberUids/directMemberUids on boards they do NOT own
-      //    (boards where the user is a collaborator).  This prevents orphaned UID
-      //    references on other users' boards.  Failures here are also treated as fatal:
-      //    leaving stale UID references behind could cause permission and display bugs
-      //    for other board members.
-      const memberBoardsSnap = await db.collection('boards')
-          .where('memberUids', 'array-contains', uid)
-          .get();
-
-      const nonOwnedBoards = memberBoardsSnap.docs.filter((d) => {
-        const data = d.data();
-        return data.ownerUid !== uid; // skip owned boards (already deleted above)
-      });
-
-      try {
-        for (const ownerUid of new Set(nonOwnedBoards.map(d => d.data().ownerUid))) {
-          await db.runTransaction(async tx => {
-            const lockRef = db.collection('hierarchyLocks').doc(ownerUid);
-            const lockSnap = await tx.get(lockRef);
-            const snap = await tx.get(db.collection('boards').where('ownerUid', '==', ownerUid));
-            const affected = snap.docs.filter(d => d.data().memberUids?.includes(uid) || d.data().directMemberUids?.includes(uid));
-            if (affected.length > 450) throw new HttpsError('resource-exhausted', 'נדרש ניקוי שיתוף לפני מחיקת החשבון');
-            for (const d of affected) tx.update(d.ref, {
-              memberUids: admin.firestore.FieldValue.arrayRemove(uid),
-              directMemberUids: (d.data().directMemberUids ?? d.data().memberUids ?? []).filter(member => member !== uid),
-            });
-            tx.set(lockRef, {...lockSnap.data(), revision:(lockSnap.data()?.revision ?? 0)+1});
-          });
-        }
-      } catch (err) {
-        console.error('deleteMyAccount: failed to clean up board membership, aborting account deletion:', err);
-        throw new HttpsError(
-            'internal',
-            'שגיאה בניקוי חברות בלוחות. החשבון לא נמחק. נסה שוב.',
         );
       }
 

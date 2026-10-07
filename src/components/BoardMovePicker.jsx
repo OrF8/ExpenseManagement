@@ -6,13 +6,15 @@ import { Spinner } from './ui/Spinner';
 /** Browse destinations one level at a time; entering a board never moves it. */
 export function BoardMovePicker({ board, boards, uid, loading, error, moving, onMove }) {
   const [locationId, setLocationId] = useState(null);
-  const ownedBoards = useMemo(() => boards.filter(b =>
-    b.ownerUid === uid && b.memberUids?.includes(uid)), [boards, uid]);
-  const hierarchy = useMemo(() => indexHierarchy(ownedBoards), [ownedBoards]);
-  const canBrowse = id => canReparent(board.id, id, ownedBoards);
+  const accessibleBoards = useMemo(() => boards.filter(b => b.memberUids?.includes(uid)), [boards, uid]);
+  const hierarchy = useMemo(() => indexHierarchy(accessibleBoards), [accessibleBoards]);
+  const canBrowse = id => {
+    const {path, incomplete} = ancestorPath(id, accessibleBoards);
+    return !incomplete && path.length > 0 && path.every(b => b.id !== board.id && !b.deleting);
+  };
   // If access or structure changes while browsing, safely return to the root.
   const currentId = locationId && canBrowse(locationId) ? locationId : null;
-  const { path } = ancestorPath(currentId, ownedBoards);
+  const { path } = ancestorPath(currentId, accessibleBoards);
   const children = (hierarchy.children.get(currentId) ?? []).filter(b => canBrowse(b.id));
   const blocked = loading || !!error || moving || board.deleting || board.ownerUid !== uid;
   const ancestors = path.slice(0, -1);
@@ -41,7 +43,7 @@ export function BoardMovePicker({ board, boards, uid, loading, error, moving, on
       {currentId && <>
         <Button type="button" variant="secondary" disabled={blocked}
           onClick={() => setLocationId(parentOf(hierarchy.byId.get(currentId)))}>למעלה</Button>
-        <Button type="button" loading={moving} disabled={blocked || parentOf(board) === currentId}
+        <Button type="button" loading={moving} disabled={blocked || parentOf(board) === currentId || !canReparent(board.id, currentId, accessibleBoards)}
           onClick={() => onMove(currentId)}>העבר לכאן</Button>
       </>}
       <Button type="button" variant="secondary" disabled={blocked || parentOf(board) === null}
