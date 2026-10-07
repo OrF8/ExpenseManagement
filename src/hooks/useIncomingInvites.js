@@ -26,6 +26,7 @@ export function useIncomingInvites() {
         });
       },
       (err) => {
+        console.error('Failed to load incoming invites:', err);
         setState({
           invites: [],
           error: err?.message || 'שגיאה בטעינת ההזמנות',

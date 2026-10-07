@@ -32,7 +32,7 @@ export function BoardsPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const { boards, loading, error, retryingSecureConnection } = useRootBoards();
-  const { invites: incomingInvites } = useIncomingInvites();
+  const { invites: incomingInvites, error: invitesError } = useIncomingInvites();
   const [showCreate, setShowCreate] = useState(false);
   const [newCurrency, setNewCurrency] = useState('ILS');
   const [newTitle, setNewTitle] = useState('');
@@ -375,10 +375,12 @@ export function BoardsPage() {
       </header>
 
       <main className="max-w-3xl mx-auto px-4 py-8">
-        {(error || signOutError || deleteError || mergeError) && (
+        {(error || invitesError || signOutError || deleteError || mergeError) && (
           <div className="mb-4 rounded-xl bg-red-50 dark:bg-red-900/30 border border-red-100 dark:border-red-800 px-4 py-3 text-sm text-red-600 dark:text-red-400">
             {error
               ? `שגיאה בטעינת הלוחות: ${error}`
+              : invitesError
+              ? `שגיאה בטעינת ההזמנות: ${invitesError}`
               : mergeError || deleteError || signOutError}
           </div>
         )}

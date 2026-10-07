@@ -174,9 +174,9 @@ export function subscribeToBoardInvites(boardId, onData, onError) {
  * Subscribe to real-time updates of pending (non-expired) invites addressed to a specific email.
  * Uses a collection-group query across all boards' invites subcollections.
  *
- * The query intentionally uses only a single equality filter on `invitedEmailLower`
- * so that Firestore's automatically-created single-field collection-group index is
- * sufficient — no custom composite index needs to be deployed.
+ * The query intentionally uses only a single equality filter on `invitedEmailLower`.
+ * Filtered collection-group queries require an explicit collection-group index;
+ * the required single-field index is declared in firestore.indexes.json.
  * Expiry filtering and chronological sorting are done client-side.
  *
  * Backward compatibility: documents without `expiresAt` (legacy) are treated as active.
