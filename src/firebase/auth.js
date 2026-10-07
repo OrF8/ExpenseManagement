@@ -73,8 +73,8 @@ export async function resetPassword(email) {
  *
  * Delegates to the `deleteMyAccount` Cloud Function which:
  *   - Verifies authentication server-side (UID is never provided by the client)
- *   - Deletes every board owned by the user and all descendant boards,
- *     including their subcollections (invites, transactions)
+ *   - Deletes every board owned by the user, including its subcollections
+ *     (invites, transactions); detaches and preserves foreign-owned children
  *   - Removes the user from memberUids/directMemberUids on boards they do not own
  *   - Deletes the user's Firestore profile document
  *   - Deletes the Firebase Auth user record

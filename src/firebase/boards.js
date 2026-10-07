@@ -35,9 +35,9 @@ import { db, functions } from './config';
 const boardsRef = () => collection(db, 'boards');
 
 /**
- * Create a new board owned by the current user.
+ * Create a board; child ownership is derived server-side from parent membership.
  * @param {string} title - Board title
- * @param {string} uid - Owner's UID
+ * @param {string} _uid - Legacy argument; the server uses the authenticated caller
  * @returns {Promise<DocumentReference>}
  */
 export async function createBoard(title, _uid, currency = 'ILS', parentBoardId = null) {
@@ -303,8 +303,12 @@ export async function mergeBoardsIntoSuper(childId, parentId) {
   window.dispatchEvent(new Event('boards-changed'));
   return result;
 }
-export async function removeSubBoardFromSuper(_superBoardId, subBoardId) {
-  return mergeBoardsIntoSuper(subBoardId, null);
+export async function removeSubBoardFromSuper(superBoardId, subBoardId) {
+  const result = await httpsCallable(functions, 'reparentBoard')({
+    boardId: subBoardId, parentBoardId: null, expectedParentBoardId: superBoardId,
+  });
+  window.dispatchEvent(new Event('boards-changed'));
+  return result;
 }
 export async function getHierarchySummary(boardId, includeTransactions = false) {
   const result = await httpsCallable(functions, 'getHierarchySummary')({boardId, includeTransactions});

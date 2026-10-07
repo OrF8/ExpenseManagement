@@ -45,7 +45,8 @@ export function canReparent(childId, parentId, boards) {
   if (!child || childId === parentId) return false;
   if (parentId === null) return true;
   const { path, incomplete } = ancestorPath(parentId, boards);
-  return !incomplete && path.length > 0 && path.every(b => b.id !== childId && b.ownerUid === child.ownerUid && !b.deleting);
+  return !incomplete && path.length > 0 && path.at(-1).ownerUid === child.ownerUid
+    && path.every(b => b.id !== childId && !b.deleting);
 }
 export function boardPathLabel(boardId, boards) {
   const { path, incomplete } = ancestorPath(boardId, boards);

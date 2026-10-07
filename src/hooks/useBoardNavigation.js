@@ -30,7 +30,7 @@ export function useBoardNavigation(board, uid) {
           return;
         }
         const b = entries.get(id);
-        if (!b || !b.memberUids?.includes(uid) || b.ownerUid !== board.ownerUid) { incomplete = true; break; }
+        if (!b || !b.memberUids?.includes(uid)) { incomplete = true; break; }
         path.push(b); id = b.parentBoardId ?? null;
       }
       setPath({boardId, parentId, path: path.reverse(), incomplete});
@@ -38,7 +38,7 @@ export function useBoardNavigation(board, uid) {
     }
     rebuild();
     return () => { stopped = true; subscriptions.forEach(fn => fn()); };
-  }, [boardId, parentId, uid, board?.ownerUid]);
+  }, [boardId, parentId, uid]);
   const currentChildren = childrenState.boardId === boardId ? childrenState : {};
   const currentPath = pathState.boardId === boardId && pathState.parentId === parentId ? pathState : {};
   return {children: currentChildren.children ?? [], error: currentChildren.error, path: currentPath.path ?? [], incomplete: currentPath.incomplete,
