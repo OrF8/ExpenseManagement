@@ -282,7 +282,7 @@ const {createMoneyOperations, MoneyError} = require('./moneyOperations.mjs');
 const {createHierarchyOperations} = require('./hierarchyOperations.mjs');
 const hierarchyOperations = createHierarchyOperations({db, timestamp: () => admin.firestore.FieldValue.serverTimestamp()});
 for (const operation of ['createBoard', 'reparentBoard', 'deleteBoard', 'getHierarchySummary', 'listBoardRoots', 'acceptBoardInvite', 'removeBoardMember', 'leaveBoard']) {
-  exports[operation] = onCall({enforceAppCheck: true}, async request => {
+  exports[operation] = onCall({enforceAppCheck: true, ...(operation === 'getHierarchySummary' ? {timeoutSeconds: 120} : {})}, async request => {
     if (!request.auth) throw new HttpsError('unauthenticated', 'עליך להתחבר');
     try {
       const mode = {acceptBoardInvite: 'accept', removeBoardMember: 'remove', leaveBoard: 'leave'}[operation];
@@ -290,6 +290,10 @@ for (const operation of ['createBoard', 'reparentBoard', 'deleteBoard', 'getHier
       return await hierarchyOperations[operation](request.auth.uid, request.data || {});
     } catch (error) {
       if (error instanceof MoneyError) throw new HttpsError(error.code, error.message);
+      if (operation === 'getHierarchySummary' && request.data?.includeTransactions) {
+        console.error('Hierarchy export failed:', error);
+        throw new HttpsError('failed-precondition', 'לא ניתן להשלים את הייצוא. הנתונים גדולים מדי או שאינם זמינים כעת. יש לרענן ולנסות שוב, או לייצא לוחות משנה בנפרד. לא נוצר קובץ חלקי.');
+      }
       console.error('Hierarchy operation failed:', error);
       throw new HttpsError('internal', 'הפעולה נכשלה. יש לרענן ולנסות שוב.');
     }

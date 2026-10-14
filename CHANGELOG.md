@@ -4,6 +4,17 @@ All notable changes to this project are documented in this file.
 
 The format is inspired by [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project follows [Semantic Versioning](https://semver.org/).
 
+## [1.9.0] — 2026-10-14
+
+### Changed
+- Excel exports use one authorized server snapshot for ordinary boards and entire nested subtrees, including direct transactions at intermediate levels. Empty boards appear in the first summary sheet without empty transaction sheets.
+- Hierarchical worksheet names use ` › ` with deterministic shortening and case-insensitive collision handling; full `/` paths remain visible in sheets and summary navigation.
+- The hierarchy summary distinguishes direct and recursive transaction counts and exact totals, with separate currency breakdowns for mixed-currency subtrees and no historical reconversion.
+- Safe amounts and exchange rates are numeric Excel cells with currency-specific precision. Values beyond Excel's 15 significant digits or with excess currency precision remain exact, highlighted text with an explanatory note. Totals still use the existing exact money utilities.
+- Transaction exports retain all existing columns, use deterministic date/creation/ID ordering, and add RTL layouts, metadata, frozen headers, bounded filters, date cells, and summary links.
+- Export reads use a read-only Firestore snapshot and bounded transaction pages. Exports fail explicitly above 1,000 boards, 20,000 transactions, 6 MiB of response data or repeated path text, or Excel's cell-text limit; no partial workbook is downloaded.
+- Frontend and Cloud Functions release metadata now target 1.9.0.
+
 ## [1.8.0] — 2026-10-07
 
 ### Added
