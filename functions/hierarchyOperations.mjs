@@ -1,6 +1,7 @@
 import { currencyDigits, currencyOf, aggregateTransactions, mergeCurrencyTotals } from './shared/money.mjs';
 import { indexHierarchy } from './shared/hierarchy.mjs';
 import { MoneyError } from './moneyOperations.mjs';
+import { EXPORT_LIMITS, EXPORT_TOO_LARGE } from './shared/exportLimits.mjs';
 const fail = (code, message) => { throw new MoneyError(code, message); };
 const unique = values => [...new Set(values)];
 const direct = b => unique([b.ownerUid, ...(b.directMemberUids ?? b.memberUids ?? [])]);
@@ -51,19 +52,23 @@ export function createHierarchyOperations({ db, timestamp }) {
     }
     return result;
   }
-  async function subtree(tx, root, uid) {
+  async function subtree(tx, root, uid, maxBoards = null) {
     const result = [root], visited = new Set([root.id]);
     // Query one breadth-first frontier at a time, up to Firestore's 30-value IN limit.
     let frontier = [root.id];
     while (frontier.length) {
       const next = [];
       for (let i = 0; i < frontier.length; i += 30) {
-        const snap = await tx.get(db.collection('boards').where('parentBoardId', 'in', frontier.slice(i, i + 30)));
+        let query = db.collection('boards').where('parentBoardId', 'in', frontier.slice(i, i + 30));
+        // Read one extra record to detect overflow; never silently cut off a branch.
+        if (maxBoards !== null) query = query.limit(maxBoards - result.length + 1);
+        const snap = await tx.get(query);
         for (const doc of snap.docs) {
           const b = { ...doc.data(), id: doc.id };
           if (visited.has(b.id)) fail('failed-precondition', 'Invalid hierarchy cycle');
           if (!b.memberUids?.includes(uid) || b.deleting) fail('permission-denied', 'Invalid hierarchy access');
           visited.add(b.id); result.push(b); next.push(b.id);
+          if (maxBoards !== null && result.length > maxBoards) fail('resource-exhausted', EXPORT_TOO_LARGE);
         }
       }
       frontier = next;
@@ -232,16 +237,42 @@ export function createHierarchyOperations({ db, timestamp }) {
       });
     },
     async getHierarchySummary(uid, {boardId, includeTransactions = false}) {
+      // Export reads need a consistent snapshot without holding write locks on
+      // every transaction while serially reading a potentially deep hierarchy.
       return db.runTransaction(async tx => {
         const root = await read(tx, boardId, uid);
-        const nodes = await subtree(tx, root, uid);
+        const nodes = await subtree(tx, root, uid, includeTransactions ? EXPORT_LIMITS.boards : null);
         const totalsByBoard = new Map(), worksheets = [];
+        let transactionCount = 0, payloadBytes = 0;
         for (const b of nodes) {
-          const rows = await tx.get(ref(b.id).collection('transactions'));
-          const transactions = rows.docs.map(d => ({...d.data(), id: d.id}));
           const currency = currencyOf(b);
+          const transactions = [];
+          const worksheet = {id: b.id, parentBoardId: b.parentBoardId ?? null, name: b.title, title: b.title, currency, transactions};
+          if (includeTransactions) payloadBytes += Buffer.byteLength(JSON.stringify(worksheet), 'utf8');
+          // Page by the implicit document-ID order, not createdAt: legacy records
+          // without that field must be included. All pages share this snapshot.
+          let cursor = null;
+          do {
+            if (includeTransactions && payloadBytes > EXPORT_LIMITS.bytes) fail('resource-exhausted', EXPORT_TOO_LARGE);
+            const pageSize = includeTransactions ? Math.min(100, EXPORT_LIMITS.transactions - transactionCount + 1) : null;
+            let query = ref(b.id).collection('transactions');
+            if (includeTransactions) query = query.limit(pageSize);
+            if (cursor) query = query.startAfter(cursor);
+            const rows = await tx.get(query);
+            transactionCount += rows.docs.length;
+            if (includeTransactions && transactionCount > EXPORT_LIMITS.transactions) fail('resource-exhausted', EXPORT_TOO_LARGE);
+            for (const doc of rows.docs) {
+              const record = {...doc.data(), id: doc.id};
+              if (includeTransactions) {
+                payloadBytes += Buffer.byteLength(JSON.stringify(record), 'utf8') + 1;
+                if (payloadBytes > EXPORT_LIMITS.bytes) fail('resource-exhausted', EXPORT_TOO_LARGE);
+              }
+              transactions.push(record);
+            }
+            cursor = includeTransactions && rows.docs.length === pageSize ? rows.docs.at(-1) : null;
+          } while (cursor);
           totalsByBoard.set(b.id, {[currency]: aggregateTransactions(transactions, currency).grandTotal});
-          if (includeTransactions) worksheets.push({id: b.id, parentBoardId: b.parentBoardId ?? null, name: b.title, title: b.title, currency, transactions});
+          if (includeTransactions) worksheets.push(worksheet);
         }
         const directTotals = totalsByBoard.get(root.id);
         // subtree() returns parents before children. Roll up saved board-currency
@@ -254,8 +285,12 @@ export function createHierarchyOperations({ db, timestamp }) {
         }
         const children = nodes.filter(b => b.parentBoardId === root.id)
           .map(b => ({id: b.id, title: b.title, totals: totalsByBoard.get(b.id)}));
-        return {totals: totalsByBoard.get(root.id), directTotals, children, boardCount: nodes.length, worksheets};
-      });
+        const result = {totals: totalsByBoard.get(root.id), directTotals, children, boardCount: nodes.length, worksheets};
+        if (includeTransactions && Buffer.byteLength(JSON.stringify(result), 'utf8') > EXPORT_LIMITS.bytes) {
+          fail('resource-exhausted', EXPORT_TOO_LARGE);
+        }
+        return result;
+      }, includeTransactions ? {readOnly: true} : {});
     },
   };
 }

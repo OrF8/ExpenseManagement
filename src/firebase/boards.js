@@ -311,7 +311,8 @@ export async function removeSubBoardFromSuper(superBoardId, subBoardId) {
   return result;
 }
 export async function getHierarchySummary(boardId, includeTransactions = false) {
-  const result = await httpsCallable(functions, 'getHierarchySummary')({boardId, includeTransactions});
+  const options = includeTransactions ? { timeout: 130000 } : {};
+  const result = await httpsCallable(functions, 'getHierarchySummary', options)({boardId, includeTransactions});
   return result.data;
 }
 export function subscribeToChildBoards(boardId, uid, onData, onError) {

@@ -486,14 +486,12 @@ function BoardDetail() {
     setExportError(null);
     try {
       const result = await getHierarchySummary(boardId, true);
-      if (result.boardCount > 1) {
-        await exportBoardToExcel({boardName: board.title, includeSummarySheet: true,
-          worksheets: result.worksheets.map(sheet => ({...sheet, name: boardPathLabel(sheet.id, result.worksheets)}))});
-      } else {
-        await exportBoardToExcel({boardName: board.title, worksheets: [{currency: currencyOf(board), name: board.title, transactions}]});
-      }
+      await exportBoardToExcel({boardId, boardCount: result.boardCount, worksheets: result.worksheets});
     } catch (err) {
-      setExportError(err.message || 'שגיאה בייצוא לאקסל. נסה שוב.');
+      const retryable = ['functions/deadline-exceeded', 'functions/unavailable', 'functions/internal'].includes(err.code);
+      setExportError(retryable
+        ? 'לא ניתן להשלים את הייצוא כרגע. יש לנסות שוב או לייצא לוחות משנה בנפרד. לא נוצר קובץ חלקי.'
+        : err.message || 'שגיאה בייצוא לאקסל. לא נוצר קובץ חלקי. יש לרענן ולנסות שוב.');
     } finally {
       setExportingExcel(false);
     }

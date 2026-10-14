@@ -6,7 +6,9 @@ Security fixes are provided for the latest minor line only.
 
 | Version | Supported |
 |---------|:---------:|
-| 1.7.x   |    ✅     |
+| 1.9.x   |    ✅     |
+| 1.8.x   |    ❌     |
+| 1.7.x   |    ❌     |
 | 1.6.x   |    ❌     |
 | 1.5.x   |    ❌     |
 | 1.4.x   |    ❌     |
@@ -16,7 +18,7 @@ Security fixes are provided for the latest minor line only.
 | 1.0.x   |    ❌     |
 | < 1.0.0 |    ❌     |
 
-If you run a self-hosted deployment, upgrade to the latest `1.7.x` patch release as soon as practical.
+If you run a self-hosted deployment, upgrade to the latest `1.9.x` patch release as soon as practical.
 
 ## Reporting a Vulnerability
 
