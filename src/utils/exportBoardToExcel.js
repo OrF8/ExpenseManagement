@@ -288,8 +288,9 @@ function triggerWorkbookDownload(buffer, filename) {
 }
 
 export async function exportBoardToExcel({ boardId, boardCount, worksheets }) {
-  const ExcelJS = window.ExcelJS;
-  if (!ExcelJS?.Workbook) throw new Error('ספריית הייצוא לא נטענה. רענן את העמוד ונסה שוב.');
+  const { default: ExcelJS } = await import('virtual:exceljs-browser').catch(cause => {
+    throw new Error('ספריית הייצוא לא נטענה. רענן את העמוד ונסה שוב.', { cause });
+  });
   const nodes = prepareExcelHierarchy({ boardId, boardCount, worksheets });
   const workbook = new ExcelJS.Workbook();
   workbook.creator = 'OF8 Expense Management';
