@@ -2,7 +2,7 @@
   "name": "expense-management-functions",
   "description": "Firebase Cloud Functions for Expense Management",
   "private": true,
-  "version": "1.9.0",
+  "version": "1.9.1",
   "scripts": {
     "lint": "eslint .",
     "serve": "firebase emulators:start --only functions",
@@ -20,11 +20,20 @@
     "firebase-functions": "^7.3.2"
   },
   "devDependencies": {
-    "eslint": "^10.7.0",
+    "eslint": "^10.15.0",
     "eslint-config-google": "^0.14.0"
   },
   "overrides": {
     "protobufjs": "7.6.5",
-    "js-yaml": "4.2.0"
+    "js-yaml": "4.2.0",
+    "google-gax@4.6.1": {
+      "uuid": "11.1.1"
+    },
+    "gaxios@6.7.1": {
+      "uuid": "11.1.1"
+    },
+    "teeny-request@9.0.0": {
+      "uuid": "11.1.1"
+    }
   }
 }

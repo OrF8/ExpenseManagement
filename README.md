@@ -8,7 +8,7 @@ It supports shared boards, arbitrarily nested sub-boards, invites, and Excel exp
 <p align="center">
   <img src="https://img.shields.io/badge/License-MIT-yellow.svg?logo=opensourceinitiative" alt="License: MIT">
   <img src="https://img.shields.io/github/languages/top/OrF8/ExpenseManagement?style=default&logo=javascript&color=F7DF1E" alt="top-language">
-  <img src="https://img.shields.io/badge/Release-v1.9.0-4c1?style=flat" alt="Release v1.9.0">
+  <img src="https://img.shields.io/badge/Release-v1.9.1-4c1?style=flat" alt="Release v1.9.1">
 </p>
 <p align="center">
   <img src="https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=white" alt="react">
@@ -113,7 +113,7 @@ Notes:
 ## Architecture
 
 - **Frontend:** React 19 + Vite 8 + React Router 7 + Tailwind CSS 4.
-- **Backend:** Firebase Cloud Functions (Node.js 22 runtime).
+- **Backend:** Firebase Cloud Functions (Node.js 24 runtime).
 - **Data/Auth:** Firestore + Firebase Authentication.
 - **Hosting:** Firebase Hosting.
 - **Security controls:** Firestore Security Rules, App Check integration in the client, and callable functions with `enforceAppCheck: true`.
@@ -138,7 +138,7 @@ ExpenseManagement/
 
 ### Prerequisites
 
-- Node.js 22+ (recommended for local dev, including functions)
+- Node.js 24 (matches the Functions runtime and deployment workflow)
 - npm
 - Firebase project with:
   - Authentication
@@ -263,7 +263,7 @@ For vulnerability reporting, see [SECURITY.md](./SECURITY.md).
 
 ## Release Status
 
-Current release target: **v1.9.0**.
+Current release target: **v1.9.1**.
 
 See [CHANGELOG.md](./CHANGELOG.md) for release notes.
 

@@ -4,6 +4,26 @@ All notable changes to this project are documented in this file.
 
 The format is inspired by [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project follows [Semantic Versioning](https://semver.org/).
 
+## [1.9.1] — 2026-11-27
+
+### Security
+- Updated the frontend Firestore SDK's Node transport from `@grpc/grpc-js` 1.9.16 to 1.14.7 for alerts #95 and #96. The override applies to Firestore 4.14.0, whose published range still requires 1.9.x. Functions had already moved from 1.14.5 through 1.14.6 to 1.14.7 in #138 and #140.
+- ExcelJS 4.4.0 now uses UUID 11.1.1 in the installed tree and the browser export, replacing UUID 8.3.2 (#36). Both Hosting policies drop the jsDelivr script and source-map allowances.
+- Removed the remaining Functions UUID 8.3.2 and 9.0.1 copies. Cloud Storage 7.19.0 → 7.22.0 drops its direct UUID dependency. Scoped overrides let gaxios 6.7.1, google-gax 4.6.1 and teeny-request 9.0.0 share the CommonJS-compatible UUID 11.1.1.
+- Updated Functions node-forge 1.4.0 → 1.4.2 (#140) → 1.4.4 within Firebase Admin's existing range for #119–#122. Functions fast-xml-parser 5.7.1 → 5.12.1 in #141 already covered #118.
+- Updated ESLint's minimatch from 10.2.5 to 11.0.8 at the root (#117, already addressed in #141), and from 10.2.5 through 10.2.6 (#141) to 11.0.9 in Functions (#116). ExcelJS's archiving dependencies keep minimatch 3.1.5 and 5.1.9.
+- Updated the frontend lint dependency Zod 4.3.6 → 4.6.7 for GHSA-mrhx-c7xc-m3w5.
+
+### Changed
+- Excel export loads a same-origin chunk on demand. The build compiles ExcelJS's browser workbook source against the root lockfile with Rolldown 1.2.15 and its Node polyfills plugin 1.0.4. ExcelJS is now a runtime dependency.
+- Frontend build tools (#138): Vite 8.0.16 → 8.3.5, Rolldown 1.0.3 → 1.2.15 with updated native platform bindings, Oxc types 0.133.0 → 0.155.0, PostCSS 8.5.26 → 8.5.31 and Nano ID 3.3.18 → 3.3.20. Vite now uses Lightning CSS 1.33.0 alongside Tailwind's 1.32.0.
+- Updated root undici 8.11.2 → 8.12.3 (#140) and Functions body-parser 2.3.0 → 2.4.0 with qs 6.16.0 → 6.16.1 (#139). The Functions XML parser update (#141) also refreshed fast-xml-builder 1.2.0 → 1.3.2, entity and number parsing, XML naming and path matching.
+- Aligned both lint toolchains on ESLint 10.15.0 (root from 10.8.0 in #141, Functions from 10.7.0). Their lockfiles update the ESLint config and plugin helpers, glob matching and brace expansion, and the file-entry-cache 8.0.0 → 11.1.5, flat-cache 4.0.1 → 6.1.23 and Keyv 4.5.4 → 5.6.0 dependency chains.
+- Updated both package manifests, lockfiles and the README release badge and status to 1.9.1.
+
+### Fixed
+- Corrected the README's Functions runtime and local development instructions to Node.js 24, matching the package engine and deployment workflow.
+
 ## [1.9.0] — 2026-10-14
 
 ### Changed
